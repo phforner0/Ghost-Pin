@@ -253,6 +253,11 @@ class SimulationService : LifecycleService() {
                 stopSelf()
 
             } catch (e: Exception) {
+                // CancellationException = cancelamento normal (usuário parou, service destruído).
+                // Relançar permite que o framework de coroutines faça o cleanup correto
+                // e evita o log E/SimulationService: "Simulation error" espúrio.
+                if (e is kotlinx.coroutines.CancellationException) throw e
+            
                 Log.e(TAG, "Simulation error", e)
                 repository.emitState(SimulationState.Error(
                     e.message ?: "Unknown simulation error"
