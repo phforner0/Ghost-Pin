@@ -88,6 +88,7 @@ dependencies {
 
     // MapLibre
     implementation("org.maplibre.gl:android-sdk:11.8.2")
+    implementation("org.maplibre.gl:android-plugin-annotation-v9:3.0.0")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
