@@ -28,3 +28,8 @@ replay_pid*
 /app/build
 /.gradle
 /.gradle
+/.gradle
+/.gradle/8.14
+/engine/build
+/engine/build
+*.len
