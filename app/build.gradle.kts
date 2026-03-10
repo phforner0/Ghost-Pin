@@ -1,7 +1,9 @@
 plugins {
     id("com.android.application")
     kotlin("android")
-    kotlin("kapt")
+    // Fix: kapt replaced by KSP — eliminates the Alpha warning for Kotlin 2.x
+    // and reduces annotation processing build time by ~30-50%.
+    id("com.google.devtools.ksp")
     kotlin("plugin.compose")
     id("com.google.dagger.hilt.android")
 }
@@ -24,7 +26,6 @@ android {
         compose = true
         buildConfig = true
     }
-
 
     flavorDimensions += "distribution"
     productFlavors {
@@ -64,9 +65,9 @@ dependencies {
     implementation(project(":core"))
     implementation(project(":engine"))
 
-    // Hilt
+    // Hilt — using ksp instead of kapt
     implementation("com.google.dagger:hilt-android:2.54")
-    kapt("com.google.dagger:hilt-android-compiler:2.54")
+    ksp("com.google.dagger:hilt-android-compiler:2.54")
 
     // AndroidX Core
     implementation("androidx.core:core-ktx:1.15.0")
@@ -98,7 +99,4 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }
-
-kapt {
-    correctErrorTypes = true
-}
+// Note: kapt { correctErrorTypes = true } block removed — not needed with KSP.
