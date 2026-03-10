@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.ghostpin.core.security.LogSanitizerTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-03-10T07:39:17.164Z" hostname="DESKTOP-OSOO2IJ" time="0.12">
+  <properties/>
+  <testcase name="sanitizeString handles mixed content()" classname="com.ghostpin.core.security.LogSanitizerTest" time="0.095"/>
+  <testcase name="sanitizeString removes high-precision coordinates()" classname="com.ghostpin.core.security.LogSanitizerTest" time="0.004"/>
+  <testcase name="sanitizeString preserves non-coordinate numbers()" classname="com.ghostpin.core.security.LogSanitizerTest" time="0.002"/>
+  <testcase name="offsetCoord applies offset()" classname="com.ghostpin.core.security.LogSanitizerTest" time="0.002"/>
+  <testcase name="sanitizeCoord truncates to 2 decimal places()" classname="com.ghostpin.core.security.LogSanitizerTest" time="0.008"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

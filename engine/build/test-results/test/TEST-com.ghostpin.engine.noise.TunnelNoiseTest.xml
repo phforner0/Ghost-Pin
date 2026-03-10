@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.ghostpin.engine.noise.TunnelNoiseTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-03-10T07:39:21.942Z" hostname="DESKTOP-OSOO2IJ" time="0.047">
+  <properties/>
+  <testcase name="tunnel events occur at approximately expected rate()" classname="com.ghostpin.engine.noise.TunnelNoiseTest" time="0.032"/>
+  <testcase name="tunnel suppresses position()" classname="com.ghostpin.engine.noise.TunnelNoiseTest" time="0.002"/>
+  <testcase name="reset clears tunnel state()" classname="com.ghostpin.engine.noise.TunnelNoiseTest" time="0.001"/>
+  <testcase name="re-acquisition occurs after tunnel exit()" classname="com.ghostpin.engine.noise.TunnelNoiseTest" time="0.002"/>
+  <testcase name="drone has very low tunnel probability()" classname="com.ghostpin.engine.noise.TunnelNoiseTest" time="0.006"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,2 @@
+-keep,allowobfuscation,allowshrinking class com.ghostpin.app.ui.SimulationViewModel
+-keep,allowobfuscation,allowshrinking class com.ghostpin.app.ui.SimulationViewModel

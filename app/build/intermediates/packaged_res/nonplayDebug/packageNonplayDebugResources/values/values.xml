@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_pause">Pause</string>
+    <string name="action_resume">Resume</string>
+    <string name="action_start">Start</string>
+    <string name="action_stop">Stop</string>
+    <string name="app_name">GhostPin</string>
+    <string name="developer_options_hint">Enable \"Mock location app\" in Developer Options</string>
+    <string name="mock_provider_disabled">Mock provider requires non-Play build</string>
+    <string name="notification_simulation_text">Simulating %1$s movement</string>
+    <string name="notification_simulation_title">Simulation Active</string>
+    <string name="permission_required">Location permission required</string>
+    <string name="profile_bicycle">Bicycle</string>
+    <string name="profile_car">Car</string>
+    <string name="profile_drone">Drone</string>
+    <string name="profile_pedestrian">Pedestrian</string>
+    <string name="profile_urban">Urban Vehicle</string>
+    <style name="Theme.GhostPin" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

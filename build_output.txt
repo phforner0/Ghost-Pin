@@ -1,0 +1,91 @@
+﻿To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :core:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :engine:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preNonplayDebugBuild UP-TO-DATE
+> Task :engine:processResources NO-SOURCE
+> Task :app:generateNonplayDebugBuildConfig UP-TO-DATE
+> Task :core:compileKotlin UP-TO-DATE
+> Task :core:compileJava NO-SOURCE
+> Task :core:processResources NO-SOURCE
+> Task :core:classes UP-TO-DATE
+> Task :core:jar UP-TO-DATE
+> Task :engine:compileKotlin UP-TO-DATE
+> Task :engine:compileJava NO-SOURCE
+> Task :engine:classes UP-TO-DATE
+> Task :engine:jar UP-TO-DATE
+> Task :app:checkNonplayDebugAarMetadata UP-TO-DATE
+> Task :app:generateNonplayDebugResValues UP-TO-DATE
+> Task :app:mapNonplayDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateNonplayDebugResources UP-TO-DATE
+> Task :app:mergeNonplayDebugResources UP-TO-DATE
+> Task :app:packageNonplayDebugResources UP-TO-DATE
+> Task :app:parseNonplayDebugLocalResources UP-TO-DATE
+> Task :app:createNonplayDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksNonplayDebug UP-TO-DATE
+> Task :app:processNonplayDebugMainManifest UP-TO-DATE
+> Task :app:processNonplayDebugManifest UP-TO-DATE
+> Task :app:processNonplayDebugManifestForPackage UP-TO-DATE
+> Task :app:processNonplayDebugResources UP-TO-DATE
+> Task :app:kaptGenerateStubsNonplayDebugKotlin UP-TO-DATE
+> Task :app:kaptNonplayDebugKotlin UP-TO-DATE
+
+> Task :app:compileNonplayDebugKotlin FAILED
+.\gradlew.bat : e: file:///C:/Games
+/GhostPin/app/src/main/kotlin/com/g
+hostpin/app/ui/MainActivity.kt:310:
+14 Expression 'weight' of type 
+'kotlin.Float' cannot be invoked 
+as a function. Function 'invoke()' 
+is not found.
+No linha:1 caractere:23
++ ... s\GhostPin; .\gradlew.bat 
+:app:compileNonplayDebugKotlin 
+--no-daemon  ...
++                 ~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~
+    + CategoryInfo          : NotS 
+   pecified: (e: file:///C:/G...'  
+   is not found.:String) [], Rem   
+ oteException
+    + FullyQualifiedErrorId : Nati 
+   veCommandError
+ 
+
+[Incubating] Problems report is available at: file:///C:/Games/GhostPin/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an 
+exception.
+
+* What went wrong:
+Execution failed for task 
+':app:compileNonplayDebugKotlin'.
+> A failure occurred while 
+executing org.jetbrains.kotlin.comp
+ilerRunner.GradleCompilerRunnerWith
+Workers$GradleKotlinCompilerWorkAct
+ion
+   > Compilation error. See log 
+for more details
+
+* Try:
+> Run with --stacktrace option to 
+get the stack trace.
+> Run with --info or --debug 
+option to get more log output.
+> Run with --scan to get full 
+insights.
+> Get more help at 
+https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 1m 8s
+21 actionable tasks: 1 executed, 20 up-to-date

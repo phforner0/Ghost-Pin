@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.ghostpin.engine.validation.TrajectoryValidatorTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-03-10T07:39:22.021Z" hostname="DESKTOP-OSOO2IJ" time="0.046">
+  <properties/>
+  <testcase name="valid route produces no warnings()" classname="com.ghostpin.engine.validation.TrajectoryValidatorTest" time="0.011"/>
+  <testcase name="impossible distance for pause produces warning()" classname="com.ghostpin.engine.validation.TrajectoryValidatorTest" time="0.023"/>
+  <testcase name="impossible speed override produces warning()" classname="com.ghostpin.engine.validation.TrajectoryValidatorTest" time="0.007"/>
+  <testcase name="car can handle higher speeds that pedestrian cannot()" classname="com.ghostpin.engine.validation.TrajectoryValidatorTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

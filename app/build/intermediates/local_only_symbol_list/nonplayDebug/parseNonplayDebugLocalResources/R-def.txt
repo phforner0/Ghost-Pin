@@ -1,0 +1,18 @@
+R_DEF: Internal format may change without notice
+local
+string action_pause
+string action_resume
+string action_start
+string action_stop
+string app_name
+string developer_options_hint
+string mock_provider_disabled
+string notification_simulation_text
+string notification_simulation_title
+string permission_required
+string profile_bicycle
+string profile_car
+string profile_drone
+string profile_pedestrian
+string profile_urban
+style Theme.GhostPin

@@ -1,0 +1,8 @@
+=== Realism Report ===
+4 / 4 metrics passed
+
+H✅ PASS  Autocorrelation (lag-1): Expected ∈ [0.3, 0.95], got 0,3991
+7✅ PASS  Excess Kurtosis: Expected > 0.0, got 24,3150
+<✅ PASS  Jump Frequency: Expected 0,030 ± 0.02, got 0,030
+E✅ PASS  Timestamp Monotonicity: All timestamps strictly increasing
+

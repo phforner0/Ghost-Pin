@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.ghostpin.realism.metrics.RealismMetricsTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-03-10T07:39:24.147Z" hostname="DESKTOP-OSOO2IJ" time="0.257">
+  <properties/>
+  <testcase name="autocorrelation detects uncorrelated noise as failure()" classname="com.ghostpin.realism.metrics.RealismMetricsTest" time="0.075"/>
+  <testcase name="autocorrelation detects correlated OU noise()" classname="com.ghostpin.realism.metrics.RealismMetricsTest" time="0.011"/>
+  <testcase name="full realism report runs all metrics()" classname="com.ghostpin.realism.metrics.RealismMetricsTest" time="0.079"/>
+  <testcase name="kurtosis near zero for pure Gaussian()" classname="com.ghostpin.realism.metrics.RealismMetricsTest" time="0.027"/>
+  <testcase name="jump frequency metric validates correctly()" classname="com.ghostpin.realism.metrics.RealismMetricsTest" time="0.003"/>
+  <testcase name="timestamp monotonicity passes for ordered sequence()" classname="com.ghostpin.realism.metrics.RealismMetricsTest" time="0.005"/>
+  <testcase name="kurtosis detects heavy tails from multipath()" classname="com.ghostpin.realism.metrics.RealismMetricsTest" time="0.027"/>
+  <testcase name="timestamp monotonicity detects violations()" classname="com.ghostpin.realism.metrics.RealismMetricsTest" time="0.018"/>
+  <system-out><![CDATA[=== Realism Report ===
+4 / 4 metrics passed
+
+✅ PASS  Autocorrelation (lag-1): Expected ∈ [0.3, 0.95], got 0,3991
+✅ PASS  Excess Kurtosis: Expected > 0.0, got 24,3150
+✅ PASS  Jump Frequency: Expected 0,030 ± 0.02, got 0,030
+✅ PASS  Timestamp Monotonicity: All timestamps strictly increasing
+
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
