@@ -1,5 +1,6 @@
 package com.ghostpin.app.di
 
+import com.ghostpin.app.routing.OsrmRouteProvider
 import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.engine.noise.LayeredNoiseModel
 import com.ghostpin.engine.validation.TrajectoryValidator
@@ -12,9 +13,13 @@ import javax.inject.Singleton
 /**
  * Hilt module providing simulation engine dependencies.
  *
- * The LayeredNoiseModel is provided as a factory since it needs to be
- * reconfigured when the user switches profiles. The [TrajectoryValidator]
- * is stateless and can be a singleton.
+ * Sprint 2: [OsrmRouteProvider] is annotated [@Singleton] + [@Inject constructor]
+ * so Hilt resolves it automatically — no explicit @Provides needed.
+ * It is listed here only for documentation clarity.
+ *
+ * [LayeredNoiseModel] is intentionally NOT a singleton: each simulation
+ * creates a fresh instance via [LayeredNoiseModel.fromProfile] so that
+ * the OU state resets cleanly between runs.
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -22,16 +27,14 @@ object SimulationModule {
 
     @Provides
     @Singleton
-    fun provideTrajectoryValidator(): TrajectoryValidator {
-        return TrajectoryValidator()
-    }
+    fun provideTrajectoryValidator(): TrajectoryValidator = TrajectoryValidator()
 
     /**
-     * Provides a default LayeredNoiseModel configured for Pedestrian.
-     * The ViewModel will swap this out when profiles change.
+     * Default noise model (Pedestrian). The service overrides this per-profile
+     * by calling [LayeredNoiseModel.fromProfile] directly — this binding exists
+     * so injection points that want a default always get a valid instance.
      */
     @Provides
-    fun provideLayeredNoiseModel(): LayeredNoiseModel {
-        return LayeredNoiseModel.fromProfile(MovementProfile.PEDESTRIAN)
-    }
+    fun provideLayeredNoiseModel(): LayeredNoiseModel =
+        LayeredNoiseModel.fromProfile(MovementProfile.PEDESTRIAN)
 }

@@ -3,11 +3,20 @@ package com.ghostpin.app.service
 import com.ghostpin.core.model.MockLocation
 
 /**
- * Represents the current state of the simulation service.
+ * Represents the current state of the [SimulationService].
  */
 sealed class SimulationState {
+
     /** Service is idle — no simulation running. */
     data object Idle : SimulationState()
+
+    /**
+     * Service is fetching the street route from OSRM before starting.
+     * The UI should show a loading indicator and disable the Start button.
+     */
+    data class FetchingRoute(
+        val profileName: String,
+    ) : SimulationState()
 
     /** Simulation is actively running. */
     data class Running(

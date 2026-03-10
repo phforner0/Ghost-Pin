@@ -15,10 +15,9 @@ import javax.inject.Singleton
  * Bridges the pure-Kotlin [MockLocation] data class to Android's LocationManager
  * mock provider API.
  *
- * Handles:
- * - Test provider registration / unregistration
- * - MockLocation → android.location.Location conversion
- * - elapsedRealtimeNanos and provider metadata
+ * Bug #8 fix: [registerProvider] now calls [removeTestProvider] inside a try/catch
+ * before [addTestProvider], so that a service crash-and-restart never leaves a
+ * "provider already exists" IllegalArgumentException.
  */
 @Singleton
 class MockLocationInjector @Inject constructor(
@@ -34,13 +33,14 @@ class MockLocationInjector @Inject constructor(
      * Register this app as a mock location provider.
      * Must be called before injecting locations.
      *
-     * Requirements:
-     * - App must be selected as "Mock location app" in Developer Options
-     * - ACCESS_FINE_LOCATION permission must be granted
+     * Idempotent: safe to call multiple times and safe to call after a service
+     * crash where the provider may still be lingering in the system.
      */
     @SuppressLint("MissingPermission")
     fun registerProvider() {
-        if (isProviderRegistered) return
+        // Bug #8: always attempt removal first to avoid "provider already registered"
+        // crash on service restart after unexpected termination.
+        silentlyRemoveProvider()
 
         try {
             locationManager.addTestProvider(
@@ -62,58 +62,60 @@ class MockLocationInjector @Inject constructor(
                 "Cannot register mock provider. Ensure this app is selected as " +
                 "'Mock location app' in Developer Options.", e
             )
+        } catch (e: IllegalArgumentException) {
+            // Should not happen after the silent removal above, but guard anyway.
+            throw IllegalStateException(
+                "addTestProvider failed unexpectedly: ${e.message}", e
+            )
         }
     }
 
     /**
      * Inject a [MockLocation] into the system as a real GPS fix.
+     * Auto-registers the provider if not yet registered.
      */
     @SuppressLint("MissingPermission")
     fun inject(mockLocation: MockLocation) {
-        if (!isProviderRegistered) {
-            registerProvider()
-        }
-
-        val androidLocation = toAndroidLocation(mockLocation)
-        locationManager.setTestProviderLocation(providerName, androidLocation)
+        if (!isProviderRegistered) registerProvider()
+        locationManager.setTestProviderLocation(providerName, toAndroidLocation(mockLocation))
     }
 
     /**
      * Unregister the mock provider and restore normal GPS operation.
+     * Safe to call even if the provider was never registered.
      */
     fun unregisterProvider() {
-        if (!isProviderRegistered) return
+        silentlyRemoveProvider()
+    }
 
+    // ── Private helpers ──────────────────────────────────────────────────────
+
+    /** Remove the test provider without throwing — used in both registration and cleanup. */
+    private fun silentlyRemoveProvider() {
         try {
             locationManager.setTestProviderEnabled(providerName, false)
             locationManager.removeTestProvider(providerName)
-        } catch (e: Exception) {
-            // Best-effort cleanup
+        } catch (_: Exception) {
+            // Provider may not exist; that is fine.
         } finally {
             isProviderRegistered = false
         }
     }
 
-    /**
-     * Convert platform-independent [MockLocation] to Android [Location].
-     */
-    private fun toAndroidLocation(mock: MockLocation): Location {
-        return Location(providerName).apply {
-            latitude = mock.lat
-            longitude = mock.lng
-            altitude = mock.altitude
-            speed = mock.speed
-            bearing = mock.bearing
-            accuracy = mock.accuracy
+    private fun toAndroidLocation(mock: MockLocation): Location =
+        Location(providerName).apply {
+            latitude               = mock.lat
+            longitude              = mock.lng
+            altitude               = mock.altitude
+            speed                  = mock.speed
+            bearing                = mock.bearing
+            accuracy               = mock.accuracy
             verticalAccuracyMeters = mock.verticalAccuracy
             speedAccuracyMetersPerSecond = mock.speedAccuracy
             bearingAccuracyDegrees = mock.bearingAccuracy
-            time = mock.timestampMs
-            elapsedRealtimeNanos = if (mock.elapsedRealtimeNanos > 0) {
-                mock.elapsedRealtimeNanos
-            } else {
-                SystemClock.elapsedRealtimeNanos()
-            }
+            time                   = mock.timestampMs
+            elapsedRealtimeNanos   = mock.elapsedRealtimeNanos
+                .takeIf { it > 0L }
+                ?: SystemClock.elapsedRealtimeNanos()
         }
-    }
 }
