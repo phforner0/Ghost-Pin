@@ -1,8 +1,7 @@
 plugins {
     id("com.android.application")
     kotlin("android")
-    // Fix: kapt replaced by KSP — eliminates the Alpha warning for Kotlin 2.x
-    // and reduces annotation processing build time by ~30-50%.
+    // kapt replaced by KSP — faster, required for Kotlin 2.x, no Alpha warnings.
     id("com.google.devtools.ksp")
     kotlin("plugin.compose")
     id("com.google.dagger.hilt.android")
@@ -16,10 +15,16 @@ android {
         applicationId = "com.ghostpin.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "3.0.0"
+        versionCode = 2           // Sprint 4 bump
+        versionName = "3.1.0"    // Sprint 4 — Profiles & Routes
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Room schema export directory — enables migration history tracking.
+        ksp {
+            arg("room.schemaLocation", "$projectDir/schemas")
+            arg("room.incremental", "true")
+        }
     }
 
     buildFeatures {
@@ -65,9 +70,15 @@ dependencies {
     implementation(project(":core"))
     implementation(project(":engine"))
 
-    // Hilt — using ksp instead of kapt
+    // Hilt — using KSP
     implementation("com.google.dagger:hilt-android:2.54")
     ksp("com.google.dagger:hilt-android-compiler:2.54")
+
+    // Room — Sprint 4: profile + route persistence
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")       // suspend + Flow extensions
+    ksp("androidx.room:room-compiler:$roomVersion")             // KSP (not kapt)
 
     // AndroidX Core
     implementation("androidx.core:core-ktx:1.15.0")
@@ -96,7 +107,7 @@ dependencies {
 
     // Testing
     testImplementation("junit:junit:4.13.2")
+    testImplementation("androidx.room:room-testing:$roomVersion")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }
-// Note: kapt { correctErrorTypes = true } block removed — not needed with KSP.
