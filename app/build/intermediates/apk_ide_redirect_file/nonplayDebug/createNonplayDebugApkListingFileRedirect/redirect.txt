@@ -1,2 +1,0 @@
-#- File Locator -
-listingFile=../../../../outputs/apk/nonplay/debug/output-metadata.json
