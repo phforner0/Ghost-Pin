@@ -391,7 +391,7 @@ private fun WaypointCard(
             if (!isLast) {
                 IconButton(onClick = onEditSegment, modifier = Modifier.size(36.dp)) {
                     Icon(
-                        if (hasOverride) Icons.Default.Tune else Icons.Default.TuneOutlined,
+                        if (hasOverride) Icons.Default.Tune else Icons.Default.Settings,
                         null,
                         tint = if (hasOverride) Color(0xFFFFB300) else Color(0xFF555555),
                         modifier = Modifier.size(18.dp),

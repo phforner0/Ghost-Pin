@@ -55,7 +55,8 @@ class RouteFileExporter @Inject constructor() {
             route.waypoints.forEach { wp ->
                 appendLine("""      <trkpt lat="${wp.lat.fmt()}" lon="${wp.lng.fmt()}">""")
                 if (wp.altitude != 0.0) appendLine("""        <ele>${wp.altitude.fmt()}</ele>""")
-                if (wp.label != null) appendLine("""        <name>${wp.label.xmlEscape()}</name>""")
+                val label = wp.label
+                if (label != null) appendLine("""        <n>${label.xmlEscape()}</n>""")
                 appendLine("""      </trkpt>""")
             }
             appendLine("""    </trkseg>""")

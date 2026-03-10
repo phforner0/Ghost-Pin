@@ -277,7 +277,7 @@ class RouteEditorViewModel @Inject constructor(
 
     private fun buildRoute(state: EditorState): Route {
         val waypoints = state.waypoints
-        val segments = waypoints.indices.dropLast(1).map { i ->
+        val segments = (0 until waypoints.size - 1).map { i ->
             val override = state.segmentOverrides[i]
             val dist = haversine(waypoints[i], waypoints[i + 1])
             Segment(
