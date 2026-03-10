@@ -67,24 +67,21 @@ import dagger.hilt.android.AndroidEntryPoint
 import org.maplibre.android.MapLibre
 import org.maplibre.android.maps.MapView
 
-/**
- * Single-activity entry point for GhostPin.
- * Uses Jetpack Compose for the entire UI.
- */
+/** Single-activity entry point for GhostPin. Uses Jetpack Compose for the entire UI. */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     private val viewModel: SimulationViewModel by viewModels()
 
-    private val locationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        // Handle permission results
-    }
+    private val locationPermissionLauncher =
+            registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+                    permissions ->
+                // Handle permission results
+            }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // Initialize MapLibre before using MapView
         MapLibre.getInstance(this)
 
@@ -93,46 +90,50 @@ class MainActivity : ComponentActivity() {
         setContent {
             GhostPinTheme {
                 GhostPinScreen(
-                    viewModel = viewModel,
-                    onStartSimulation = ::startSimulation,
-                    onStopSimulation = ::stopSimulation,
+                        viewModel = viewModel,
+                        onStartSimulation = ::startSimulation,
+                        onStopSimulation = ::stopSimulation,
                 )
             }
         }
     }
 
     private fun requestPermissions() {
-        val permissions = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-        )
+        val permissions =
+                mutableListOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        val needed = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
+        val needed =
+                permissions.filter {
+                    ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+                }
         if (needed.isNotEmpty()) {
             locationPermissionLauncher.launch(needed.toTypedArray())
         }
     }
 
     private fun startSimulation(profile: MovementProfile) {
-        val intent = Intent(this, SimulationService::class.java).apply {
-            putExtra(SimulationService.EXTRA_PROFILE_NAME, profile.name)
-            putExtra(SimulationService.EXTRA_START_LAT, viewModel.startLat.value)
-            putExtra(SimulationService.EXTRA_START_LNG, viewModel.startLng.value)
-            putExtra(SimulationService.EXTRA_END_LAT, viewModel.endLat.value)
-            putExtra(SimulationService.EXTRA_END_LNG, viewModel.endLng.value)
-        }
+        val intent =
+                Intent(this, SimulationService::class.java).apply {
+                    putExtra(SimulationService.EXTRA_PROFILE_NAME, profile.name)
+                    putExtra(SimulationService.EXTRA_START_LAT, viewModel.startLat.value)
+                    putExtra(SimulationService.EXTRA_START_LNG, viewModel.startLng.value)
+                    putExtra(SimulationService.EXTRA_END_LAT, viewModel.endLat.value)
+                    putExtra(SimulationService.EXTRA_END_LNG, viewModel.endLng.value)
+                }
         ContextCompat.startForegroundService(this, intent)
     }
 
     private fun stopSimulation() {
-        val intent = Intent(this, SimulationService::class.java).apply {
-            action = SimulationService.ACTION_STOP
-        }
+        val intent =
+                Intent(this, SimulationService::class.java).apply {
+                    action = SimulationService.ACTION_STOP
+                }
         startService(intent)
     }
 }
@@ -141,21 +142,22 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun GhostPinTheme(content: @Composable () -> Unit) {
-    val darkColorScheme = darkColorScheme(
-        primary = Color(0xFF80CBC4),
-        onPrimary = Color(0xFF003734),
-        primaryContainer = Color(0xFF00504D),
-        secondary = Color(0xFFB0BEC5),
-        surface = Color(0xFF121212),
-        onSurface = Color(0xFFE0E0E0),
-        background = Color(0xFF0A0A0A),
-        onBackground = Color(0xFFE0E0E0),
-        error = Color(0xFFCF6679),
-    )
+    val darkColorScheme =
+            darkColorScheme(
+                    primary = Color(0xFF80CBC4),
+                    onPrimary = Color(0xFF003734),
+                    primaryContainer = Color(0xFF00504D),
+                    secondary = Color(0xFFB0BEC5),
+                    surface = Color(0xFF121212),
+                    onSurface = Color(0xFFE0E0E0),
+                    background = Color(0xFF0A0A0A),
+                    onBackground = Color(0xFFE0E0E0),
+                    error = Color(0xFFCF6679),
+            )
 
     MaterialTheme(
-        colorScheme = darkColorScheme,
-        content = content,
+            colorScheme = darkColorScheme,
+            content = content,
     )
 }
 
@@ -164,74 +166,80 @@ fun GhostPinTheme(content: @Composable () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GhostPinScreen(
-    viewModel: SimulationViewModel,
-    onStartSimulation: (MovementProfile) -> Unit,
-    onStopSimulation: () -> Unit,
+        viewModel: SimulationViewModel,
+        onStartSimulation: (MovementProfile) -> Unit,
+        onStopSimulation: () -> Unit,
 ) {
     val selectedProfile by viewModel.selectedProfile.collectAsState()
     val simulationState by viewModel.simulationState.collectAsState()
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "GhostPin",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp,
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    titleContentColor = Color(0xFF80CBC4),
-                ),
-            )
-        },
-        floatingActionButton = {
-            val isRunning = simulationState is SimulationState.Running
-            ExtendedFloatingActionButton(
-                onClick = {
-                    if (isRunning) onStopSimulation() else onStartSimulation(selectedProfile)
-                },
-                icon = {
-                    Icon(
-                        if (isRunning) Icons.Default.Stop else Icons.Default.PlayArrow,
-                        contentDescription = null,
-                    )
-                },
-                text = { Text(if (isRunning) "Stop" else "Start") },
-                containerColor = if (isRunning) Color(0xFFCF6679) else Color(0xFF80CBC4),
-                contentColor = Color(0xFF121212),
-            )
-        },
+            topBar = {
+                TopAppBar(
+                        title = {
+                            Text(
+                                    "GhostPin",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 22.sp,
+                            )
+                        },
+                        colors =
+                                TopAppBarDefaults.topAppBarColors(
+                                        containerColor = Color.Transparent,
+                                        titleContentColor = Color(0xFF80CBC4),
+                                ),
+                )
+            },
+            floatingActionButton = {
+                val isRunning = simulationState is SimulationState.Running
+                ExtendedFloatingActionButton(
+                        onClick = {
+                            if (isRunning) onStopSimulation()
+                            else onStartSimulation(selectedProfile)
+                        },
+                        icon = {
+                            Icon(
+                                    if (isRunning) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                            )
+                        },
+                        text = { Text(if (isRunning) "Stop" else "Start") },
+                        containerColor = if (isRunning) Color(0xFFCF6679) else Color(0xFF80CBC4),
+                        contentColor = Color(0xFF121212),
+                )
+            },
     ) { paddingValues ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color(0xFF0A0A0A), Color(0xFF1A1A2E)),
-                    )
-                )
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier =
+                        Modifier.fillMaxSize()
+                                .padding(paddingValues)
+                                .background(
+                                        Brush.verticalGradient(
+                                                colors =
+                                                        listOf(
+                                                                Color(0xFF0A0A0A),
+                                                                Color(0xFF1A1A2E)
+                                                        ),
+                                        )
+                                )
+                                .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // ── Status Card ──
             StatusCard(simulationState)
 
             // ── Profile Selector ──
             ProfileSelector(
-                profiles = viewModel.profiles,
-                selected = selectedProfile,
-                onSelect = viewModel::selectProfile,
+                    profiles = viewModel.profiles,
+                    selected = selectedProfile,
+                    onSelect = viewModel::selectProfile,
             )
 
             // ── Interactive Map ──
             InteractiveMap(
-                viewModel = viewModel,
-                simulationState = simulationState,
-                modifier = Modifier.weight(1f),
+                    viewModel = viewModel,
+                    simulationState = simulationState,
+                    modifier = Modifier.weight(1f),
             )
         }
     }
@@ -240,57 +248,63 @@ fun GhostPinScreen(
 @Composable
 fun StatusCard(state: SimulationState) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1E1E2E),
-        ),
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors =
+                    CardDefaults.cardColors(
+                            containerColor = Color(0xFF1E1E2E),
+                    ),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    Icons.Default.MyLocation,
-                    contentDescription = null,
-                    tint = when (state) {
-                        is SimulationState.Running -> Color(0xFF80CBC4)
-                        is SimulationState.Error -> Color(0xFFCF6679)
-                        else -> Color(0xFF666666)
-                    },
-                    modifier = Modifier.size(28.dp),
+                        Icons.Default.MyLocation,
+                        contentDescription = null,
+                        tint =
+                                when (state) {
+                                    is SimulationState.Running -> Color(0xFF80CBC4)
+                                    is SimulationState.Error -> Color(0xFFCF6679)
+                                    else -> Color(0xFF666666)
+                                },
+                        modifier = Modifier.size(28.dp),
                 )
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = when (state) {
-                            is SimulationState.Idle -> "Idle"
-                            is SimulationState.Running -> "Simulating • ${state.profileName}"
-                            is SimulationState.Paused -> "Paused • ${state.profileName}"
-                            is SimulationState.Error -> "Error"
-                        },
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 16.sp,
-                        color = Color(0xFFE0E0E0),
+                            text =
+                                    when (state) {
+                                        is SimulationState.Idle -> "Idle"
+                                        is SimulationState.Running ->
+                                                "Simulating • ${state.profileName}"
+                                        is SimulationState.Paused -> "Paused • ${state.profileName}"
+                                        is SimulationState.Error -> "Error"
+                                    },
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 16.sp,
+                            color = Color(0xFFE0E0E0),
                     )
                     if (state is SimulationState.Running) {
                         Text(
-                            text = "Frame #${state.frameCount} • " +
-                                    "${state.progressPercent.toInt()}% • " +
-                                    "${state.elapsedTimeSec}s",
-                            fontSize = 13.sp,
-                            color = Color(0xFF888888),
+                                text =
+                                        "Frame #${state.frameCount} • " +
+                                                "${state.progressPercent.toInt()}% • " +
+                                                "${state.elapsedTimeSec}s",
+                                fontSize = 13.sp,
+                                color = Color(0xFF888888),
                         )
                         Text(
-                            text = "Lat: ${"%.6f".format(state.currentLocation.lat)}, " +
-                                    "Lng: ${"%.6f".format(state.currentLocation.lng)}",
-                            fontSize = 12.sp,
-                            color = Color(0xFF80CBC4),
+                                text =
+                                        "Lat: ${"%.6f".format(state.currentLocation.lat)}, " +
+                                                "Lng: ${"%.6f".format(state.currentLocation.lng)}",
+                                fontSize = 12.sp,
+                                color = Color(0xFF80CBC4),
                         )
                     }
                     if (state is SimulationState.Error) {
                         Text(
-                            text = state.message,
-                            fontSize = 13.sp,
-                            color = Color(0xFFCF6679),
+                                text = state.message,
+                                fontSize = 13.sp,
+                                color = Color(0xFFCF6679),
                         )
                     }
                 }
@@ -301,43 +315,44 @@ fun StatusCard(state: SimulationState) {
 
 @Composable
 fun ProfileSelector(
-    profiles: List<MovementProfile>,
-    selected: MovementProfile,
-    onSelect: (MovementProfile) -> Unit,
+        profiles: List<MovementProfile>,
+        selected: MovementProfile,
+        onSelect: (MovementProfile) -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2E)),
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2E)),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                "Movement Profile",
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFFE0E0E0),
-                fontSize = 14.sp,
+                    "Movement Profile",
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFFE0E0E0),
+                    fontSize = 14.sp,
             )
             Spacer(Modifier.height(8.dp))
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
             ) {
                 profiles.forEach { profile ->
                     val isSelected = profile == selected
                     FilterChip(
-                        selected = isSelected,
-                        onClick = { onSelect(profile) },
-                        label = {
-                            Text(
-                                profile.name,
-                                fontSize = 11.sp,
-                                maxLines = 1,
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFF80CBC4),
-                            selectedLabelColor = Color(0xFF121212),
-                        ),
+                            selected = isSelected,
+                            onClick = { onSelect(profile) },
+                            label = {
+                                Text(
+                                        profile.name,
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                )
+                            },
+                            colors =
+                                    FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = Color(0xFF80CBC4),
+                                            selectedLabelColor = Color(0xFF121212),
+                                    ),
                     )
                 }
             }
@@ -347,9 +362,9 @@ fun ProfileSelector(
 
 @Composable
 fun InteractiveMap(
-    viewModel: SimulationViewModel,
-    simulationState: SimulationState,
-    modifier: Modifier = Modifier
+        viewModel: SimulationViewModel,
+        simulationState: SimulationState,
+        modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -357,7 +372,7 @@ fun InteractiveMap(
     // Remember MapView and Controller
     val mapView = remember { MapView(context) }
     var mapController by remember { mutableStateOf<MapController?>(null) }
-    
+
     // Track coordinate state to draw the route
     val startLat by viewModel.startLat.collectAsState()
     val startLng by viewModel.startLng.collectAsState()
@@ -386,7 +401,7 @@ fun InteractiveMap(
     // Effect to update map when simulation state changes
     LaunchedEffect(simulationState, startLat, startLng, endLat, endLng) {
         val controller = mapController ?: return@LaunchedEffect
-        
+
         when (simulationState) {
             is SimulationState.Idle -> {
                 // Not running: draw the selected route
@@ -408,26 +423,35 @@ fun InteractiveMap(
     }
 
     Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2E)),
+            modifier = modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2E)),
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             AndroidView(
-                factory = {
-                    mapView.apply {
-                        getMapAsync { mapLibreMap ->
-                            mapController = MapController(mapLibreMap, context) { latLng ->
-                                // On long press, toggle start/end logic based on a simplistic rule:
-                                // if we don't have a route, set start. Else set end. For demo it's fine.
-                                viewModel.setStartCoords(latLng.latitude, latLng.longitude)
-                                // Hardcode rough +1km offset for end point demo:
-                                viewModel.setEndCoords(latLng.latitude + 0.005, latLng.longitude + 0.005)
+                    factory = {
+                        mapView.apply {
+                            getMapAsync { mapLibreMap ->
+                                mapController =
+                                        MapController(mapLibreMap, context) { latLng ->
+                                            // On long press, toggle start/end logic based on a
+                                            // simplistic rule:
+                                            // if we don't have a route, set start. Else set end.
+                                            // For demo it's fine.
+                                            viewModel.setStartCoords(
+                                                    latLng.latitude,
+                                                    latLng.longitude
+                                            )
+                                            // Hardcode rough +1km offset for end point demo:
+                                            viewModel.setEndCoords(
+                                                    latLng.latitude + 0.005,
+                                                    latLng.longitude + 0.005
+                                            )
+                                        }
                             }
                         }
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
+                    },
+                    modifier = Modifier.fillMaxSize()
             )
         }
     }
