@@ -1,18 +1,17 @@
 package com.ghostpin.app.ui
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.ghostpin.app.service.SimulationService
 import com.ghostpin.app.service.SimulationState
 import com.ghostpin.core.model.MovementProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/**
- * ViewModel managing simulation UI state.
- * Handles profile selection, coordinate input, and service state observation.
- */
 @HiltViewModel
 class SimulationViewModel @Inject constructor() : ViewModel() {
 
@@ -41,6 +40,15 @@ class SimulationViewModel @Inject constructor() : ViewModel() {
         MovementProfile.URBAN_VEHICLE,
         MovementProfile.DRONE,
     )
+
+    init {
+        // Observar o estado do serviço e replicá-lo para a UI
+        viewModelScope.launch {
+            SimulationService.sharedState.collect { serviceState ->
+                _simulationState.value = serviceState
+            }
+        }
+    }
 
     fun selectProfile(profile: MovementProfile) {
         _selectedProfile.value = profile

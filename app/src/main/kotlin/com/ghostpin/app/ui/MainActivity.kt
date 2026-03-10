@@ -369,17 +369,17 @@ fun InteractiveMap(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Remember MapView and Controller
     val mapView = remember { MapView(context) }
     var mapController by remember { mutableStateOf<MapController?>(null) }
 
-    // Track coordinate state to draw the route
+    // 🆕 Track whether start has been placed yet
+    var startPlaced by remember { mutableStateOf(false) }
+
     val startLat by viewModel.startLat.collectAsState()
     val startLng by viewModel.startLng.collectAsState()
     val endLat by viewModel.endLat.collectAsState()
     val endLng by viewModel.endLng.collectAsState()
 
-    // Manage MapView lifecycle via AndroidView
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -398,27 +398,19 @@ fun InteractiveMap(
         }
     }
 
-    // Effect to update map when simulation state changes
     LaunchedEffect(simulationState, startLat, startLng, endLat, endLng) {
         val controller = mapController ?: return@LaunchedEffect
-
         when (simulationState) {
             is SimulationState.Idle -> {
-                // Not running: draw the selected route
                 controller.clearPosition()
                 controller.updateRoute(startLat, startLng, endLat, endLng)
             }
             is SimulationState.Running -> {
-                // Running: ensure route is drawn and update marker position
                 controller.updateRoute(startLat, startLng, endLat, endLng)
                 controller.updatePosition(simulationState.currentLocation)
             }
-            is SimulationState.Paused -> {
-                controller.updatePosition(simulationState.lastLocation)
-            }
-            is SimulationState.Error -> {
-                controller.clearPosition()
-            }
+            is SimulationState.Paused -> controller.updatePosition(simulationState.lastLocation)
+            is SimulationState.Error -> controller.clearPosition()
         }
     }
 
@@ -434,25 +426,48 @@ fun InteractiveMap(
                             getMapAsync { mapLibreMap ->
                                 mapController =
                                         MapController(mapLibreMap, context) { latLng ->
-                                            // On long press, toggle start/end logic based on a
-                                            // simplistic rule:
-                                            // if we don't have a route, set start. Else set end.
-                                            // For demo it's fine.
-                                            viewModel.setStartCoords(
-                                                    latLng.latitude,
-                                                    latLng.longitude
-                                            )
-                                            // Hardcode rough +1km offset for end point demo:
-                                            viewModel.setEndCoords(
-                                                    latLng.latitude + 0.005,
-                                                    latLng.longitude + 0.005
-                                            )
+                                            // 🆕 Toggle logic: start → end → reset
+                                            if (!startPlaced) {
+                                                viewModel.setStartCoords(
+                                                        latLng.latitude,
+                                                        latLng.longitude
+                                                )
+                                                // Clear end to default (same as start) so route
+                                                // isn't drawn yet
+                                                viewModel.setEndCoords(
+                                                        latLng.latitude,
+                                                        latLng.longitude
+                                                )
+                                                startPlaced = true
+                                            } else {
+                                                viewModel.setEndCoords(
+                                                        latLng.latitude,
+                                                        latLng.longitude
+                                                )
+                                                startPlaced = false // ready for next route reset
+                                            }
                                         }
                             }
                         }
                     },
                     modifier = Modifier.fillMaxSize()
             )
+
+            // 🆕 Helper text so the user knows what to do
+            if (simulationState is SimulationState.Idle) {
+                Text(
+                        text =
+                                if (!startPlaced) "Long-press to set Start"
+                                else "Long-press to set End",
+                        modifier =
+                                Modifier.align(Alignment.BottomCenter)
+                                        .padding(bottom = 12.dp)
+                                        .background(Color(0xCC1E1E2E), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        color = Color(0xFF80CBC4),
+                        fontSize = 12.sp,
+                )
+            }
         }
     }
 }

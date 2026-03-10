@@ -40,7 +40,7 @@ class MapController(
 
     init {
         // Load a free vector style using URL directly
-        map.setStyle(Style.Builder().fromUri("https://demotiles.maplibre.org/style.json")) {
+        map.setStyle(Style.Builder().fromUri("https://tiles.openfreemap.org/styles/liberty")) {
                 loadedStyle ->
             this.style = loadedStyle
             setupLayers(loadedStyle)

@@ -45,13 +45,17 @@ class SimulationService : LifecycleService() {
 
     companion object {
         const val EXTRA_PROFILE_NAME = "profile_name"
-        const val EXTRA_START_LAT = "start_lat"
-        const val EXTRA_START_LNG = "start_lng"
-        const val EXTRA_END_LAT = "end_lat"
-        const val EXTRA_END_LNG = "end_lng"
+        const val EXTRA_START_LAT    = "start_lat"
+        const val EXTRA_START_LNG    = "start_lng"
+        const val EXTRA_END_LAT      = "end_lat"
+        const val EXTRA_END_LNG      = "end_lng"
         const val EXTRA_FREQUENCY_HZ = "frequency_hz"
-        const val ACTION_STOP = "com.ghostpin.action.STOP"
-        const val NOTIFICATION_ID = 1001
+        const val ACTION_STOP        = "com.ghostpin.action.STOP"
+        const val NOTIFICATION_ID    = 1001
+    
+        // 🆕 Shared state observable by anyone (ViewModel, Activity, etc.)
+        private val _sharedState = MutableStateFlow<SimulationState>(SimulationState.Idle)
+        val sharedState: StateFlow<SimulationState> = _sharedState.asStateFlow()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -64,7 +68,7 @@ class SimulationService : LifecycleService() {
 
         // Guard: mock provider must be enabled for this build flavor
         if (!BuildConfig.MOCK_PROVIDER_ENABLED) {
-            _state.value = SimulationState.Error("Mock provider not available in this build.")
+            _sharedState.value = SimulationState.Error("Mock provider not available in this build.")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -132,7 +136,7 @@ class SimulationService : LifecycleService() {
                     val noisyLocation = noiseModel!!.applyToLocation(rawLocation, deltaTimeSec)
                     mockLocationInjector.inject(noisyLocation)
 
-                    _state.value = SimulationState.Running(
+                    _sharedState.value = SimulationState.Running(
                         currentLocation = noisyLocation,
                         profileName = profile.name,
                         progressPercent = progress * 100f,
@@ -145,11 +149,11 @@ class SimulationService : LifecycleService() {
                 }
 
                 // Simulation complete
-                _state.value = SimulationState.Idle
+                _sharedState.value = SimulationState.Idle
                 stopSelf()
 
             } catch (e: Exception) {
-                _state.value = SimulationState.Error(e.message ?: "Unknown error")
+                _sharedState.value = SimulationState.Error(e.message ?: "Unknown error")
                 stopSelf()
             }
         }
@@ -165,7 +169,7 @@ class SimulationService : LifecycleService() {
             mockLocationInjector.unregisterProvider()
         } catch (_: Exception) { }
 
-        _state.value = SimulationState.Idle
+        _sharedState.value = SimulationState.Idle
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
