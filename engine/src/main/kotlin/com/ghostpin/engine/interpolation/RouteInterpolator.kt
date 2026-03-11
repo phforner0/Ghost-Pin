@@ -2,6 +2,7 @@ package com.ghostpin.engine.interpolation
 
 import com.ghostpin.core.model.Route
 import com.ghostpin.core.model.Waypoint
+import com.ghostpin.core.math.GeoMath
 import kotlin.math.*
 
 /**
@@ -162,28 +163,17 @@ class RouteInterpolator(val route: Route) {
 
         /**
          * Haversine distance between two WGS-84 points, in metres.
+         * Delegates to [GeoMath.haversineMeters].
          */
-        fun haversineMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
-            val R    = 6_371_000.0
-            val dLat = Math.toRadians(lat2 - lat1)
-            val dLng = Math.toRadians(lng2 - lng1)
-            val a    = sin(dLat / 2).pow(2) +
-                cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLng / 2).pow(2)
-            return R * 2.0 * asin(sqrt(a.coerceIn(0.0, 1.0)))
-        }
+        fun haversineMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double =
+            GeoMath.haversineMeters(lat1, lng1, lat2, lng2)
 
         /**
          * Initial bearing from (lat1,lng1) to (lat2,lng2) in degrees [0, 360).
+         * Delegates to [GeoMath.bearingBetween].
          */
-        fun bearingBetween(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Float {
-            val dLng   = Math.toRadians(lng2 - lng1)
-            val lat1R  = Math.toRadians(lat1)
-            val lat2R  = Math.toRadians(lat2)
-            val y      = sin(dLng) * cos(lat2R)
-            val x      = cos(lat1R) * sin(lat2R) - sin(lat1R) * cos(lat2R) * cos(dLng)
-            val result = Math.toDegrees(atan2(y, x))
-            return ((result + 360.0) % 360.0).toFloat()
-        }
+        fun bearingBetween(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Float =
+            GeoMath.bearingBetween(lat1, lng1, lat2, lng2)
     }
 }
 

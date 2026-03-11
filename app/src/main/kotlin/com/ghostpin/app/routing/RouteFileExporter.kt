@@ -2,10 +2,9 @@ package com.ghostpin.app.routing
 
 import com.ghostpin.core.model.Route
 import com.ghostpin.core.model.Waypoint
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,9 +24,12 @@ import javax.inject.Singleton
 @Singleton
 class RouteFileExporter @Inject constructor() {
 
-    private val isoDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-        timeZone = TimeZone.getTimeZone("UTC")
-    }
+    /** Thread-safe ISO 8601 timestamp formatter (replaces SimpleDateFormat — BUG-02). */
+    private val isoFormatter: DateTimeFormatter =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
+            .withZone(ZoneOffset.UTC)
+
+    private fun isoNow(): String = isoFormatter.format(Instant.now())
 
     // ── GPX ──────────────────────────────────────────────────────────────────
 
@@ -38,7 +40,7 @@ class RouteFileExporter @Inject constructor() {
      * @return GPX XML string, ready to write to a .gpx file.
      */
     fun toGpx(route: Route): String {
-        val now = isoDateFormat.format(Date())
+        val now = isoNow()
         return buildString {
             appendLine("""<?xml version="1.0" encoding="UTF-8"?>""")
             appendLine("""<gpx version="1.1" creator="GhostPin v3" """)
@@ -106,7 +108,7 @@ class RouteFileExporter @Inject constructor() {
      * @return TCX XML string, ready to write to a .tcx file.
      */
     fun toTcx(route: Route, sport: String = "Other"): String {
-        val now = isoDateFormat.format(Date())
+        val now = isoNow()
         return buildString {
             appendLine("""<?xml version="1.0" encoding="UTF-8"?>""")
             appendLine("""<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2">""")

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="12dp"
+    android:background="#E01A1A2E">
+
+    <!-- Status label -->
+    <TextView
+        android:id="@+id/widget_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Stopped"
+        android:textColor="#E0E0E0"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <!-- Profile name -->
+    <TextView
+        android:id="@+id/widget_profile"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="—"
+        android:textColor="#888888"
+        android:textSize="11sp"
+        android:layout_marginTop="2dp" />
+
+    <!-- Start/Stop button -->
+    <Button
+        android:id="@+id/widget_button"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:layout_marginTop="8dp"
+        android:text="Start"
+        android:textColor="#121212"
+        android:backgroundTint="#80CBC4"
+        android:textSize="12sp"
+        android:minWidth="80dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp" />
+
+</LinearLayout>

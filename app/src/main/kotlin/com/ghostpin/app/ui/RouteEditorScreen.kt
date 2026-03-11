@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ghostpin.app.routing.RouteFileParser
+import com.ghostpin.app.ui.theme.GhostPinColors
 import com.ghostpin.core.model.Waypoint
 
 /**
@@ -69,40 +70,40 @@ fun RouteEditorScreen(
     }
 
     Scaffold(
-        containerColor = Color(0xFF121212),
+        containerColor = GhostPinColors.Background,
         topBar = {
             TopAppBar(
                 title = {
                     Text(
                         state.routeName,
-                        color = Color(0xFFE0E0E0),
+                        color = GhostPinColors.TextPrimary,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.clickable { showNameDialog = true },
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, null, tint = Color(0xFFE0E0E0))
+                        Icon(Icons.Default.ArrowBack, null, tint = GhostPinColors.TextPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF1A1A2E)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = GhostPinColors.TopBar),
                 actions = {
                     // Export button
                     IconButton(onClick = { showExportMenu = true }) {
-                        Icon(Icons.Default.Share, null, tint = Color(0xFF80CBC4))
+                        Icon(Icons.Default.Share, null, tint = GhostPinColors.Primary)
                     }
                     // Saved routes
                     IconButton(onClick = { showSavedRoutes = !showSavedRoutes }) {
-                        Icon(Icons.Default.Folder, null, tint = Color(0xFF80CBC4))
+                        Icon(Icons.Default.Folder, null, tint = GhostPinColors.Primary)
                     }
                 }
             )
         },
         bottomBar = {
-            BottomAppBar(containerColor = Color(0xFF1A1A2E)) {
+            BottomAppBar(containerColor = GhostPinColors.TopBar) {
                 // Clear
                 IconButton(onClick = { viewModel.clearRoute() }) {
-                    Icon(Icons.Default.DeleteSweep, null, tint = Color(0xFFCF6679))
+                    Icon(Icons.Default.DeleteSweep, null, tint = GhostPinColors.Error)
                 }
                 Spacer(Modifier.weight(1f))
                 // Use for simulation
@@ -111,9 +112,9 @@ fun RouteEditorScreen(
                         onClick = {
                             viewModel.buildCurrentRoute()?.let { onRouteReady(it) }
                         },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF80CBC4)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = GhostPinColors.Primary),
                         border = ButtonDefaults.outlinedButtonBorder.copy(
-                            brush = androidx.compose.ui.graphics.SolidColor(Color(0xFF80CBC4))
+                            brush = androidx.compose.ui.graphics.SolidColor(GhostPinColors.Primary)
                         ),
                         modifier = Modifier.padding(end = 8.dp),
                     ) {
@@ -124,16 +125,16 @@ fun RouteEditorScreen(
                 Button(
                     onClick = { viewModel.save() },
                     enabled = state.canSave && !state.isSaving,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF80CBC4)),
+                    colors = ButtonDefaults.buttonColors(containerColor = GhostPinColors.Primary),
                 ) {
                     if (state.isSaving) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(18.dp),
                             strokeWidth = 2.dp,
-                            color = Color(0xFF121212),
+                            color = GhostPinColors.Background,
                         )
                     } else {
-                        Text("Save", color = Color(0xFF121212), fontWeight = FontWeight.Bold)
+                        Text("Save", color = GhostPinColors.Background, fontWeight = FontWeight.Bold)
                     }
                 }
                 Spacer(Modifier.width(8.dp))
@@ -151,11 +152,11 @@ fun RouteEditorScreen(
                 state.error?.let { err ->
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF3B1F24)),
+                        colors = CardDefaults.cardColors(containerColor = GhostPinColors.ErrorContainer),
                         shape = RoundedCornerShape(10.dp),
                     ) {
                         Text(
-                            err, color = Color(0xFFCF6679),
+                            err, color = GhostPinColors.Error,
                             modifier = Modifier.padding(12.dp), fontSize = 13.sp,
                         )
                     }
@@ -169,12 +170,12 @@ fun RouteEditorScreen(
             ) {
                 Text(
                     "Waypoints",
-                    color = Color(0xFF888888), fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                    color = GhostPinColors.TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
                     "${state.waypoints.size} points",
-                    color = Color(0xFF666666), fontSize = 12.sp,
+                    color = GhostPinColors.TextTertiary, fontSize = 12.sp,
                 )
             }
 
@@ -187,12 +188,12 @@ fun RouteEditorScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
                             Icons.Default.TouchApp, null,
-                            tint = Color(0xFF444444), modifier = Modifier.size(48.dp),
+                            tint = GhostPinColors.TextMuted, modifier = Modifier.size(48.dp),
                         )
                         Spacer(Modifier.height(12.dp))
                         Text(
                             "Long-press on the map\nto add waypoints",
-                            color = Color(0xFF666666), fontSize = 14.sp,
+                            color = GhostPinColors.TextTertiary, fontSize = 14.sp,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         )
                     }
@@ -222,12 +223,12 @@ fun RouteEditorScreen(
                     Spacer(Modifier.height(16.dp))
                     Text(
                         "Saved Routes",
-                        color = Color(0xFF888888), fontSize = 13.sp,
+                        color = GhostPinColors.TextSecondary, fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                     )
                     Spacer(Modifier.height(8.dp))
                     if (savedRoutes.isEmpty()) {
-                        Text("No saved routes yet.", color = Color(0xFF666666), fontSize = 13.sp)
+                        Text("No saved routes yet.", color = GhostPinColors.TextTertiary, fontSize = 13.sp)
                     } else {
                         LazyColumn(
                             modifier = Modifier.heightIn(max = 220.dp),
@@ -254,7 +255,7 @@ fun RouteEditorScreen(
         if (showExportMenu) {
             AlertDialog(
                 onDismissRequest = { showExportMenu = false },
-                title = { Text("Export Route", color = Color(0xFFE0E0E0)) },
+                title = { Text("Export Route", color = GhostPinColors.TextPrimary) },
                 text = {
                     Column {
                         listOf(
@@ -269,7 +270,7 @@ fun RouteEditorScreen(
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Text(label, color = Color(0xFF80CBC4))
+                                Text(label, color = GhostPinColors.Primary)
                             }
                         }
                     }
@@ -277,10 +278,10 @@ fun RouteEditorScreen(
                 confirmButton = {},
                 dismissButton = {
                     TextButton(onClick = { showExportMenu = false }) {
-                        Text("Cancel", color = Color(0xFF888888))
+                        Text("Cancel", color = GhostPinColors.TextSecondary)
                     }
                 },
-                containerColor = Color(0xFF1E1E2E),
+                containerColor = GhostPinColors.Surface,
             )
         }
 
@@ -310,17 +311,17 @@ fun RouteEditorScreen(
             var nameInput by remember { mutableStateOf(state.routeName) }
             AlertDialog(
                 onDismissRequest = { showNameDialog = false },
-                title = { Text("Route Name", color = Color(0xFFE0E0E0)) },
+                title = { Text("Route Name", color = GhostPinColors.TextPrimary) },
                 text = {
                     OutlinedTextField(
                         value = nameInput,
                         onValueChange = { nameInput = it },
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF80CBC4),
-                            unfocusedBorderColor = Color(0xFF444444),
-                            focusedTextColor = Color(0xFFE0E0E0),
-                            unfocusedTextColor = Color(0xFFE0E0E0),
+                            focusedBorderColor = GhostPinColors.Primary,
+                            unfocusedBorderColor = GhostPinColors.TextMuted,
+                            focusedTextColor = GhostPinColors.TextPrimary,
+                            unfocusedTextColor = GhostPinColors.TextPrimary,
                         ),
                     )
                 },
@@ -328,14 +329,14 @@ fun RouteEditorScreen(
                     TextButton(onClick = {
                         viewModel.setRouteName(nameInput)
                         showNameDialog = false
-                    }) { Text("OK", color = Color(0xFF80CBC4)) }
+                    }) { Text("OK", color = GhostPinColors.Primary) }
                 },
                 dismissButton = {
                     TextButton(onClick = { showNameDialog = false }) {
-                        Text("Cancel", color = Color(0xFF888888))
+                        Text("Cancel", color = GhostPinColors.TextSecondary)
                     }
                 },
-                containerColor = Color(0xFF1E1E2E),
+                containerColor = GhostPinColors.Surface,
             )
         }
     }
@@ -355,7 +356,7 @@ private fun WaypointCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2E)),
+        colors = CardDefaults.cardColors(containerColor = GhostPinColors.Surface),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -366,7 +367,7 @@ private fun WaypointCard(
                 modifier = Modifier
                     .size(28.dp)
                     .background(
-                        color = if (index == 0) Color(0xFF4CAF50) else Color(0xFF37474F),
+                        color = if (index == 0) GhostPinColors.Success else GhostPinColors.WaypointDefault,
                         shape = RoundedCornerShape(6.dp),
                     ),
                 contentAlignment = Alignment.Center,
@@ -379,11 +380,11 @@ private fun WaypointCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     waypoint.label ?: "Waypoint ${index + 1}",
-                    color = Color(0xFFE0E0E0), fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                    color = GhostPinColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
                 )
                 Text(
                     "${"%.5f".format(waypoint.lat)}, ${"%.5f".format(waypoint.lng)}",
-                    color = Color(0xFF888888), fontSize = 11.sp,
+                    color = GhostPinColors.TextSecondary, fontSize = 11.sp,
                 )
             }
 
@@ -393,7 +394,7 @@ private fun WaypointCard(
                     Icon(
                         if (hasOverride) Icons.Default.Tune else Icons.Default.Settings,
                         null,
-                        tint = if (hasOverride) Color(0xFFFFB300) else Color(0xFF555555),
+                        tint = if (hasOverride) GhostPinColors.Warning else GhostPinColors.TextDisabled,
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -401,7 +402,7 @@ private fun WaypointCard(
 
             // Remove waypoint
             IconButton(onClick = onRemove, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Default.Close, null, tint = Color(0xFF555555), modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Close, null, tint = GhostPinColors.TextDisabled, modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -416,23 +417,23 @@ private fun SavedRouteCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF252535)),
+        colors = CardDefaults.cardColors(containerColor = GhostPinColors.SurfaceVariant),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Route, null, tint = Color(0xFF80CBC4), modifier = Modifier.size(20.dp))
+            Icon(Icons.Default.Route, null, tint = GhostPinColors.Primary, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(route.name, color = Color(0xFFE0E0E0), fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                Text("${route.waypoints.size} waypoints", color = Color(0xFF888888), fontSize = 11.sp)
+                Text(route.name, color = GhostPinColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text("${route.waypoints.size} waypoints", color = GhostPinColors.TextSecondary, fontSize = 11.sp)
             }
             IconButton(onClick = onLoad, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Default.FileOpen, null, tint = Color(0xFF80CBC4), modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.FileOpen, null, tint = GhostPinColors.Primary, modifier = Modifier.size(18.dp))
             }
             IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Default.Delete, null, tint = Color(0xFFCF6679), modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Delete, null, tint = GhostPinColors.Error, modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -455,12 +456,12 @@ private fun SegmentOverrideSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF1E1E2E),
+        containerColor = GhostPinColors.Surface,
     ) {
         Column(modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
             Text(
                 "Segment ${segmentIndex + 1} → ${segmentIndex + 2} Overrides",
-                color = Color(0xFFE0E0E0), fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
+                color = GhostPinColors.TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
             )
             Spacer(Modifier.height(20.dp))
 
@@ -468,16 +469,16 @@ private fun SegmentOverrideSheet(
             OutlinedTextField(
                 value = speedText,
                 onValueChange = { speedText = it },
-                label = { Text("Speed override (m/s)", color = Color(0xFF888888)) },
-                placeholder = { Text("Leave blank = profile default", color = Color(0xFF555555)) },
+                label = { Text("Speed override (m/s)", color = GhostPinColors.TextSecondary) },
+                placeholder = { Text("Leave blank = profile default", color = GhostPinColors.TextDisabled) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF80CBC4),
-                    unfocusedBorderColor = Color(0xFF444444),
-                    focusedTextColor = Color(0xFFE0E0E0),
-                    unfocusedTextColor = Color(0xFFE0E0E0),
+                    focusedBorderColor = GhostPinColors.Primary,
+                    unfocusedBorderColor = GhostPinColors.TextMuted,
+                    focusedTextColor = GhostPinColors.TextPrimary,
+                    unfocusedTextColor = GhostPinColors.TextPrimary,
                 ),
             )
 
@@ -487,16 +488,16 @@ private fun SegmentOverrideSheet(
             OutlinedTextField(
                 value = pauseText,
                 onValueChange = { pauseText = it },
-                label = { Text("Pause at end of segment (seconds)", color = Color(0xFF888888)) },
-                placeholder = { Text("0 = no pause", color = Color(0xFF555555)) },
+                label = { Text("Pause at end of segment (seconds)", color = GhostPinColors.TextSecondary) },
+                placeholder = { Text("0 = no pause", color = GhostPinColors.TextDisabled) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF80CBC4),
-                    unfocusedBorderColor = Color(0xFF444444),
-                    focusedTextColor = Color(0xFFE0E0E0),
-                    unfocusedTextColor = Color(0xFFE0E0E0),
+                    focusedBorderColor = GhostPinColors.Primary,
+                    unfocusedBorderColor = GhostPinColors.TextMuted,
+                    focusedTextColor = GhostPinColors.TextPrimary,
+                    unfocusedTextColor = GhostPinColors.TextPrimary,
                 ),
             )
 
@@ -507,12 +508,12 @@ private fun SegmentOverrideSheet(
                 Switch(
                     checked = loop,
                     onCheckedChange = { loop = it },
-                    colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF121212), checkedTrackColor = Color(0xFF80CBC4)),
+                    colors = SwitchDefaults.colors(checkedThumbColor = GhostPinColors.Background, checkedTrackColor = GhostPinColors.Primary),
                 )
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    Text("Loop at this segment", color = Color(0xFFE0E0E0), fontSize = 14.sp)
-                    Text("Simulation restarts from start when reaching this point", color = Color(0xFF888888), fontSize = 11.sp)
+                    Text("Loop at this segment", color = GhostPinColors.TextPrimary, fontSize = 14.sp)
+                    Text("Simulation restarts from start when reaching this point", color = GhostPinColors.TextSecondary, fontSize = 11.sp)
                 }
             }
 
@@ -522,7 +523,7 @@ private fun SegmentOverrideSheet(
                 OutlinedButton(
                     onClick = onClear,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFCF6679)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = GhostPinColors.Error),
                 ) { Text("Clear Override") }
 
                 Button(
@@ -532,8 +533,8 @@ private fun SegmentOverrideSheet(
                         onApply(speed, pause, loop)
                     },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF80CBC4)),
-                ) { Text("Apply", color = Color(0xFF121212), fontWeight = FontWeight.Bold) }
+                    colors = ButtonDefaults.buttonColors(containerColor = GhostPinColors.Primary),
+                ) { Text("Apply", color = GhostPinColors.Background, fontWeight = FontWeight.Bold) }
             }
         }
     }

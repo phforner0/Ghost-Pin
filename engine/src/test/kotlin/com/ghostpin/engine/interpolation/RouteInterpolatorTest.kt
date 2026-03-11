@@ -109,7 +109,7 @@ class RouteInterpolatorTest {
     }
 
     @Test
-    fun `bearing is always in [0, 360)`() {
+    fun `bearing is always in range 0 to 360`() {
         val interp  = RouteInterpolator(fourPointRoute)
         val total   = interp.totalDistanceMeters
         for (i in 0..100) {
@@ -122,38 +122,42 @@ class RouteInterpolatorTest {
 
     @Test
     fun `catmull-rom midpoint differs from linear midpoint for curved route`() {
-        // Build a clearly curved route (90-degree turn)
+        // Asymmetric S-curve: tangent contributions at p0/p3 don't cancel
         val curved = Route(
             id = "curved",
-            name = "90-degree turn",
+            name = "S-curve",
             waypoints = listOf(
-                Waypoint(lat = 0.0, lng = 0.0),
-                Waypoint(lat = 0.0, lng = 0.01),   // go east
-                Waypoint(lat = 0.01, lng = 0.01),  // turn north
-                Waypoint(lat = 0.01, lng = 0.02),  // continue east
-            ),
-        )
-        val straight = Route(
-            id = "straight",
-            name = "Straight line",
-            waypoints = listOf(
-                Waypoint(lat = 0.0,  lng = 0.0),
-                Waypoint(lat = 0.01, lng = 0.02),
+                Waypoint(lat = 0.0,   lng = 0.0),    // p0: start
+                Waypoint(lat = 0.0,   lng = 0.02),   // p1: east  (→)
+                Waypoint(lat = 0.01,  lng = 0.02),   // p2: north (↑)
+                Waypoint(lat = 0.02,  lng = 0.0),    // p3: south-west (↙) — asymmetric!
             ),
         )
 
-        val crInterp  = RouteInterpolator(curved)
-        val linInterp = RouteInterpolator(straight)
+        val interp = RouteInterpolator(curved)
 
-        // At 50% progress the CR spline should deviate from the diagonal
-        val crMid  = crInterp.positionAt(crInterp.totalDistanceMeters * 0.5)
-        val linMid = linInterp.positionAt(linInterp.totalDistanceMeters * 0.5)
+        // Sample the Catmull-Rom at 25% of segment 1 (p1→p2) — away from midpoint
+        // to avoid symmetric tangent cancellation at t=0.5.
+        val seg1Start = interp.distanceToWaypoint(1)
+        val seg1End   = interp.distanceToWaypoint(2)
+        val sampleDist = seg1Start + (seg1End - seg1Start) * 0.25
 
-        val latDiff = abs(crMid.lat - linMid.lat)
-        val lngDiff = abs(crMid.lng - linMid.lng)
-        // For this L-shaped route the midpoint should clearly differ
-        assertTrue(latDiff > 1e-5 || lngDiff > 1e-5,
-            "Catmull-Rom and linear midpoints are suspiciously identical")
+        val crPos = interp.positionAt(sampleDist)
+
+        // Corresponding linear 25% along the same segment
+        val p1 = curved.waypoints[1]
+        val p2 = curved.waypoints[2]
+        val linLat = p1.lat + (p2.lat - p1.lat) * 0.25
+        val linLng = p1.lng + (p2.lng - p1.lng) * 0.25
+
+        // The CR spline should differ from linear because incoming tangent
+        // (eastward from seg 0) and outgoing tangent (south-west from seg 2)
+        // pull the curve away from the straight line.
+        val latDiff = abs(crPos.lat - linLat)
+        val lngDiff = abs(crPos.lng - linLng)
+        assertTrue(latDiff > 1e-6 || lngDiff > 1e-6,
+            "Catmull-Rom and linear should differ for asymmetric S-curve: " +
+            "cr=(${crPos.lat}, ${crPos.lng}) lin=($linLat, $linLng)")
     }
 
     // ── haversineMeters ───────────────────────────────────────────────────

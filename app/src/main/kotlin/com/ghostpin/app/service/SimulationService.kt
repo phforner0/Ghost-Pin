@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.os.SystemClock
 import android.util.Log
+import com.ghostpin.core.security.LogSanitizer
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
@@ -53,8 +54,7 @@ class SimulationService : LifecycleService() {
     @Inject lateinit var repository: SimulationRepository
     @Inject lateinit var trajectoryValidator: TrajectoryValidator
 
-    private var noiseModel:    LayeredNoiseModel? = null
-    private var simulationJob: Job?               = null
+    private var simulationJob: Job? = null
 
     companion object {
         private const val TAG = "SimulationService"
@@ -65,7 +65,15 @@ class SimulationService : LifecycleService() {
         const val EXTRA_END_LAT       = "end_lat"
         const val EXTRA_END_LNG       = "end_lng"
         const val EXTRA_FREQUENCY_HZ  = "frequency_hz"
+        const val EXTRA_SPEED_RATIO   = "speed_ratio"
+        const val EXTRA_ROUTE_ID      = "route_id"
+
+        const val ACTION_START        = "com.ghostpin.action.START"
         const val ACTION_STOP         = "com.ghostpin.action.STOP"
+        const val ACTION_PAUSE        = "com.ghostpin.action.PAUSE"
+        const val ACTION_SET_ROUTE    = "com.ghostpin.action.SET_ROUTE"
+        const val ACTION_SET_PROFILE  = "com.ghostpin.action.SET_PROFILE"
+
         const val NOTIFICATION_ID     = 1001
         const val DEFAULT_FREQUENCY   = 5   // Hz — smooth map animation
 
@@ -128,7 +136,7 @@ class SimulationService : LifecycleService() {
             .coerceIn(MIN_FREQUENCY, MAX_FREQUENCY)
 
         val profile = MovementProfile.BUILT_IN[profileName] ?: MovementProfile.PEDESTRIAN.also {
-            Log.w(TAG, "Unknown profile '$profileName' — defaulting to Pedestrian.")
+            Log.w(TAG, LogSanitizer.sanitizeString("Unknown profile '$profileName' — defaulting to Pedestrian."))
         }
 
         startForeground(NOTIFICATION_ID, buildNotification(profile.name))
@@ -153,7 +161,6 @@ class SimulationService : LifecycleService() {
         frequencyHz: Int,
     ) {
         simulationJob?.cancel()
-        noiseModel?.reset()
         repository.emitRoute(null)
 
         // Fix: frequency is already validated above — division is safe
@@ -168,7 +175,7 @@ class SimulationService : LifecycleService() {
                 val route = osrmRouteProvider
                     .fetchRoute(startLat, startLng, endLat, endLng, profile)
                     .getOrElse { error ->
-                        Log.w(TAG, "OSRM fetch failed — using straight-line fallback: ${error.message}")
+                        Log.w(TAG, LogSanitizer.sanitizeString("OSRM fetch failed — using straight-line fallback: ${error.message}"))
                         osrmRouteProvider.fallbackRoute(startLat, startLng, endLat, endLng)
                     }
 
@@ -177,7 +184,7 @@ class SimulationService : LifecycleService() {
                 // ── 2. Pre-simulation trajectory validation ──────────────────
                 val validation = trajectoryValidator.validate(route, profile)
                 if (!validation.isValid) {
-                    Log.w(TAG, "Trajectory validation warnings: ${validation.warnings.joinToString("; ")}")
+                    Log.w(TAG, LogSanitizer.sanitizeString("Trajectory validation warnings: ${validation.warnings.joinToString("; ")}"))
                     // Warnings are non-fatal — simulation proceeds but issues are logged
                 }
 
@@ -192,7 +199,6 @@ class SimulationService : LifecycleService() {
                 // and could theoretically be set to null by stopSimulation() called
                 // from another coroutine. The local val is never null here.
                 val activeNoiseModel = LayeredNoiseModel.fromProfile(profile)
-                noiseModel = activeNoiseModel
 
                 // ── 4. Register mock provider ────────────────────────────────
                 mockLocationInjector.registerProvider()
@@ -271,8 +277,6 @@ class SimulationService : LifecycleService() {
     private fun stopSimulation() {
         simulationJob?.cancel()
         simulationJob = null
-        noiseModel?.reset()
-        noiseModel = null
 
         runCatching { mockLocationInjector.unregisterProvider() }
 

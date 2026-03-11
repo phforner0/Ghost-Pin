@@ -37,6 +37,14 @@ class SimulationRepository @Inject constructor() {
      */
     val route: StateFlow<Route?> = _route.asStateFlow()
 
+    private val _lastUsedConfig = MutableStateFlow<SimulationConfig?>(null)
+
+    /**
+     * Last-used simulation config. Persisted in memory for quick-start
+     * surfaces (QS Tile, Widget, AutomationReceiver).
+     */
+    val lastUsedConfig: StateFlow<SimulationConfig?> = _lastUsedConfig.asStateFlow()
+
     /** Publish a new simulation state to all observers. */
     fun emitState(state: SimulationState) {
         _state.value = state
@@ -45,6 +53,11 @@ class SimulationRepository @Inject constructor() {
     /** Publish a new route (or null to clear) to all observers. */
     fun emitRoute(route: Route?) {
         _route.value = route
+    }
+
+    /** Save the last-used simulation config for quick-start. */
+    fun emitConfig(config: SimulationConfig) {
+        _lastUsedConfig.value = config
     }
 
     /** Reset both state and route to their idle defaults. */

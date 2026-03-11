@@ -31,7 +31,6 @@ import org.maplibre.geojson.Point
  */
 class MapController(
     private val map: MapLibreMap,
-    @Suppress("unused") private val context: Context,
     private val onMapLongClick: (LatLng) -> Unit,
 ) {
     companion object {

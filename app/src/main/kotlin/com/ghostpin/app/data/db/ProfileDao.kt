@@ -38,8 +38,8 @@ interface ProfileDao {
 
     // ── Writes ─────────────────────────────────────────────────────────────
 
-    /** Insert a new profile. Replaces on conflict (used for seeding built-ins). */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /** Insert a new profile. Ignores on conflict — use [update] for modifications. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(profile: ProfileEntity)
 
     /** Insert multiple profiles in one transaction. */

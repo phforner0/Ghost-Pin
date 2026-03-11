@@ -337,7 +337,7 @@ fun InteractiveMap(
                 factory = {
                     mapView.apply {
                         getMapAsync { mapLibreMap ->
-                            mapController = MapController(mapLibreMap, context) { latLng ->
+                            mapController = MapController(mapLibreMap) { latLng ->
                                 onMapLongPress(latLng.latitude, latLng.longitude)
                             }
                         }

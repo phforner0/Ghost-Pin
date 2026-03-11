@@ -3,10 +3,12 @@ package com.ghostpin.app.data
 import android.util.Log
 import com.ghostpin.app.data.db.RouteDao
 import com.ghostpin.app.data.db.RouteEntity
+import com.ghostpin.core.math.GeoMath
 import com.ghostpin.core.model.Route
 import com.ghostpin.core.model.Segment
 import com.ghostpin.core.model.SegmentOverrides
 import com.ghostpin.core.model.Waypoint
+import com.ghostpin.core.security.LogSanitizer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
@@ -78,7 +80,7 @@ class RouteRepository @Inject constructor(
             updatedAtMs = System.currentTimeMillis(),
         )
         dao.update(entity)
-        Log.d(TAG, "Route updated: id=${route.id} name='${route.name}'")
+        Log.d(TAG, LogSanitizer.sanitizeString("Route updated: id=${route.id} name='${route.name}'"))
     }
 
     /**
@@ -170,6 +172,13 @@ class RouteRepository @Inject constructor(
             )
         }
 
+        // BUG-05: Safety check — Route.init requires ≥2 waypoints.
+        // Corrupted DB entries with <2 waypoints would crash without this guard.
+        if (waypoints.size < 2) {
+            Log.w(TAG, "Route id=$id has ${waypoints.size} waypoints — skipping (minimum 2 required).")
+            return@runCatching null
+        }
+
         Route(id = id, name = name, waypoints = waypoints, segments = segments)
     }.onFailure { e ->
         Log.e(TAG, "Failed to deserialize route id=$id: ${e.message}")
@@ -180,16 +189,7 @@ class RouteRepository @Inject constructor(
     private fun haversineTotal(waypoints: List<Waypoint>): Double {
         if (waypoints.size < 2) return 0.0
         return waypoints.zipWithNext().sumOf { (a, b) ->
-            val R = 6_371_000.0
-            val dLat = Math.toRadians(b.lat - a.lat)
-            val dLng = Math.toRadians(b.lng - a.lng)
-            val sinDLat = Math.sin(dLat / 2)
-            val sinDLng = Math.sin(dLng / 2)
-            val c = sinDLat * sinDLat +
-                    Math.cos(Math.toRadians(a.lat)) *
-                    Math.cos(Math.toRadians(b.lat)) *
-                    sinDLng * sinDLng
-            R * 2 * Math.atan2(Math.sqrt(c), Math.sqrt(1 - c))
+            GeoMath.haversineMeters(a.lat, a.lng, b.lat, b.lng)
         }
     }
 }

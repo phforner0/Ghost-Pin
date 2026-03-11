@@ -10,6 +10,7 @@ import com.ghostpin.core.model.Route
 import com.ghostpin.core.model.Segment
 import com.ghostpin.core.model.SegmentOverrides
 import com.ghostpin.core.model.Waypoint
+import com.ghostpin.core.math.GeoMath
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -298,14 +299,6 @@ class RouteEditorViewModel @Inject constructor(
 
     // ── Haversine ─────────────────────────────────────────────────────────────
 
-    private fun haversine(a: Waypoint, b: Waypoint): Double {
-        val R = 6_371_000.0
-        val dLat = Math.toRadians(b.lat - a.lat)
-        val dLng = Math.toRadians(b.lng - a.lng)
-        val sinA = Math.sin(dLat / 2)
-        val sinB = Math.sin(dLng / 2)
-        val c = sinA * sinA +
-                Math.cos(Math.toRadians(a.lat)) * Math.cos(Math.toRadians(b.lat)) * sinB * sinB
-        return R * 2 * Math.atan2(Math.sqrt(c), Math.sqrt(1 - c))
-    }
+    private fun haversine(a: Waypoint, b: Waypoint): Double =
+        GeoMath.haversineMeters(a.lat, a.lng, b.lat, b.lng)
 }

@@ -105,6 +105,9 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
+    // DataStore — Sprint 5: onboarding persistence
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
     // Testing
     testImplementation("junit:junit:4.13.2")
     testImplementation("androidx.room:room-testing:$roomVersion")

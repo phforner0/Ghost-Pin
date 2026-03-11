@@ -42,8 +42,6 @@ class RouteFileParser @Inject constructor() {
             content.contains("<kml", ignoreCase = true)     -> RouteFormat.KML
             content.contains("<TrainingCenterDatabase",
                 ignoreCase = true)                          -> RouteFormat.TCX
-            content.contains("<TrainingCenterDatabase",
-                ignoreCase = false)                         -> RouteFormat.TCX
             else -> null
         }
     }
@@ -177,10 +175,18 @@ class RouteFileParser @Inject constructor() {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private fun parseXml(content: String) =
-        DocumentBuilderFactory.newInstance()
-            .newDocumentBuilder()
-            .parse(InputSource(StringReader(content)))
+    private fun parseXml(content: String): org.w3c.dom.Document {
+        val factory = DocumentBuilderFactory.newInstance().apply {
+            // Harden against XXE (XML External Entity) attacks — SEC-01
+            setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+            setFeature("http://xml.org/sax/features/external-general-entities", false)
+            setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+            setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+            isXIncludeAware = false
+            isExpandEntityReferences = false
+        }
+        return factory.newDocumentBuilder().parse(InputSource(StringReader(content)))
+    }
 
     private fun isValidCoord(lat: Double, lng: Double): Boolean =
         !lat.isNaN() && !lat.isInfinite() && lat in -90.0..90.0 &&
