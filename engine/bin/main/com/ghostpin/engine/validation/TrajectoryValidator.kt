@@ -2,6 +2,7 @@ package com.ghostpin.engine.validation
 
 import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.model.Route
+import com.ghostpin.core.math.GeoMath
 import kotlin.math.*
 
 /**
@@ -59,14 +60,14 @@ class TrajectoryValidator {
                 val next = waypoints[i + 1]
 
                 // Compute bearings
-                val bearingIn = computeBearing(prev.lat, prev.lng, curr.lat, curr.lng)
-                val bearingOut = computeBearing(curr.lat, curr.lng, next.lat, next.lng)
+                val bearingIn = GeoMath.bearingBetween(prev.lat, prev.lng, curr.lat, curr.lng).toDouble()
+                val bearingOut = GeoMath.bearingBetween(curr.lat, curr.lng, next.lat, next.lng).toDouble()
 
                 var angleDelta = abs(bearingOut - bearingIn)
                 if (angleDelta > 180.0) angleDelta = 360.0 - angleDelta
 
                 // Estimate time through the waypoint based on segment distance and max speed
-                val distIn = haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng)
+                val distIn = GeoMath.haversineMeters(prev.lat, prev.lng, curr.lat, curr.lng)
                 val estimatedTime = distIn / profile.maxSpeedMs
 
                 val maxTurn = profile.maxTurnRateDegPerSec * estimatedTime
@@ -85,33 +86,6 @@ class TrajectoryValidator {
         )
     }
 
-    /**
-     * Compute initial bearing from point A to point B (degrees, 0-360).
-     */
-    private fun computeBearing(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
-        val dLng = Math.toRadians(lng2 - lng1)
-        val lat1Rad = Math.toRadians(lat1)
-        val lat2Rad = Math.toRadians(lat2)
-
-        val y = sin(dLng) * cos(lat2Rad)
-        val x = cos(lat1Rad) * sin(lat2Rad) - sin(lat1Rad) * cos(lat2Rad) * cos(dLng)
-        val bearing = Math.toDegrees(atan2(y, x))
-        return (bearing + 360) % 360
-    }
-
-    /**
-     * Haversine distance between two coordinates (meters).
-     */
-    private fun haversineDistance(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
-        val R = 6_371_000.0 // Earth radius in meters
-        val dLat = Math.toRadians(lat2 - lat1)
-        val dLng = Math.toRadians(lng2 - lng1)
-        val a = sin(dLat / 2).pow(2) +
-            cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
-            sin(dLng / 2).pow(2)
-        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-        return R * c
-    }
 }
 
 /**
