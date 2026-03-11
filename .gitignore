@@ -25,11 +25,17 @@ replay_pid*
 
 # Kotlin Gradle plugin data, see https://kotlinlang.org/docs/whatsnew20.html#new-directory-for-kotlin-data-in-gradle-projects
 .kotlin/
+
+# Gradle
+/.gradle
+
+# Build outputs
 /app/build
-/.gradle
-/.gradle
-/.gradle
-/.gradle/8.14
 /engine/build
-/engine/build
+/core/build
+/realism-lab/build
+
+# Gradle bin directories (MAINT-03)
+**/bin/
+
 *.len
