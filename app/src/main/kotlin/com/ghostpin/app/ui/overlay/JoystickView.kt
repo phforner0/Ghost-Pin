@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlin.math.*
+import com.ghostpin.core.model.JoystickState
 
 /**
  * 360° virtual joystick for manual position control.
@@ -32,12 +33,7 @@ class JoystickView @JvmOverloads constructor(
     defStyleAttr: Int = 0,
 ) : View(context, attrs, defStyleAttr) {
 
-    data class JoystickState(
-        /** Bearing in degrees: 0 = north, 90 = east, 180 = south, 270 = west. */
-        val angle: Float = 0f,
-        /** 0.0 = centred (stopped), 1.0 = full deflection (max speed). */
-        val magnitude: Float = 0f,
-    )
+    // Nested data class moved to com.ghostpin.core.model.JoystickState
 
     private val _state = MutableStateFlow(JoystickState())
     val state: StateFlow<JoystickState> = _state.asStateFlow()

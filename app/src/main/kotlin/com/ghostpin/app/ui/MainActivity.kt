@@ -17,6 +17,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
@@ -34,19 +38,24 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.ghostpin.app.data.OnboardingDataStore
 import com.ghostpin.app.service.SimulationService
 import com.ghostpin.app.service.SimulationState
+import com.ghostpin.app.ui.onboarding.OnboardingScreen
+import com.ghostpin.core.model.AppMode
 import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.model.Route
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import org.maplibre.android.MapLibre
 import org.maplibre.android.maps.MapView
+import javax.inject.Inject
 
 /** Single-activity entry point for GhostPin. */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    @Inject lateinit var onboardingDataStore: OnboardingDataStore
     private val viewModel: SimulationViewModel by viewModels()
 
     // Fix (🟡): The permission result callback was a no-op `{ /* no-op */ }`.
@@ -73,14 +82,38 @@ class MainActivity : ComponentActivity() {
         MapLibre.getInstance(this)
         requestPermissions()
         setContent {
+            val isOnboardingComplete by onboardingDataStore.isComplete.collectAsState(initial = null)
+
             GhostPinTheme {
-                GhostPinScreen(
-                    viewModel          = viewModel,
-                    permissionMessage  = _permissionMessage.value,
-                    onPermissionMessageDismissed = { _permissionMessage.value = null },
-                    onStartSimulation  = ::startSimulation,
-                    onStopSimulation   = ::stopSimulation,
-                )
+                when (isOnboardingComplete) {
+                    null -> {
+                        // Loading state — wait for DataStore read to finish before rendering either
+                        // to avoid a disruptive UI flash or heavy MapLibre initialization.
+                    }
+                    true -> {
+                        LaunchedEffect(Unit) {
+                            viewModel.initializeLocation(this@MainActivity)
+                        }
+                        GhostPinScreen(
+                            viewModel          = viewModel,
+                            permissionMessage  = _permissionMessage.value,
+                            onPermissionMessageDismissed = { _permissionMessage.value = null },
+                            onStartSimulation  = ::startSimulation,
+                            onStopSimulation   = ::stopSimulation,
+                        )
+                    }
+                    false -> {
+                        OnboardingScreen(
+                            onComplete = { profileName, lat, lng ->
+                                viewModel.selectProfile(MovementProfile.BUILT_IN[profileName] ?: MovementProfile.CAR)
+                                viewModel.setStartLat(lat)
+                                viewModel.setStartLng(lng)
+                                // Do NOT auto-start simulation here. Wait for user to explicitly click "Start"
+                                // in the main UI, so we don't unexpectedly jump to default coordinates.
+                            }
+                        )
+                    }
+                }
             }
         }
     }
@@ -157,8 +190,8 @@ fun GhostPinScreen(
     onStartSimulation:           (MovementProfile) -> Unit,
     onStopSimulation:            () -> Unit,
 ) {
-    // Collect all state at this level and pass primitives down
     val selectedProfile  by viewModel.selectedProfile.collectAsState()
+    val selectedMode     by viewModel.selectedMode.collectAsState()
     val simulationState  by viewModel.simulationState.collectAsState()
     // Fix (🟡): isBusy now comes from ViewModel, not computed here
     val isBusy           by viewModel.isBusy.collectAsState()
@@ -171,6 +204,7 @@ fun GhostPinScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope    = rememberCoroutineScope()
+    val context           = LocalContext.current
 
     // Show Snackbar when permissions are denied
     LaunchedEffect(permissionMessage) {
@@ -183,6 +217,13 @@ fun GhostPinScreen(
                 )
                 onPermissionMessageDismissed()
             }
+        }
+    }
+
+    // Return map to the actual physical location whenever simulation is fully stopped
+    LaunchedEffect(simulationState) {
+        if (simulationState is SimulationState.Idle) {
+            viewModel.initializeLocation(context)
         }
     }
 
@@ -213,6 +254,35 @@ fun GhostPinScreen(
                 text = { Text(if (isBusy) "Stop" else "Start", fontWeight = FontWeight.Bold) },
             )
         },
+        bottomBar = {
+            NavigationBar(
+                containerColor = Color(0xFF1E1E2E),
+                contentColor = Color(0xFF80CBC4)
+            ) {
+                AppMode.entries.forEach { mode ->
+                    NavigationBarItem(
+                        selected = selectedMode == mode,
+                        onClick = { viewModel.setAppMode(mode) },
+                        icon = {
+                            when (mode) {
+                                AppMode.CLASSIC -> Icon(Icons.Default.LocationOn, contentDescription = null)
+                                AppMode.JOYSTICK -> Icon(Icons.Default.Gamepad, contentDescription = null)
+                                AppMode.WAYPOINTS -> Icon(Icons.Default.Map, contentDescription = null)
+                                AppMode.GPX -> Icon(Icons.Default.Folder, contentDescription = null)
+                            }
+                        },
+                        label = { Text(mode.displayName, fontSize = 10.sp) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Color(0xFF003734),
+                            selectedTextColor = Color(0xFF80CBC4),
+                            indicatorColor = Color(0xFF80CBC4),
+                            unselectedIconColor = Color(0xFFB0BEC5),
+                            unselectedTextColor = Color(0xFFB0BEC5)
+                        )
+                    )
+                }
+            }
+        },
         containerColor = Color(0xFF0A0A0A),
     ) { paddingValues ->
         Column(
@@ -239,14 +309,122 @@ fun GhostPinScreen(
 
             SimulationStatusCard(state = simulationState)
 
-            ProfileSelector(
-                profiles        = viewModel.profiles,
-                selectedProfile = selectedProfile,
-                enabled         = !isBusy,
-                onSelect        = viewModel::selectProfile,
-            )
+            when (selectedMode) {
+                AppMode.CLASSIC -> {
+                    ClassicModePanel(
+                        profiles        = viewModel.profiles,
+                        selectedProfile = selectedProfile,
+                        enabled         = !isBusy,
+                        onSelect        = viewModel::selectProfile,
+                    )
+                }
+                AppMode.JOYSTICK -> JoystickModePanel()
+                AppMode.WAYPOINTS -> WaypointsModePanel()
+                AppMode.GPX -> GpxModePanel()
+            }
 
-            Spacer(Modifier.height(72.dp))  // FAB clearance
+            Spacer(Modifier.height(16.dp))  // FAB clearance inside scaffold
+        }
+    }
+}
+
+// ── Mode Panels ─────────────────────────────────────────────────────────────
+
+@Composable
+fun ClassicModePanel(
+    profiles: List<MovementProfile>,
+    selectedProfile: MovementProfile,
+    enabled: Boolean,
+    onSelect: (MovementProfile) -> Unit
+) {
+    ProfileSelector(
+        profiles        = profiles,
+        selectedProfile = selectedProfile,
+        enabled         = enabled,
+        onSelect        = onSelect,
+    )
+}
+
+@Composable
+fun JoystickModePanel() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape    = RoundedCornerShape(12.dp),
+        colors   = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2E)),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Joystick Navigation",
+                color = Color(0xFF80CBC4),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+            )
+            Text(
+                text = "Press Start, then switch to your game. A floating joystick will let you walk in any direction in real-time.",
+                color = Color(0xFFB0BEC5),
+                fontSize = 14.sp,
+            )
+        }
+    }
+}
+
+@Composable
+fun WaypointsModePanel() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape    = RoundedCornerShape(12.dp),
+        colors   = CardDefaults.cardColors(containerColor = Color(0xFF1B1B1B)),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Waypoints Mode [Coming Soon]",
+                color = Color(0xFFB0BEC5),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+            )
+            Text(
+                text = "Long press on the map to add multiple waypoints forming a complex route.",
+                color = Color(0xFF757575),
+                fontSize = 14.sp,
+            )
+        }
+    }
+}
+
+@Composable
+fun GpxModePanel() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape    = RoundedCornerShape(12.dp),
+        colors   = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2E)),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "GPX Import",
+                color = Color(0xFF80CBC4),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+            )
+            Text(
+                text = "Import a recorded .gpx track file to play back a predefined path precisely as it was tracked.",
+                color = Color(0xFFB0BEC5),
+                fontSize = 14.sp,
+            )
+            Button(
+                onClick = { /* TODO */ },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00504D), contentColor = Color(0xFFE0E0E0))
+            ) {
+                Text("Select .GPX File")
+            }
         }
     }
 }

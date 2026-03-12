@@ -32,7 +32,7 @@ class OnboardingDataStore @Inject constructor(
         private val KEY_COMPLETE = booleanPreferencesKey("is_onboarding_complete")
     }
 
-    /** Whether the onboarding flow has been completed. */
+    /** Whether the onboarding flow has been completed. emits false if not set. */
     val isComplete: Flow<Boolean> = context.onboardingDataStore.data
         .map { prefs -> prefs[KEY_COMPLETE] == true }
 

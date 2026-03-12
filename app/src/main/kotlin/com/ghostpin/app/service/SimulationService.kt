@@ -10,6 +10,10 @@ import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.ghostpin.app.BuildConfig
+import kotlin.math.asin
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
 import com.ghostpin.app.GhostPinApp
 import com.ghostpin.app.R
 import com.ghostpin.app.data.SimulationRepository
@@ -101,6 +105,11 @@ class SimulationService : LifecycleService() {
             return START_NOT_STICKY
         }
 
+        if (intent.action == ACTION_PAUSE) {
+            pauseSimulation()
+            return START_NOT_STICKY
+        }
+
         if (!BuildConfig.MOCK_PROVIDER_ENABLED) {
             repository.emitState(SimulationState.Error(
                 "Mock provider not available in this build. " +
@@ -110,11 +119,31 @@ class SimulationService : LifecycleService() {
             return START_NOT_STICKY
         }
 
+        // --- At this point, the action is ACTION_START (either explicit or implicit empty action)
+        val startLatRaw = intent.getDoubleExtra(EXTRA_START_LAT, Double.NaN)
+        val isResume = repository.state.value is SimulationState.Paused && startLatRaw.isNaN()
+
+        val frequencyHz = intent.getIntExtra(EXTRA_FREQUENCY_HZ, DEFAULT_FREQUENCY)
+            .coerceIn(MIN_FREQUENCY, MAX_FREQUENCY)
+
+        if (isResume) {
+            val pausedState = repository.state.value as SimulationState.Paused
+            val profile = MovementProfile.BUILT_IN[pausedState.profileName] ?: MovementProfile.PEDESTRIAN
+            
+            // Start overlay service if permission is granted
+            if (android.provider.Settings.canDrawOverlays(this)) {
+                startService(FloatingBubbleService.showIntent(this))
+            }
+            startForeground(NOTIFICATION_ID, buildNotification(profile.name))
+            startSimulation(profile, 0.0, 0.0, 0.0, 0.0, frequencyHz, resumeState = pausedState)
+            return START_NOT_STICKY
+        }
+
         val profileName = intent.getStringExtra(EXTRA_PROFILE_NAME) ?: "Pedestrian"
 
         // Fix (🟡): Validate all coordinate inputs — reject NaN, Infinity, or out-of-range
         // values that could reach the noise model or OSRM URL builder.
-        val startLat = intent.getDoubleExtra(EXTRA_START_LAT, DefaultCoordinates.START_LAT)
+        val startLat = startLatRaw
             .takeIf { it.isValidLat() } ?: DefaultCoordinates.START_LAT.also {
                 Log.w(TAG, "Invalid startLat received — falling back to default.")
             }
@@ -131,21 +160,26 @@ class SimulationService : LifecycleService() {
                 Log.w(TAG, "Invalid endLng received — falling back to default.")
             }
 
-        // Fix (🟠): Clamp frequency to prevent division by zero when frequencyHz = 0.
-        val frequencyHz = intent.getIntExtra(EXTRA_FREQUENCY_HZ, DEFAULT_FREQUENCY)
-            .coerceIn(MIN_FREQUENCY, MAX_FREQUENCY)
-
         val profile = MovementProfile.BUILT_IN[profileName] ?: MovementProfile.PEDESTRIAN.also {
             Log.w(TAG, LogSanitizer.sanitizeString("Unknown profile '$profileName' — defaulting to Pedestrian."))
         }
 
+        // Start overlay service if permission is granted
+        if (android.provider.Settings.canDrawOverlays(this)) {
+            startService(FloatingBubbleService.showIntent(this))
+        }
+
         startForeground(NOTIFICATION_ID, buildNotification(profile.name))
-        startSimulation(profile, startLat, startLng, endLat, endLng, frequencyHz)
+        startSimulation(profile, startLat, startLng, endLat, endLng, frequencyHz, resumeState = null)
 
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
+        // Stop overlay service when simulation stops
+        val overlayIntent = Intent(this, FloatingBubbleService::class.java)
+        stopService(overlayIntent)
+
         stopSimulation()
         super.onDestroy()
     }
@@ -159,9 +193,12 @@ class SimulationService : LifecycleService() {
         endLat:      Double,
         endLng:      Double,
         frequencyHz: Int,
+        resumeState: SimulationState.Paused? = null,
     ) {
         simulationJob?.cancel()
-        repository.emitRoute(null)
+        if (resumeState == null) {
+            repository.emitRoute(null)
+        }
 
         // Fix: frequency is already validated above — division is safe
         val intervalMs   = 1000L / frequencyHz
@@ -170,22 +207,25 @@ class SimulationService : LifecycleService() {
         simulationJob = lifecycleScope.launch {
             try {
                 // ── 1. Fetch street route ────────────────────────────────────
-                repository.emitState(SimulationState.FetchingRoute(profile.name))
+                val route = if (resumeState != null && repository.route.value != null) {
+                    repository.route.value!!
+                } else {
+                    repository.emitState(SimulationState.FetchingRoute(profile.name))
+                    val newRoute = osrmRouteProvider
+                        .fetchRoute(startLat, startLng, endLat, endLng, profile)
+                        .getOrElse { error ->
+                            Log.w(TAG, LogSanitizer.sanitizeString("OSRM fetch failed — using straight-line fallback: ${error.message}"))
+                            osrmRouteProvider.fallbackRoute(startLat, startLng, endLat, endLng)
+                        }
+                    repository.emitRoute(newRoute)
 
-                val route = osrmRouteProvider
-                    .fetchRoute(startLat, startLng, endLat, endLng, profile)
-                    .getOrElse { error ->
-                        Log.w(TAG, LogSanitizer.sanitizeString("OSRM fetch failed — using straight-line fallback: ${error.message}"))
-                        osrmRouteProvider.fallbackRoute(startLat, startLng, endLat, endLng)
+                    // ── 2. Pre-simulation trajectory validation ──────────────────
+                    val validation = trajectoryValidator.validate(newRoute, profile)
+                    if (!validation.isValid) {
+                        Log.w(TAG, LogSanitizer.sanitizeString("Trajectory validation warnings: ${validation.warnings.joinToString("; ")}"))
+                        // Warnings are non-fatal — simulation proceeds but issues are logged
                     }
-
-                repository.emitRoute(route)
-
-                // ── 2. Pre-simulation trajectory validation ──────────────────
-                val validation = trajectoryValidator.validate(route, profile)
-                if (!validation.isValid) {
-                    Log.w(TAG, LogSanitizer.sanitizeString("Trajectory validation warnings: ${validation.warnings.joinToString("; ")}"))
-                    // Warnings are non-fatal — simulation proceeds but issues are logged
+                    newRoute
                 }
 
                 // ── 3. Build interpolation stack ─────────────────────────────
@@ -195,61 +235,101 @@ class SimulationService : LifecycleService() {
                 val kalmanLng    = KalmanFilter1D()
 
                 // Fix (🔴): Assign to a local val before the loop.
-                // Using noiseModel!! in the loop body is unsafe — the field is nullable
-                // and could theoretically be set to null by stopSimulation() called
-                // from another coroutine. The local val is never null here.
                 val activeNoiseModel = LayeredNoiseModel.fromProfile(profile)
 
                 // ── 4. Register mock provider ────────────────────────────────
                 mockLocationInjector.registerProvider()
 
-                var distanceTravelled = 0.0
+                var distanceTravelled = if (resumeState != null) (resumeState.progressPercent / 100.0) * interpolator.totalDistanceMeters else 0.0
                 var frameCount        = 0L
-                val startTimeMs       = System.currentTimeMillis()
+                val timeOffsetMs      = if (resumeState != null) resumeState.elapsedTimeSec * 1000L else 0L
+                val startTimeMs       = System.currentTimeMillis() - timeOffsetMs
 
                 // ── 5. Main simulation loop ──────────────────────────────────
-                while (isActive && distanceTravelled <= interpolator.totalDistanceMeters) {
+                // Add a variable to track the manual position
+                var currentManualLat = if (resumeState != null) resumeState.lastLocation.lat else startLat
+                var currentManualLng = if (resumeState != null) resumeState.lastLocation.lng else startLng
 
-                    // Fix (🟢): Capture both timestamps in a single call per frame.
-                    // Previously three separate System.currentTimeMillis() calls could
-                    // produce slightly different instants within the same frame.
+                while (isActive && (repository.isManualMode.value || distanceTravelled <= interpolator.totalDistanceMeters)) {
+
                     val frameTimeMs  = System.currentTimeMillis()
                     val frameNanos   = SystemClock.elapsedRealtimeNanos()
 
-                    val frame = interpolator.positionAt(distanceTravelled)
+                    val isManual = repository.isManualMode.value
+                    
+                    val rawLocation = if (isManual) {
+                        val joyState = repository.joystickState.value
+                        val metersThisFrame = profile.maxSpeedMs * joyState.magnitude * deltaTimeSec
+                        
+                        // Advance position manually using great-circle approximation
+                        if (joyState.magnitude > 0.01f) {
+                            val R = 6378137.0 // Earth radius in meters
+                            val latRad = Math.toRadians(currentManualLat)
+                            val lngRad = Math.toRadians(currentManualLng)
+                            val bearingRad = Math.toRadians(joyState.angle.toDouble())
 
-                    val distToEnd = (interpolator.totalDistanceMeters - distanceTravelled)
-                        .coerceAtLeast(0.0)
+                            val newLatRad = asin(sin(latRad) * cos(metersThisFrame / R) +
+                                    cos(latRad) * sin(metersThisFrame / R) * cos(bearingRad))
+                            val newLngRad = lngRad + atan2(sin(bearingRad) * sin(metersThisFrame / R) * cos(latRad),
+                                    cos(metersThisFrame / R) - sin(latRad) * sin(newLatRad))
 
-                    val metersThisFrame = speedCtrl.advance(deltaTimeSec, distToEnd)
+                            currentManualLat = Math.toDegrees(newLatRad)
+                            currentManualLng = Math.toDegrees(newLngRad)
+                        }
 
-                    val smoothLat = kalmanLat.update(frame.lat, deltaTimeSec)
-                    val smoothLng = kalmanLng.update(frame.lng, deltaTimeSec)
+                        val smoothLat = kalmanLat.update(currentManualLat, deltaTimeSec)
+                        val smoothLng = kalmanLng.update(currentManualLng, deltaTimeSec)
 
-                    val rawLocation = MockLocation(
-                        lat                  = smoothLat,
-                        lng                  = smoothLng,
-                        altitude             = estimateAltitude(route, frame.progress),
-                        speed                = speedCtrl.currentSpeedMs.toFloat(),
-                        bearing              = frame.bearing,
-                        accuracy             = 10f,
-                        elapsedRealtimeNanos = frameNanos,
-                        timestampMs          = frameTimeMs,
-                    )
+                        MockLocation(
+                            lat                  = smoothLat,
+                            lng                  = smoothLng,
+                            altitude             = estimateAltitude(route, 0.0), // No route progress in manual
+                            speed                = (profile.maxSpeedMs * joyState.magnitude).toFloat(),
+                            bearing              = joyState.angle,
+                            accuracy             = 10f,
+                            elapsedRealtimeNanos = frameNanos,
+                            timestampMs          = frameTimeMs,
+                        )
+                    } else {
+                        val frame = interpolator.positionAt(distanceTravelled)
+                        val distToEnd = (interpolator.totalDistanceMeters - distanceTravelled).coerceAtLeast(0.0)
+                        val metersThisFrame = speedCtrl.advance(deltaTimeSec, distToEnd)
+                        
+                        // Update manual coords so switching from auto to manual starts where we left off
+                        currentManualLat = frame.lat
+                        currentManualLng = frame.lng
+
+                        val smoothLat = kalmanLat.update(frame.lat, deltaTimeSec)
+                        val smoothLng = kalmanLng.update(frame.lng, deltaTimeSec)
+
+                        distanceTravelled += metersThisFrame
+
+                        MockLocation(
+                            lat                  = smoothLat,
+                            lng                  = smoothLng,
+                            altitude             = estimateAltitude(route, frame.progress),
+                            speed                = speedCtrl.currentSpeedMs.toFloat(),
+                            bearing              = frame.bearing,
+                            accuracy             = 10f,
+                            elapsedRealtimeNanos = frameNanos,
+                            timestampMs          = frameTimeMs,
+                        )
+                    }
 
                     val noisyLocation = activeNoiseModel.applyToLocation(rawLocation, deltaTimeSec)
 
                     mockLocationInjector.inject(noisyLocation)
 
+                    val progress = if (isManual) -1f else ((distanceTravelled / interpolator.totalDistanceMeters) * 100.0).toFloat().coerceIn(0f, 100f)
+
                     repository.emitState(SimulationState.Running(
                         currentLocation  = noisyLocation,
                         profileName      = profile.name,
-                        progressPercent  = (frame.progress * 100.0).toFloat(),
+                        progressPercent  = progress,
                         elapsedTimeSec   = (frameTimeMs - startTimeMs) / 1000L,
                         frameCount       = frameCount,
                     ))
 
-                    distanceTravelled += metersThisFrame
                     frameCount++
                     delay(intervalMs)
                 }
@@ -271,6 +351,21 @@ class SimulationService : LifecycleService() {
                 repository.emitRoute(null)
                 stopSelf()
             }
+        }
+    }
+
+    private fun pauseSimulation() {
+        val currentState = repository.state.value
+        if (currentState is SimulationState.Running) {
+            simulationJob?.cancel()
+            simulationJob = null
+            
+            repository.emitState(SimulationState.Paused(
+                lastLocation    = currentState.currentLocation,
+                profileName     = currentState.profileName,
+                progressPercent = currentState.progressPercent,
+                elapsedTimeSec  = currentState.elapsedTimeSec,
+            ))
         }
     }
 

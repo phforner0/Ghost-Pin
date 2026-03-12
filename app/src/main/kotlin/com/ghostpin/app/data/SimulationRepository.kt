@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.ghostpin.core.model.JoystickState
 
 /**
  * Central source of truth for simulation state, shared between
@@ -45,10 +46,19 @@ class SimulationRepository @Inject constructor() {
      */
     val lastUsedConfig: StateFlow<SimulationConfig?> = _lastUsedConfig.asStateFlow()
 
+    // ── Sprint 5: Joystick & Overlay State ───────────────────────────────────
+
+    private val _isManualMode = MutableStateFlow(false)
+    val isManualMode: StateFlow<Boolean> = _isManualMode.asStateFlow()
+
+    private val _joystickState = MutableStateFlow(JoystickState(0f, 0f))
+    val joystickState: StateFlow<JoystickState> = _joystickState.asStateFlow()
+
     /** Publish a new simulation state to all observers. */
     fun emitState(state: SimulationState) {
         _state.value = state
     }
+
 
     /** Publish a new route (or null to clear) to all observers. */
     fun emitRoute(route: Route?) {
@@ -58,6 +68,14 @@ class SimulationRepository @Inject constructor() {
     /** Save the last-used simulation config for quick-start. */
     fun emitConfig(config: SimulationConfig) {
         _lastUsedConfig.value = config
+    }
+
+    fun setManualMode(isManual: Boolean) {
+        _isManualMode.value = isManual
+    }
+
+    fun updateJoystick(angle: Float, magnitude: Float) {
+        _joystickState.value = JoystickState(angle, magnitude)
     }
 
     /** Reset both state and route to their idle defaults. */

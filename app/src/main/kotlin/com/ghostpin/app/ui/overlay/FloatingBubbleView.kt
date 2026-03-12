@@ -146,49 +146,63 @@ class FloatingBubbleView(
         super.onDraw(canvas)
         val cx = width / 2f
         val cy = height / 2f
-        val r = cx - 4f
+        val padding = 8f
+        val cornerRadius = 32f
 
-        // Background circle
-        canvas.drawCircle(cx, cy, r, bgPaint)
-        canvas.drawCircle(cx, cy, r, borderPaint)
+        // Shadow layer
+        rect.set(padding, padding, width - padding, height - padding)
+        bgPaint.setShadowLayer(12f, 0f, 4f, 0x66000000)
+        
+        // Background rounded rect
+        canvas.drawRoundRect(rect, cornerRadius, cornerRadius, bgPaint)
+        
+        // Remove shadow for subsequent draws
+        bgPaint.clearShadowLayer()
 
-        // Status indicator dot (top-right)
+        // Border (subtle glassmorphism edge)
+        canvas.drawRoundRect(rect, cornerRadius, cornerRadius, borderPaint)
+
+        // Status indicator dot (top-right corner of the rounded box)
         statusPaint.color = when (bubbleState) {
-            BubbleState.RUNNING -> 0xFF4CAF50.toInt()  // green
-            BubbleState.PAUSED  -> 0xFFFFB300.toInt()  // amber
-            BubbleState.IDLE    -> 0xFF555555.toInt()   // grey
+            BubbleState.RUNNING -> 0xFF00E676.toInt()  // Bright neon green
+            BubbleState.PAUSED  -> 0xFFFFEA00.toInt()  // Neon amber
+            BubbleState.IDLE    -> 0xFF757575.toInt()  // Dim grey
         }
-        canvas.drawCircle(cx + r * 0.55f, cy - r * 0.55f, 8f, statusPaint)
+        statusPaint.setShadowLayer(6f, 0f, 0f, statusPaint.color)
+        canvas.drawCircle(width - padding - 16f, padding + 16f, 10f, statusPaint)
+        statusPaint.clearShadowLayer()
 
-        // Play/Pause icon
+        // Play/Pause icon (centred)
         when (bubbleState) {
-            BubbleState.RUNNING -> drawPauseIcon(canvas, cx, cy, r)
-            else                -> drawPlayIcon(canvas, cx, cy, r)
+            BubbleState.RUNNING -> drawPauseIcon(canvas, cx, cy, width / 2f)
+            else                -> drawPlayIcon(canvas, cx, cy, width / 2f)
         }
     }
 
     private fun drawPlayIcon(canvas: Canvas, cx: Float, cy: Float, r: Float) {
-        val size = r * 0.45f
+        val size = r * 0.40f
         val path = android.graphics.Path().apply {
-            moveTo(cx - size * 0.4f, cy - size)
+            moveTo(cx - size * 0.3f, cy - size)
             lineTo(cx + size * 0.8f, cy)
-            lineTo(cx - size * 0.4f, cy + size)
+            lineTo(cx - size * 0.3f, cy + size)
             close()
         }
         canvas.drawPath(path, iconPaint)
     }
 
     private fun drawPauseIcon(canvas: Canvas, cx: Float, cy: Float, r: Float) {
-        val barW = r * 0.15f
-        val barH = r * 0.5f
-        val gap = r * 0.12f
+        val barW = r * 0.12f
+        val barH = r * 0.45f
+        val gap = r * 0.15f
+        // Left bar
         rect.set(cx - gap - barW, cy - barH, cx - gap, cy + barH)
-        canvas.drawRoundRect(rect, 3f, 3f, iconPaint)
+        canvas.drawRoundRect(rect, 6f, 6f, iconPaint)
+        // Right bar
         rect.set(cx + gap, cy - barH, cx + gap + barW, cy + barH)
-        canvas.drawRoundRect(rect, 3f, 3f, iconPaint)
+        canvas.drawRoundRect(rect, 6f, 6f, iconPaint)
     }
 
     companion object {
-        const val BUBBLE_SIZE = 160  // px
+        const val BUBBLE_SIZE = 140  // px
     }
 }

@@ -1,5 +1,7 @@
 package com.ghostpin.app.ui
 
+import android.content.Context
+import android.location.LocationManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ghostpin.app.data.SimulationRepository
@@ -7,6 +9,7 @@ import com.ghostpin.app.service.SimulationState
 import com.ghostpin.core.model.DefaultCoordinates
 import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.model.Route
+import com.ghostpin.core.model.AppMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -14,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
@@ -33,7 +37,41 @@ class SimulationViewModel @Inject constructor(
     private val repository: SimulationRepository,
 ) : ViewModel() {
 
-    // ── Profiles ─────────────────────────────────────────────────────────────
+    init {}
+
+    /**
+     * Grabs the device's actual physical location for a cold start or when 
+     * simulation stops. Prioritizes GPS, falls back to NETWORK.
+     */
+    fun initializeLocation(context: Context) {
+        try {
+            val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            
+            var realLocation = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            
+            val networkLoc = lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+            if (networkLoc != null) {
+                if (realLocation == null || networkLoc.time > realLocation.time) {
+                    realLocation = networkLoc
+                }
+            }
+            
+            if (realLocation == null) {
+                realLocation = lm.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
+            }
+
+            if (realLocation != null) {
+                _startLat.value = realLocation.latitude
+                _startLng.value = realLocation.longitude
+                _endLat.value = realLocation.latitude
+                _endLng.value = realLocation.longitude
+            }
+        } catch (e: SecurityException) {
+            // Permission not granted or provider not available — silently fail back to defaults
+        }
+    }
+
+    // ── Profile and Mode ─────────────────────────────────────────────────────
 
     val profiles: List<MovementProfile> = listOf(
         MovementProfile.PEDESTRIAN,
@@ -48,6 +86,20 @@ class SimulationViewModel @Inject constructor(
 
     fun selectProfile(profile: MovementProfile) {
         _selectedProfile.value = profile
+    }
+
+    private val _selectedMode = MutableStateFlow(AppMode.CLASSIC)
+    val selectedMode: StateFlow<AppMode> = _selectedMode.asStateFlow()
+
+    fun setAppMode(mode: AppMode) {
+        _selectedMode.value = mode
+        
+        // When switching to manual (joystick), update the repository state
+        if (mode == AppMode.JOYSTICK) {
+            repository.setManualMode(true)
+        } else {
+            repository.setManualMode(false)
+        }
     }
 
     // ── Simulation state (from repository) ────────────────────────────────────
@@ -91,6 +143,11 @@ class SimulationViewModel @Inject constructor(
 
     private val _endLng = MutableStateFlow(DefaultCoordinates.END_LNG)
     val endLng: StateFlow<Double> = _endLng.asStateFlow()
+
+    // ── Mutators ─────────────────────────────────────────────────────────────
+
+    fun setStartLat(lat: Double) { _startLat.value = lat }
+    fun setStartLng(lng: Double) { _startLng.value = lng }
 
     /**
      * True when the start pin has been placed and the next long-press should
