@@ -13,38 +13,39 @@ import com.ghostpin.core.model.DefaultCoordinates
 import com.ghostpin.core.model.MovementProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
  * ViewModel for the 3-step onboarding flow.
  *
- * Step 1 — Permissions (overlay, notification, location)
- * Step 2 — Mock location app configuration
+ * Step 1 — Permissions (overlay, notification, location) Step 2 — Mock location app configuration
  * Step 3 — Initial simulation setup (profile + coordinates)
  */
 @HiltViewModel
-class OnboardingViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val onboardingDataStore: OnboardingDataStore,
+class OnboardingViewModel
+@Inject
+constructor(
+        @ApplicationContext private val context: Context,
+        private val onboardingDataStore: OnboardingDataStore,
 ) : ViewModel() {
 
     data class UiState(
-        val currentStep: Int = 0,
-        // Step 1: Permissions
-        val hasOverlayPermission: Boolean = false,
-        val hasNotificationPermission: Boolean = false,
-        val hasLocationPermission: Boolean = false,
-        // Step 2: Mock location
-        val isMockLocationConfigured: Boolean = false,
-        val isDevOptionsEnabled: Boolean = false,
-        // Step 3: Simulation config
-        val selectedProfile: String = "Car",
-        val startLat: String = DefaultCoordinates.START_LAT.toString(),
-        val startLng: String = DefaultCoordinates.START_LNG.toString(),
-        // Profiles list
-        val availableProfiles: List<String> = MovementProfile.BUILT_IN.keys.toList(),
+            val currentStep: Int = 0,
+            // Step 1: Permissions
+            val hasOverlayPermission: Boolean = false,
+            val hasNotificationPermission: Boolean = false,
+            val hasLocationPermission: Boolean = false,
+            // Step 2: Mock location
+            val isMockLocationConfigured: Boolean = false,
+            val isDevOptionsEnabled: Boolean = false,
+            // Step 3: Simulation config
+            val selectedProfile: String = "Car",
+            val startLat: String = DefaultCoordinates.START_LAT.toString(),
+            val startLng: String = DefaultCoordinates.START_LNG.toString(),
+            // Profiles list
+            val availableProfiles: List<String> = MovementProfile.BUILT_IN.keys.toList(),
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -57,13 +58,15 @@ class OnboardingViewModel @Inject constructor(
     fun refreshStatus() {
         _uiState.update { state ->
             state.copy(
-                hasOverlayPermission = Settings.canDrawOverlays(context),
-                hasNotificationPermission = hasNotificationPermission(),
-                hasLocationPermission = ContextCompat.checkSelfPermission(
-                    context, Manifest.permission.ACCESS_FINE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED,
-                isMockLocationConfigured = isMockLocationApp(),
-                isDevOptionsEnabled = isDevOptionsEnabled(),
+                    hasOverlayPermission = Settings.canDrawOverlays(context),
+                    hasNotificationPermission = hasNotificationPermission(),
+                    hasLocationPermission =
+                            ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.ACCESS_FINE_LOCATION
+                            ) == PackageManager.PERMISSION_GRANTED,
+                    isMockLocationConfigured = isMockLocationApp(),
+                    isDevOptionsEnabled = isDevOptionsEnabled(),
             )
         }
     }
@@ -98,27 +101,26 @@ class OnboardingViewModel @Inject constructor(
 
     /** Mark onboarding as complete and persist. */
     fun completeOnboarding() {
-        viewModelScope.launch {
-            onboardingDataStore.markComplete()
-        }
+        viewModelScope.launch { onboardingDataStore.markComplete() }
+    }
+
+    fun setStep(step: Int) {
+        _uiState.update { it.copy(currentStep = step.coerceIn(0, 2)) }
     }
 
     // ── Private helpers ──────────────────────────────────────────────────
 
     private fun hasNotificationPermission(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(
-                context, Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+                    PackageManager.PERMISSION_GRANTED
         } else true // Not needed below Android 13
     }
 
     @Suppress("DEPRECATION")
     private fun isMockLocationApp(): Boolean {
         return try {
-            val mockApp = Settings.Secure.getString(
-                context.contentResolver, "mock_location"
-            )
+            val mockApp = Settings.Secure.getString(context.contentResolver, "mock_location")
             mockApp == context.packageName
         } catch (_: Exception) {
             false
@@ -128,8 +130,9 @@ class OnboardingViewModel @Inject constructor(
     private fun isDevOptionsEnabled(): Boolean {
         return try {
             Settings.Global.getInt(
-                context.contentResolver,
-                Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0
+                    context.contentResolver,
+                    Settings.Global.DEVELOPMENT_SETTINGS_ENABLED,
+                    0
             ) == 1
         } catch (_: Exception) {
             false

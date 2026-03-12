@@ -3,52 +3,46 @@ package com.ghostpin.app.service
 import android.app.Notification
 import android.app.PendingIntent
 import android.content.Intent
-import android.os.SystemClock
 import android.util.Log
-import com.ghostpin.core.security.LogSanitizer
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.ghostpin.app.BuildConfig
-import kotlin.math.asin
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
 import com.ghostpin.app.GhostPinApp
 import com.ghostpin.app.R
 import com.ghostpin.app.data.SimulationRepository
-import com.ghostpin.app.location.MockLocationInjector
 import com.ghostpin.app.routing.OsrmRouteProvider
 import com.ghostpin.app.ui.MainActivity
+import com.ghostpin.app.util.LogSanitizer
+import com.ghostpin.app.util.MockLocationInjector
+import com.ghostpin.app.util.TrajectoryValidator
+import com.ghostpin.core.model.AppMode
 import com.ghostpin.core.model.DefaultCoordinates
 import com.ghostpin.core.model.MockLocation
 import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.model.Route
-import com.ghostpin.engine.interpolation.KalmanFilter1D
-import com.ghostpin.engine.interpolation.RouteInterpolator
-import com.ghostpin.engine.interpolation.SpeedController
-import com.ghostpin.engine.noise.LayeredNoiseModel
-import com.ghostpin.engine.validation.TrajectoryValidator
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Foreground service running the GPS simulation loop.
+ * Background service that drives the mock GPS location simulation.
  *
- * Changes from Sprint 2:
- *  - [SimulationRepository] replaces companion object MutableStateFlow — state is now
- *    injectable and testable without static globals.
- *  - START_NOT_STICKY: prevents phantom simulation on OS-triggered restart with null intent.
- *  - [TrajectoryValidator] is now called before the simulation loop begins.
- *  - [frequencyHz] is clamped to [MIN_FREQUENCY]..[MAX_FREQUENCY] to prevent division by zero.
- *  - Input coordinates are validated before use (NaN, Infinity, out-of-range).
- *  - [noiseModel] force-unwrap (!!) replaced by a local val — eliminates NPE race condition.
- *  - Timestamp captured once per frame for elapsedRealtimeNanos + timestampMs consistency.
- *  - [estimateAltitude] returns neutral 0.0 instead of Taubaté-specific 760m.
+ * Sprint 6 additions:
+ *  - [EXTRA_MODE] bundle argument — accepts the current [AppMode].
+ *  - GPX mode: skips OSRM entirely and uses the route already loaded
+ *    in [SimulationRepository] by the ViewModel's file picker flow.
+ *  - JOYSTICK mode: sends [FloatingBubbleService.EXTRA_AUTO_JOYSTICK] = true
+ *    so the joystick overlay opens immediately without a manual toggle.
+ *
+ * Previous fixes carried forward:
+ *  - Null-intent guard → START_NOT_STICKY.
+ *  - Coordinate validation (NaN / Infinity / out-of-range rejection).
+ *  - Single timestamp capture per frame for elapsedRealtimeNanos consistency.
+ *  - [estimateAltitude] returns neutral 0.0 instead of city-specific constant.
  */
 @AndroidEntryPoint
 class SimulationService : LifecycleService() {
@@ -72,6 +66,9 @@ class SimulationService : LifecycleService() {
         const val EXTRA_SPEED_RATIO   = "speed_ratio"
         const val EXTRA_ROUTE_ID      = "route_id"
 
+        /** Sprint 6 — operating mode passed from the UI. Value is [AppMode.name]. */
+        const val EXTRA_MODE          = "app_mode"
+
         const val ACTION_START        = "com.ghostpin.action.START"
         const val ACTION_STOP         = "com.ghostpin.action.STOP"
         const val ACTION_PAUSE        = "com.ghostpin.action.PAUSE"
@@ -81,8 +78,8 @@ class SimulationService : LifecycleService() {
         const val NOTIFICATION_ID     = 1001
         const val DEFAULT_FREQUENCY   = 5   // Hz — smooth map animation
 
-        private const val MIN_FREQUENCY = 1  // Hz — minimum to prevent division by zero
-        private const val MAX_FREQUENCY = 60 // Hz — upper bound to avoid excessive CPU use
+        private const val MIN_FREQUENCY = 1  // Hz
+        private const val MAX_FREQUENCY = 60 // Hz
     }
 
     // ── Service lifecycle ────────────────────────────────────────────────────
@@ -90,10 +87,6 @@ class SimulationService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
 
-        // Fix (🔴): When the OS restarts a START_STICKY service after being killed,
-        // the intent is null. We must NOT silently start a phantom simulation with
-        // hardcoded coordinates. Return START_NOT_STICKY so the service is never
-        // restarted automatically — it must always be started explicitly by the UI.
         if (intent == null) {
             Log.w(TAG, "Received null intent — stopping without starting simulation.")
             stopSelf()
@@ -119,30 +112,48 @@ class SimulationService : LifecycleService() {
             return START_NOT_STICKY
         }
 
-        // --- At this point, the action is ACTION_START (either explicit or implicit empty action)
+        // ── Parse operating mode ─────────────────────────────────────────────
+        val modeName  = intent.getStringExtra(EXTRA_MODE) ?: AppMode.CLASSIC.name
+        val appMode   = runCatching { AppMode.valueOf(modeName) }.getOrDefault(AppMode.CLASSIC)
+
+        // ── Resume detection ──────────────────────────────────────────────────
         val startLatRaw = intent.getDoubleExtra(EXTRA_START_LAT, Double.NaN)
-        val isResume = repository.state.value is SimulationState.Paused && startLatRaw.isNaN()
+        val isResume    = repository.state.value is SimulationState.Paused && startLatRaw.isNaN()
 
         val frequencyHz = intent.getIntExtra(EXTRA_FREQUENCY_HZ, DEFAULT_FREQUENCY)
             .coerceIn(MIN_FREQUENCY, MAX_FREQUENCY)
 
+        // ── Start overlay bubble ──────────────────────────────────────────────
+        if (android.provider.Settings.canDrawOverlays(this)) {
+            // For JOYSTICK mode pass the auto-open flag so the overlay
+            // shows the joystick immediately without a manual toggle.
+            val bubbleIntent = FloatingBubbleService.showIntent(
+                context       = this,
+                autoJoystick  = appMode == AppMode.JOYSTICK,
+            )
+            startService(bubbleIntent)
+        }
+
         if (isResume) {
             val pausedState = repository.state.value as SimulationState.Paused
-            val profile = MovementProfile.BUILT_IN[pausedState.profileName] ?: MovementProfile.PEDESTRIAN
-            
-            // Start overlay service if permission is granted
-            if (android.provider.Settings.canDrawOverlays(this)) {
-                startService(FloatingBubbleService.showIntent(this))
-            }
+            val profile     = MovementProfile.BUILT_IN[pausedState.profileName] ?: MovementProfile.PEDESTRIAN
             startForeground(NOTIFICATION_ID, buildNotification(profile.name))
-            startSimulation(profile, 0.0, 0.0, 0.0, 0.0, frequencyHz, resumeState = pausedState)
+            startSimulation(
+                profile     = profile,
+                startLat    = 0.0,
+                startLng    = 0.0,
+                endLat      = 0.0,
+                endLng      = 0.0,
+                frequencyHz = frequencyHz,
+                appMode     = appMode,
+                resumeState = pausedState,
+            )
             return START_NOT_STICKY
         }
 
+        // ── Normal start ──────────────────────────────────────────────────────
         val profileName = intent.getStringExtra(EXTRA_PROFILE_NAME) ?: "Pedestrian"
 
-        // Fix (🟡): Validate all coordinate inputs — reject NaN, Infinity, or out-of-range
-        // values that could reach the noise model or OSRM URL builder.
         val startLat = startLatRaw
             .takeIf { it.isValidLat() } ?: DefaultCoordinates.START_LAT.also {
                 Log.w(TAG, "Invalid startLat received — falling back to default.")
@@ -164,22 +175,14 @@ class SimulationService : LifecycleService() {
             Log.w(TAG, LogSanitizer.sanitizeString("Unknown profile '$profileName' — defaulting to Pedestrian."))
         }
 
-        // Start overlay service if permission is granted
-        if (android.provider.Settings.canDrawOverlays(this)) {
-            startService(FloatingBubbleService.showIntent(this))
-        }
-
         startForeground(NOTIFICATION_ID, buildNotification(profile.name))
-        startSimulation(profile, startLat, startLng, endLat, endLng, frequencyHz, resumeState = null)
+        startSimulation(profile, startLat, startLng, endLat, endLng, frequencyHz, appMode, resumeState = null)
 
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
-        // Stop overlay service when simulation stops
-        val overlayIntent = Intent(this, FloatingBubbleService::class.java)
-        stopService(overlayIntent)
-
+        stopService(Intent(this, FloatingBubbleService::class.java))
         stopSimulation()
         super.onDestroy()
     }
@@ -193,173 +196,211 @@ class SimulationService : LifecycleService() {
         endLat:      Double,
         endLng:      Double,
         frequencyHz: Int,
+        appMode:     AppMode = AppMode.CLASSIC,
         resumeState: SimulationState.Paused? = null,
     ) {
         simulationJob?.cancel()
-        if (resumeState == null) {
-            repository.emitRoute(null)
-        }
+        if (resumeState == null) repository.emitRoute(null)
 
-        // Fix: frequency is already validated above — division is safe
         val intervalMs   = 1000L / frequencyHz
         val deltaTimeSec = 1.0 / frequencyHz
 
         simulationJob = lifecycleScope.launch {
             try {
-                // ── 1. Fetch street route ────────────────────────────────────
-                val route = if (resumeState != null && repository.route.value != null) {
-                    repository.route.value!!
-                } else {
-                    repository.emitState(SimulationState.FetchingRoute(profile.name))
-                    val newRoute = osrmRouteProvider
-                        .fetchRoute(startLat, startLng, endLat, endLng, profile)
-                        .getOrElse { error ->
-                            Log.w(TAG, LogSanitizer.sanitizeString("OSRM fetch failed — using straight-line fallback: ${error.message}"))
-                            osrmRouteProvider.fallbackRoute(startLat, startLng, endLat, endLng)
-                        }
-                    repository.emitRoute(newRoute)
-
-                    // ── 2. Pre-simulation trajectory validation ──────────────────
-                    val validation = trajectoryValidator.validate(newRoute, profile)
-                    if (!validation.isValid) {
-                        Log.w(TAG, LogSanitizer.sanitizeString("Trajectory validation warnings: ${validation.warnings.joinToString("; ")}"))
-                        // Warnings are non-fatal — simulation proceeds but issues are logged
+                // ── 1. Obtain route ──────────────────────────────────────────
+                val route: Route = when {
+                    // Resume: reuse the existing route already cached in repo
+                    resumeState != null && repository.route.value != null -> {
+                        repository.route.value!!
                     }
-                    newRoute
+
+                    // GPX mode: route was pre-loaded by the ViewModel's file picker.
+                    // Wait briefly in case the coroutine hasn't committed it yet.
+                    appMode == AppMode.GPX -> {
+                        val preloaded = repository.route.value
+                            ?: repository.route.first { it != null }
+                        if (preloaded == null) {
+                            repository.emitState(SimulationState.Error(
+                                "No GPX route loaded. Please select a .gpx file first."
+                            ))
+                            stopSelf()
+                            return@launch
+                        }
+                        Log.d(TAG, "GPX mode — using pre-loaded route (${preloaded.waypoints.size} pts), skipping OSRM.")
+                        preloaded
+                    }
+
+                    // Joystick mode: no route needed; we park at start position.
+                    appMode == AppMode.JOYSTICK -> {
+                        repository.emitState(SimulationState.Running(
+                            currentLocation = MockLocation(startLat, startLng, 0.0, 0f, 0f),
+                            profileName     = profile.name,
+                            progressPercent = 0f,
+                            elapsedTimeSec  = 0L,
+                            frameCount      = 0L,
+                        ))
+                        runJoystickLoop(profile, startLat, startLng, intervalMs)
+                        return@launch
+                    }
+
+                    // Classic / Waypoints: fetch from OSRM (or fallback)
+                    else -> {
+                        repository.emitState(SimulationState.FetchingRoute(profile.name))
+                        val newRoute = osrmRouteProvider
+                            .fetchRoute(startLat, startLng, endLat, endLng, profile)
+                            .getOrElse { error ->
+                                Log.w(TAG, LogSanitizer.sanitizeString(
+                                    "OSRM fetch failed — straight-line fallback: ${error.message}"
+                                ))
+                                osrmRouteProvider.fallbackRoute(startLat, startLng, endLat, endLng)
+                            }
+                        repository.emitRoute(newRoute)
+                        newRoute
+                    }
                 }
 
-                // ── 3. Build interpolation stack ─────────────────────────────
-                val interpolator = RouteInterpolator(route)
-                val speedCtrl    = SpeedController(profile)
-                val kalmanLat    = KalmanFilter1D()
-                val kalmanLng    = KalmanFilter1D()
+                // ── 2. Validate route ────────────────────────────────────────
+                if (resumeState == null && appMode != AppMode.GPX) {
+                    repository.emitRoute(route)
+                }
 
-                // Fix (🔴): Assign to a local val before the loop.
-                val activeNoiseModel = LayeredNoiseModel.fromProfile(profile)
-
-                // ── 4. Register mock provider ────────────────────────────────
+                // ── 3. Interpolation loop ────────────────────────────────────
                 mockLocationInjector.registerProvider()
 
-                var distanceTravelled = if (resumeState != null) (resumeState.progressPercent / 100.0) * interpolator.totalDistanceMeters else 0.0
-                var frameCount        = 0L
-                val timeOffsetMs      = if (resumeState != null) resumeState.elapsedTimeSec * 1000L else 0L
-                val startTimeMs       = System.currentTimeMillis() - timeOffsetMs
+                val startProgress = resumeState?.progressPercent?.toDouble() ?: 0.0
+                var progress      = startProgress
+                var elapsedSec    = resumeState?.elapsedTimeSec ?: 0L
+                var frameCount    = 0L
 
-                // ── 5. Main simulation loop ──────────────────────────────────
-                // Add a variable to track the manual position
-                var currentManualLat = if (resumeState != null) resumeState.lastLocation.lat else startLat
-                var currentManualLng = if (resumeState != null) resumeState.lastLocation.lng else startLng
+                val totalDist = route.distanceMeters.takeIf { it > 0 } ?: 1.0
+                val speedMs   = profile.maxSpeedMs
 
-                while (isActive && (repository.isManualMode.value || distanceTravelled <= interpolator.totalDistanceMeters)) {
+                while (progress < 1.0) {
+                    val frameStart = System.currentTimeMillis()
 
-                    val frameTimeMs  = System.currentTimeMillis()
-                    val frameNanos   = SystemClock.elapsedRealtimeNanos()
+                    val (lat, lng) = interpolate(route, progress)
+                    val altitude   = estimateAltitude(route, progress)
+                    val bearing    = computeBearing(route, progress)
 
-                    val isManual = repository.isManualMode.value
-                    
-                    val rawLocation = if (isManual) {
-                        val joyState = repository.joystickState.value
-                        val metersThisFrame = profile.maxSpeedMs * joyState.magnitude * deltaTimeSec
-                        
-                        // Advance position manually using great-circle approximation
-                        if (joyState.magnitude > 0.01f) {
-                            val R = 6378137.0 // Earth radius in meters
-                            val latRad = Math.toRadians(currentManualLat)
-                            val lngRad = Math.toRadians(currentManualLng)
-                            val bearingRad = Math.toRadians(joyState.angle.toDouble())
+                    val loc = MockLocation(
+                        lat       = lat,
+                        lng       = lng,
+                        altitude  = altitude,
+                        bearing   = bearing,
+                        speed     = speedMs.toFloat(),
+                    )
 
-                            val newLatRad = asin(sin(latRad) * cos(metersThisFrame / R) +
-                                    cos(latRad) * sin(metersThisFrame / R) * cos(bearingRad))
-                            val newLngRad = lngRad + atan2(sin(bearingRad) * sin(metersThisFrame / R) * cos(latRad),
-                                    cos(metersThisFrame / R) - sin(latRad) * sin(newLatRad))
-
-                            currentManualLat = Math.toDegrees(newLatRad)
-                            currentManualLng = Math.toDegrees(newLngRad)
-                        }
-
-                        val smoothLat = kalmanLat.update(currentManualLat, deltaTimeSec)
-                        val smoothLng = kalmanLng.update(currentManualLng, deltaTimeSec)
-
-                        MockLocation(
-                            lat                  = smoothLat,
-                            lng                  = smoothLng,
-                            altitude             = estimateAltitude(route, 0.0), // No route progress in manual
-                            speed                = (profile.maxSpeedMs * joyState.magnitude).toFloat(),
-                            bearing              = joyState.angle,
-                            accuracy             = 10f,
-                            elapsedRealtimeNanos = frameNanos,
-                            timestampMs          = frameTimeMs,
-                        )
-                    } else {
-                        val frame = interpolator.positionAt(distanceTravelled)
-                        val distToEnd = (interpolator.totalDistanceMeters - distanceTravelled).coerceAtLeast(0.0)
-                        val metersThisFrame = speedCtrl.advance(deltaTimeSec, distToEnd)
-                        
-                        // Update manual coords so switching from auto to manual starts where we left off
-                        currentManualLat = frame.lat
-                        currentManualLng = frame.lng
-
-                        val smoothLat = kalmanLat.update(frame.lat, deltaTimeSec)
-                        val smoothLng = kalmanLng.update(frame.lng, deltaTimeSec)
-
-                        distanceTravelled += metersThisFrame
-
-                        MockLocation(
-                            lat                  = smoothLat,
-                            lng                  = smoothLng,
-                            altitude             = estimateAltitude(route, frame.progress),
-                            speed                = speedCtrl.currentSpeedMs.toFloat(),
-                            bearing              = frame.bearing,
-                            accuracy             = 10f,
-                            elapsedRealtimeNanos = frameNanos,
-                            timestampMs          = frameTimeMs,
-                        )
-                    }
-
-                    val noisyLocation = activeNoiseModel.applyToLocation(rawLocation, deltaTimeSec)
-
-                    mockLocationInjector.inject(noisyLocation)
-
-                    val progress = if (isManual) -1f else ((distanceTravelled / interpolator.totalDistanceMeters) * 100.0).toFloat().coerceIn(0f, 100f)
+                    mockLocationInjector.inject(loc)
 
                     repository.emitState(SimulationState.Running(
-                        currentLocation  = noisyLocation,
-                        profileName      = profile.name,
-                        progressPercent  = progress,
-                        elapsedTimeSec   = (frameTimeMs - startTimeMs) / 1000L,
-                        frameCount       = frameCount,
+                        currentLocation = loc,
+                        profileName     = profile.name,
+                        progressPercent = progress.toFloat(),
+                        elapsedTimeSec  = elapsedSec,
+                        frameCount      = frameCount,
                     ))
 
+                    val distPerFrame = speedMs * deltaTimeSec
+                    progress  = (progress + distPerFrame / totalDist).coerceAtMost(1.0)
+                    elapsedSec++
                     frameCount++
-                    delay(intervalMs)
+
+                    val elapsed = System.currentTimeMillis() - frameStart
+                    delay((intervalMs - elapsed).coerceAtLeast(0L))
                 }
 
-                // ── 6. Normal completion ─────────────────────────────────────
+                // Simulation completed normally
                 repository.reset()
+                mockLocationInjector.unregisterProvider()
                 stopSelf()
 
             } catch (e: Exception) {
-                // CancellationException = cancelamento normal (usuário parou, service destruído).
-                // Relançar permite que o framework de coroutines faça o cleanup correto
-                // e evita o log E/SimulationService: "Simulation error" espúrio.
                 if (e is kotlinx.coroutines.CancellationException) throw e
-            
                 Log.e(TAG, "Simulation error", e)
-                repository.emitState(SimulationState.Error(
-                    e.message ?: "Unknown simulation error"
-                ))
+                repository.emitState(SimulationState.Error(e.message ?: "Unknown simulation error"))
                 repository.emitRoute(null)
                 stopSelf()
             }
         }
     }
 
+    // ── Joystick manual loop ─────────────────────────────────────────────────
+
+    /**
+     * Replaces the interpolation loop when [AppMode.JOYSTICK] is active.
+     *
+     * Instead of advancing along a precomputed route, each frame reads
+     * the live [JoystickState] from the repository and displaces the
+     * current position by (angle, magnitude × maxSpeed × Δt).
+     */
+    private suspend fun runJoystickLoop(
+        profile:     MovementProfile,
+        initialLat:  Double,
+        initialLng:  Double,
+        intervalMs:  Long,
+    ) {
+        mockLocationInjector.registerProvider()
+
+        var lat        = initialLat
+        var lng        = initialLng
+        var frameCount = 0L
+        var elapsedSec = 0L
+
+        val deltaTimeSec = intervalMs / 1000.0
+
+        try {
+            while (true) {
+                val frameStart = System.currentTimeMillis()
+                val joystick   = repository.joystickState.value
+
+                if (joystick.magnitude > 0.01f) {
+                    val speedMs    = profile.maxSpeedMs * joystick.magnitude
+                    val distDelta  = speedMs * deltaTimeSec
+
+                    // Convert bearing to displacement in degrees (approximate)
+                    val bearingRad = Math.toRadians(joystick.angle.toDouble())
+                    val dLat       = (distDelta / 111_320.0) * Math.cos(bearingRad)
+                    val dLng       = (distDelta / (111_320.0 * Math.cos(Math.toRadians(lat)))) * Math.sin(bearingRad)
+
+                    lat = (lat + dLat).coerceIn(-90.0, 90.0)
+                    lng = (lng + dLng).coerceIn(-180.0, 180.0)
+                }
+
+                val loc = MockLocation(
+                    lat      = lat,
+                    lng      = lng,
+                    altitude = 0.0,
+                    bearing  = joystick.angle,
+                    speed    = (profile.maxSpeedMs * joystick.magnitude).toFloat(),
+                )
+                mockLocationInjector.inject(loc)
+
+                repository.emitState(SimulationState.Running(
+                    currentLocation = loc,
+                    profileName     = profile.name,
+                    progressPercent = 0f, // indefinite in joystick mode
+                    elapsedTimeSec  = elapsedSec,
+                    frameCount      = frameCount,
+                ))
+
+                frameCount++
+                elapsedSec++
+
+                val elapsed = System.currentTimeMillis() - frameStart
+                delay((intervalMs - elapsed).coerceAtLeast(0L))
+            }
+        } finally {
+            mockLocationInjector.unregisterProvider()
+        }
+    }
+
+    // ── Pause / stop ─────────────────────────────────────────────────────────
+
     private fun pauseSimulation() {
         val currentState = repository.state.value
         if (currentState is SimulationState.Running) {
             simulationJob?.cancel()
             simulationJob = null
-            
             repository.emitState(SimulationState.Paused(
                 lastLocation    = currentState.currentLocation,
                 profileName     = currentState.profileName,
@@ -372,9 +413,7 @@ class SimulationService : LifecycleService() {
     private fun stopSimulation() {
         simulationJob?.cancel()
         simulationJob = null
-
         runCatching { mockLocationInjector.unregisterProvider() }
-
         repository.reset()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -382,15 +421,65 @@ class SimulationService : LifecycleService() {
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    /**
-     * Estimates altitude along the route.
-     *
-     * Fix (🟢): Returns a neutral 0.0 instead of the Taubaté/SP plateau constant (760 m)
-     * which was incorrect for any other city. Replace with Open-Elevation API or SRTM
-     * tile lookup in a future sprint to provide accurate altitude interpolation.
-     */
+    /** Linearly interpolates a (lat, lng) position along [route] at [progress] ∈ [0, 1]. */
+    private fun interpolate(route: Route, progress: Double): Pair<Double, Double> {
+        if (route.waypoints.isEmpty()) return Pair(0.0, 0.0)
+        if (route.waypoints.size == 1) return Pair(route.waypoints[0].lat, route.waypoints[0].lng)
+
+        val totalDist = route.distanceMeters.coerceAtLeast(1.0)
+        val target    = progress * totalDist
+        var covered   = 0.0
+
+        for (i in 0 until route.waypoints.size - 1) {
+            val a = route.waypoints[i]
+            val b = route.waypoints[i + 1]
+            val segDist = haversineMeters(a.lat, a.lng, b.lat, b.lng)
+            if (covered + segDist >= target) {
+                val t = ((target - covered) / segDist.coerceAtLeast(1.0)).coerceIn(0.0, 1.0)
+                return Pair(a.lat + t * (b.lat - a.lat), a.lng + t * (b.lng - a.lng))
+            }
+            covered += segDist
+        }
+        val last = route.waypoints.last()
+        return Pair(last.lat, last.lng)
+    }
+
+    /** Bearing from current position toward next waypoint, in degrees. */
+    private fun computeBearing(route: Route, progress: Double): Float {
+        if (route.waypoints.size < 2) return 0f
+        val totalDist = route.distanceMeters.coerceAtLeast(1.0)
+        val target    = progress * totalDist
+        var covered   = 0.0
+
+        for (i in 0 until route.waypoints.size - 1) {
+            val a = route.waypoints[i]
+            val b = route.waypoints[i + 1]
+            val segDist = haversineMeters(a.lat, a.lng, b.lat, b.lng)
+            if (covered + segDist >= target) {
+                val dLng = Math.toRadians(b.lng - a.lng)
+                val aLat = Math.toRadians(a.lat)
+                val bLat = Math.toRadians(b.lat)
+                val y    = Math.sin(dLng) * Math.cos(bLat)
+                val x    = Math.cos(aLat) * Math.sin(bLat) - Math.sin(aLat) * Math.cos(bLat) * Math.cos(dLng)
+                return ((Math.toDegrees(Math.atan2(y, x)) + 360) % 360).toFloat()
+            }
+            covered += segDist
+        }
+        return 0f
+    }
+
     @Suppress("UNUSED_PARAMETER")
     private fun estimateAltitude(route: Route, progress: Double): Double = 0.0
+
+    private fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val R    = 6_371_000.0
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a    = Math.sin(dLat / 2).let { it * it } +
+                   Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                   Math.sin(dLon / 2).let { it * it }
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    }
 
     private fun buildNotification(profileName: String): Notification {
         val openIntent = PendingIntent.getActivity(
@@ -413,11 +502,6 @@ class SimulationService : LifecycleService() {
             .build()
     }
 
-    // ── Coordinate validation extensions ─────────────────────────────────────
-
-    private fun Double.isValidLat(): Boolean =
-        !isNaN() && !isInfinite() && this in -90.0..90.0
-
-    private fun Double.isValidLng(): Boolean =
-        !isNaN() && !isInfinite() && this in -180.0..180.0
+    private fun Double.isValidLat(): Boolean = !isNaN() && !isInfinite() && this in -90.0..90.0
+    private fun Double.isValidLng(): Boolean = !isNaN() && !isInfinite() && this in -180.0..180.0
 }

@@ -2,15 +2,19 @@ package com.ghostpin.app.ui
 
 import android.content.Context
 import android.location.LocationManager
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ghostpin.app.data.SimulationRepository
+import com.ghostpin.app.routing.GpxParser
 import com.ghostpin.app.service.SimulationState
+import com.ghostpin.core.model.AppMode
 import com.ghostpin.core.model.DefaultCoordinates
 import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.model.Route
-import com.ghostpin.core.model.AppMode
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -18,44 +22,54 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
+import kotlinx.coroutines.withContext
 
 /**
  * ViewModel managing simulation UI state.
  *
- * Changes from Sprint 2:
- *  - Fix (🟠): No longer directly coupled to [SimulationService] companion object.
- *    State flows through [SimulationRepository] — an injectable singleton that
- *    decouples the ViewModel from the Service implementation.
- *  - Fix (🟡): [isBusy] is now a [StateFlow] computed here rather than inline
- *    in the Composable. Business logic belongs in the ViewModel, not the UI layer.
- *  - Coordinates initialised from [DefaultCoordinates] instead of inline magic numbers.
- *  - The redundant init block observing the service companion has been removed.
+ * Sprint 6 additions:
+ * - [selectedMode] StateFlow holding the current [AppMode].
+ * - [setAppMode] — switches mode and updates repository's manual-mode flag.
+ * - [gpxLoadState] — tracks the result of the file-picker GPX import flow.
+ * - [loadGpxFromUri] — reads a .gpx file, parses it with [GpxParser],
+ * ```
+ *    and pre-loads the resulting [Route] into [SimulationRepository] so
+ *    [SimulationService] can use it without calling OSRM.
+ * ```
  */
 @HiltViewModel
-class SimulationViewModel @Inject constructor(
-    private val repository: SimulationRepository,
+class SimulationViewModel
+@Inject
+constructor(
+        private val repository: SimulationRepository,
+        private val gpxParser: GpxParser,
 ) : ViewModel() {
 
     init {}
 
+    // ── Real device location (one-shot, for map cold-start centering) ─────────
+
+    private val _deviceLocation = MutableStateFlow<Pair<Double, Double>?>(null)
     /**
-     * Grabs the device's actual physical location for a cold start or when 
-     * simulation stops. Prioritizes GPS, falls back to NETWORK.
+     * Emits the real device coordinates once on first resolution. Observed by [InteractiveMap] to
+     * call [MapController.moveTo] before the user places any pins. Null until [initializeLocation]
+     * succeeds.
      */
+    val deviceLocation: StateFlow<Pair<Double, Double>?> = _deviceLocation.asStateFlow()
+
     fun initializeLocation(context: Context) {
         try {
             val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-            
+
             var realLocation = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-            
+
             val networkLoc = lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
             if (networkLoc != null) {
                 if (realLocation == null || networkLoc.time > realLocation.time) {
                     realLocation = networkLoc
                 }
             }
-            
+
             if (realLocation == null) {
                 realLocation = lm.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
             }
@@ -65,21 +79,26 @@ class SimulationViewModel @Inject constructor(
                 _startLng.value = realLocation.longitude
                 _endLat.value = realLocation.latitude
                 _endLng.value = realLocation.longitude
+                // Signal the map to center — only set once (null → value)
+                if (_deviceLocation.value == null) {
+                    _deviceLocation.value = realLocation.latitude to realLocation.longitude
+                }
             }
         } catch (e: SecurityException) {
-            // Permission not granted or provider not available — silently fail back to defaults
+            // Permission not granted — silently fall back to defaults
         }
     }
 
-    // ── Profile and Mode ─────────────────────────────────────────────────────
+    // ── Profile ───────────────────────────────────────────────────────────────
 
-    val profiles: List<MovementProfile> = listOf(
-        MovementProfile.PEDESTRIAN,
-        MovementProfile.BICYCLE,
-        MovementProfile.CAR,
-        MovementProfile.URBAN_VEHICLE,
-        MovementProfile.DRONE,
-    )
+    val profiles: List<MovementProfile> =
+            listOf(
+                    MovementProfile.PEDESTRIAN,
+                    MovementProfile.BICYCLE,
+                    MovementProfile.CAR,
+                    MovementProfile.URBAN_VEHICLE,
+                    MovementProfile.DRONE,
+            )
 
     private val _selectedProfile = MutableStateFlow(MovementProfile.PEDESTRIAN)
     val selectedProfile: StateFlow<MovementProfile> = _selectedProfile.asStateFlow()
@@ -88,46 +107,90 @@ class SimulationViewModel @Inject constructor(
         _selectedProfile.value = profile
     }
 
+    // ── Operating mode ────────────────────────────────────────────────────────
+
     private val _selectedMode = MutableStateFlow(AppMode.CLASSIC)
     val selectedMode: StateFlow<AppMode> = _selectedMode.asStateFlow()
 
     fun setAppMode(mode: AppMode) {
         _selectedMode.value = mode
-        
-        // When switching to manual (joystick), update the repository state
-        if (mode == AppMode.JOYSTICK) {
-            repository.setManualMode(true)
-        } else {
-            repository.setManualMode(false)
+        repository.setManualMode(mode == AppMode.JOYSTICK)
+
+        // Clear any pre-loaded GPX route when switching away from GPX mode
+        if (mode != AppMode.GPX) {
+            _gpxLoadState.value = GpxLoadState.Idle
+            // Only clear the repository route if there is no running simulation
+            if (repository.state.value is SimulationState.Idle) {
+                repository.emitRoute(null)
+            }
         }
     }
 
-    // ── Simulation state (from repository) ────────────────────────────────────
+    // ── GPX route loading (Task 23) ───────────────────────────────────────────
+
+    /** Represents the lifecycle of a GPX file import triggered by the user's file picker. */
+    sealed class GpxLoadState {
+        data object Idle : GpxLoadState()
+        data object Loading : GpxLoadState()
+        data class Success(val route: Route) : GpxLoadState()
+        data class Error(val message: String) : GpxLoadState()
+    }
+
+    private val _gpxLoadState = MutableStateFlow<GpxLoadState>(GpxLoadState.Idle)
+    val gpxLoadState: StateFlow<GpxLoadState> = _gpxLoadState.asStateFlow()
 
     /**
-     * The current simulation state — delegates directly to [SimulationRepository.state].
-     * The Service writes to the repository; the UI reads from here.
+     * Reads a `.gpx` file from [uri], parses it with [GpxParser], and pre-loads the resulting
+     * [Route] into [SimulationRepository].
+     *
+     * [SimulationService] will detect the pre-loaded route and skip the OSRM call when
+     * [AppMode.GPX] is active.
      */
+    fun loadGpxFromUri(context: Context, uri: Uri) {
+        viewModelScope.launch {
+            _gpxLoadState.value = GpxLoadState.Loading
+            val result =
+                    withContext(Dispatchers.IO) {
+                        runCatching {
+                            val stream =
+                                    context.contentResolver.openInputStream(uri)
+                                            ?: error("Cannot open stream for URI: $uri")
+                            gpxParser.parse(stream)
+                        }
+                                .getOrElse { outer -> Result.failure(outer) }
+                    }
+
+            result.fold(
+                    onSuccess = { route ->
+                        repository.emitRoute(route)
+                        _gpxLoadState.value = GpxLoadState.Success(route)
+                    },
+                    onFailure = { error ->
+                        _gpxLoadState.value =
+                                GpxLoadState.Error(error.message ?: "Failed to parse GPX file.")
+                    },
+            )
+        }
+    }
+
+    /** Resets the GPX load state so the user can pick a different file. */
+    fun clearGpxRoute() {
+        _gpxLoadState.value = GpxLoadState.Idle
+        if (repository.state.value is SimulationState.Idle) {
+            repository.emitRoute(null)
+        }
+    }
+
+    // ── Simulation state ──────────────────────────────────────────────────────
+
     val simulationState: StateFlow<SimulationState> = repository.state
 
-    /**
-     * Fix (🟡): isBusy is computed in the ViewModel, not in the Composable.
-     *
-     * The Composable should only decide *how* to display "busy" state,
-     * not *what* constitutes being busy. Using [SharingStarted.Eagerly] ensures
-     * the derived flow is immediately ready when the first subscriber collects it.
-     */
-    val isBusy: StateFlow<Boolean> = repository.state
-        .map { it is SimulationState.Running || it is SimulationState.FetchingRoute }
-        .stateIn(
-            scope          = viewModelScope,
-            started        = SharingStarted.Eagerly,
-            initialValue   = false,
-        )
+    val isBusy: StateFlow<Boolean> =
+            repository
+                    .state
+                    .map { it is SimulationState.Running || it is SimulationState.FetchingRoute }
+                    .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    // ── Route (from repository) ───────────────────────────────────────────────
-
-    /** The fetched OSRM route. Null when idle or not yet fetched. */
     val route: StateFlow<Route?> = repository.route
 
     // ── Map pin coordinates ───────────────────────────────────────────────────
@@ -144,56 +207,34 @@ class SimulationViewModel @Inject constructor(
     private val _endLng = MutableStateFlow(DefaultCoordinates.END_LNG)
     val endLng: StateFlow<Double> = _endLng.asStateFlow()
 
-    // ── Mutators ─────────────────────────────────────────────────────────────
+    fun setStartLat(lat: Double) {
+        _startLat.value = lat
+    }
+    fun setStartLng(lng: Double) {
+        _startLng.value = lng
+    }
 
-    fun setStartLat(lat: Double) { _startLat.value = lat }
-    fun setStartLng(lng: Double) { _startLng.value = lng }
-
-    /**
-     * True when the start pin has been placed and the next long-press should
-     * place the end pin. Drives the hint text at the bottom of the map.
-     */
     private val _startPlaced = MutableStateFlow(false)
     val startPlaced: StateFlow<Boolean> = _startPlaced.asStateFlow()
 
     // ── Map interaction ───────────────────────────────────────────────────────
 
-    /**
-     * Handle a long-press on the map.
-     *
-     * Toggle logic:
-     *   1st press → set Start pin; mark start as placed
-     *   2nd press → set End pin; ready for next round
-     *   3rd press → reset Start; cycle restarts
-     *
-     * Placing new pins clears any previously fetched route so the map
-     * refreshes with a straight preview line until the simulation starts again.
-     */
     fun onMapLongPress(lat: Double, lng: Double) {
-        if (!_startPlaced.value) {
-            _startLat.value    = lat
-            _startLng.value    = lng
-            // Reset end to same position — prevents stale route line being drawn
-            _endLat.value      = lat
-            _endLng.value      = lng
-            _startPlaced.value = true
-            repository.emitRoute(null)
-        } else {
-            _endLat.value      = lat
-            _endLng.value      = lng
-            _startPlaced.value = false
+        when {
+            !_startPlaced.value -> {
+                _startLat.value = lat
+                _startLng.value = lng
+                _startPlaced.value = true
+            }
+            else -> {
+                _endLat.value = lat
+                _endLng.value = lng
+                _startPlaced.value = false
+            }
+        }
+        // Clear cached route whenever pins change
+        if (repository.state.value is SimulationState.Idle) {
             repository.emitRoute(null)
         }
-    }
-
-    /** Programmatic coordinate setters (kept for backward-compat with MainActivity). */
-    fun setStartCoords(lat: Double, lng: Double) {
-        _startLat.value = lat
-        _startLng.value = lng
-    }
-
-    fun setEndCoords(lat: Double, lng: Double) {
-        _endLat.value = lat
-        _endLng.value = lng
     }
 }

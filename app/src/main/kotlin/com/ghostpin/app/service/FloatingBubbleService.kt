@@ -25,20 +25,37 @@ import javax.inject.Inject
  *  - Uses START_NOT_STICKY so the overlay doesn't linger after a crash.
  *
  * Requires `SYSTEM_ALERT_WINDOW` permission to function.
+ *
+ * Sprint 6 — Task 24:
+ *  - Added [ACTION_SHOW_JOYSTICK] intent action and [showJoystickIntent] helper.
+ *    When [SimulationService] starts in JOYSTICK mode it sends this intent so
+ *    the joystick appears immediately — no user interaction required.
+ *  - [showJoystick] now guards against showing the joystick before the bubble
+ *    has been initialised (calls [showBubble] first if needed).
  */
 @AndroidEntryPoint
 class FloatingBubbleService : Service() {
 
     companion object {
-        const val ACTION_SHOW = "com.ghostpin.action.SHOW_BUBBLE"
-        const val ACTION_HIDE = "com.ghostpin.action.HIDE_BUBBLE"
+        const val ACTION_SHOW           = "com.ghostpin.action.SHOW_BUBBLE"
+        const val ACTION_HIDE           = "com.ghostpin.action.HIDE_BUBBLE"
         const val ACTION_TOGGLE_JOYSTICK = "com.ghostpin.action.TOGGLE_JOYSTICK"
+
+        /** Sprint 6 — Task 24: forces joystick visible without toggling. */
+        const val ACTION_SHOW_JOYSTICK  = "com.ghostpin.action.SHOW_JOYSTICK"
 
         fun showIntent(context: Context): Intent =
             Intent(context, FloatingBubbleService::class.java).setAction(ACTION_SHOW)
 
         fun hideIntent(context: Context): Intent =
             Intent(context, FloatingBubbleService::class.java).setAction(ACTION_HIDE)
+
+        /**
+         * Sprint 6 — Task 24: call this from [SimulationService] when entering
+         * JOYSTICK mode so the joystick auto-opens on simulation start.
+         */
+        fun showJoystickIntent(context: Context): Intent =
+            Intent(context, FloatingBubbleService::class.java).setAction(ACTION_SHOW_JOYSTICK)
     }
 
     @Inject lateinit var simulationRepository: SimulationRepository
@@ -54,12 +71,19 @@ class FloatingBubbleService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_SHOW -> showBubble()
-            ACTION_HIDE -> {
+            ACTION_SHOW           -> showBubble()
+            ACTION_HIDE           -> {
                 removeBubble()
                 stopSelf()
             }
             ACTION_TOGGLE_JOYSTICK -> toggleJoystick()
+
+            // Sprint 6 — Task 24: ensure bubble is visible, then show joystick directly.
+            // Unlike ACTION_TOGGLE_JOYSTICK this never hides — it only shows.
+            ACTION_SHOW_JOYSTICK  -> {
+                if (bubbleView == null) showBubble()
+                showJoystick()
+            }
         }
         return START_NOT_STICKY
     }
@@ -81,9 +105,9 @@ class FloatingBubbleService : Service() {
 
         val bubble = FloatingBubbleView(
             context = this,
-            onPlay = { startSimulation() },
+            onPlay  = { startSimulation() },
             onPause = { pauseSimulation() },
-            onStop = { stopSimulation() },
+            onStop  = { stopSimulation() },
         )
         bubbleView = bubble
         wm.addView(bubble, bubble.windowParams)
@@ -116,7 +140,7 @@ class FloatingBubbleService : Service() {
     }
 
     private fun showJoystick() {
-        if (joystickView != null) return
+        if (joystickView != null) return // already visible — idempotent
         val wm = windowManager ?: return
 
         val sizePx = TypedValue.applyDimension(
@@ -126,7 +150,7 @@ class FloatingBubbleService : Service() {
         ).toInt()
 
         val joy = JoystickView(this)
-        joystickView = joy
+        joystickView    = joy
         isJoystickVisible = true
 
         val params = WindowManager.LayoutParams(
@@ -147,30 +171,33 @@ class FloatingBubbleService : Service() {
         joystickView?.let {
             try { wm.removeView(it) } catch (_: Exception) {}
         }
-        joystickView = null
+        joystickView    = null
         isJoystickVisible = false
     }
 
     // ── Simulation control ────────────────────────────────────────────────
 
     private fun startSimulation() {
-        val intent = Intent(this, SimulationService::class.java).apply {
-            action = SimulationService.ACTION_START
-        }
-        startForegroundService(intent)
+        startForegroundService(
+            Intent(this, SimulationService::class.java).apply {
+                action = SimulationService.ACTION_START
+            }
+        )
     }
 
     private fun pauseSimulation() {
-        val intent = Intent(this, SimulationService::class.java).apply {
-            action = SimulationService.ACTION_PAUSE
-        }
-        startService(intent)
+        startService(
+            Intent(this, SimulationService::class.java).apply {
+                action = SimulationService.ACTION_PAUSE
+            }
+        )
     }
 
     private fun stopSimulation() {
-        val intent = Intent(this, SimulationService::class.java).apply {
-            action = SimulationService.ACTION_STOP
-        }
-        startService(intent)
+        startService(
+            Intent(this, SimulationService::class.java).apply {
+                action = SimulationService.ACTION_STOP
+            }
+        )
     }
 }
