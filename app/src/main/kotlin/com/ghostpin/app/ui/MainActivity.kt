@@ -408,7 +408,7 @@ fun GhostPinScreen(
                                 }
                             }
                         },
-                        onStart = { pauseSec -> startSimulation(selectedProfile, pauseSec) }
+                        onStart = { _ -> onStartSimulation(selectedProfile) }
                     )
                 }
                 AppMode.GPX -> {
