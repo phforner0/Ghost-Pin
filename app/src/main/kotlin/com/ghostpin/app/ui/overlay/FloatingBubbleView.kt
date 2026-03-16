@@ -13,24 +13,14 @@ import android.view.View
 import android.view.WindowManager
 import kotlin.math.abs
 
-/**
- * Floating bubble overlay for quick simulation control.
- *
- * Features:
- *  - Play/Pause toggle button
- *  - Status indicator colour (green = running, amber = paused, grey = idle)
- *  - Draggable via touch, snaps to left/right edge on release
- *  - Collapses to a small dot when idle
- *
- * This View is managed by [FloatingBubbleService] and added directly
- * to the WindowManager with TYPE_APPLICATION_OVERLAY.
- */
 @SuppressLint("ViewConstructor")
 class FloatingBubbleView(
     context: Context,
     private val onPlay: () -> Unit,
     private val onPause: () -> Unit,
     private val onStop: () -> Unit,
+    private val onNextWaypoint: () -> Unit,
+    private val onPreviousWaypoint: () -> Unit,
 ) : View(context) {
 
     enum class BubbleState { IDLE, RUNNING, PAUSED }
@@ -41,7 +31,6 @@ class FloatingBubbleView(
             invalidate()
         }
 
-    // ── Layout params (public so the service can add to WindowManager) ────
     val windowParams: WindowManager.LayoutParams
         get() = WindowManager.LayoutParams(
             BUBBLE_SIZE,
@@ -60,28 +49,22 @@ class FloatingBubbleView(
             y = 400
         }
 
-    // ── Paints ────────────────────────────────────────────────────────────
     private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xE01A1A2E.toInt()
         style = Paint.Style.FILL
     }
-
     private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFF80CBC4.toInt() // Primary teal
+        color = 0xFF80CBC4.toInt()
         style = Paint.Style.STROKE
         strokeWidth = 4f
     }
-
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFFE0E0E0.toInt()
         style = Paint.Style.FILL
     }
-
     private val statusPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-
     private val rect = RectF()
 
-    // ── Drag state ────────────────────────────────────────────────────────
     private var initialX = 0
     private var initialY = 0
     private var initialTouchX = 0f
@@ -114,10 +97,8 @@ class FloatingBubbleView(
             }
             MotionEvent.ACTION_UP -> {
                 if (!isDragging) {
-                    // Tap → toggle play/pause or stop on long-press
-                    handleTap()
+                    handleTap(event.x)
                 } else {
-                    // Edge snap
                     snapToEdge(wm, params)
                 }
                 return true
@@ -126,11 +107,23 @@ class FloatingBubbleView(
         return super.onTouchEvent(event)
     }
 
-    private fun handleTap() {
+    private fun handleTap(x: Float) {
+        val leftZone = width * 0.30f
+        val rightZone = width * 0.70f
+
+        if (x <= leftZone) {
+            onPreviousWaypoint()
+            return
+        }
+        if (x >= rightZone) {
+            onNextWaypoint()
+            return
+        }
+
         when (bubbleState) {
-            BubbleState.IDLE    -> onPlay()
+            BubbleState.IDLE -> onPlay()
             BubbleState.RUNNING -> onPause()
-            BubbleState.PAUSED  -> onPlay()
+            BubbleState.PAUSED -> onPlay()
         }
     }
 
@@ -141,42 +134,39 @@ class FloatingBubbleView(
         wm.updateViewLayout(this, params)
     }
 
-    // ── Drawing ───────────────────────────────────────────────────────────
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val cx = width / 2f
         val cy = height / 2f
         val padding = 8f
         val cornerRadius = 32f
+        val r = width / 2f
 
-        // Shadow layer
         rect.set(padding, padding, width - padding, height - padding)
         bgPaint.setShadowLayer(12f, 0f, 4f, 0x66000000)
-        
-        // Background rounded rect
         canvas.drawRoundRect(rect, cornerRadius, cornerRadius, bgPaint)
-        
-        // Remove shadow for subsequent draws
         bgPaint.clearShadowLayer()
 
-        // Border (subtle glassmorphism edge)
         canvas.drawRoundRect(rect, cornerRadius, cornerRadius, borderPaint)
 
-        // Status indicator dot (top-right corner of the rounded box)
         statusPaint.color = when (bubbleState) {
-            BubbleState.RUNNING -> 0xFF00E676.toInt()  // Bright neon green
-            BubbleState.PAUSED  -> 0xFFFFEA00.toInt()  // Neon amber
-            BubbleState.IDLE    -> 0xFF757575.toInt()  // Dim grey
+            BubbleState.RUNNING -> 0xFF00E676.toInt()
+            BubbleState.PAUSED -> 0xFFFFEA00.toInt()
+            BubbleState.IDLE -> 0xFF757575.toInt()
         }
         statusPaint.setShadowLayer(6f, 0f, 0f, statusPaint.color)
         canvas.drawCircle(width - padding - 16f, padding + 16f, 10f, statusPaint)
         statusPaint.clearShadowLayer()
 
-        // Play/Pause icon (centred)
         when (bubbleState) {
-            BubbleState.RUNNING -> drawPauseIcon(canvas, cx, cy, width / 2f)
-            else                -> drawPlayIcon(canvas, cx, cy, width / 2f)
+            BubbleState.RUNNING -> drawPauseIcon(canvas, cx, cy, r)
+            else -> drawPlayIcon(canvas, cx, cy, r)
         }
+
+        iconPaint.textAlign = Paint.Align.CENTER
+        iconPaint.textSize = r * 0.34f
+        canvas.drawText("‹", width * 0.23f, cy + (r * 0.12f), iconPaint)
+        canvas.drawText("›", width * 0.77f, cy + (r * 0.12f), iconPaint)
     }
 
     private fun drawPlayIcon(canvas: Canvas, cx: Float, cy: Float, r: Float) {
@@ -194,15 +184,13 @@ class FloatingBubbleView(
         val barW = r * 0.12f
         val barH = r * 0.45f
         val gap = r * 0.15f
-        // Left bar
         rect.set(cx - gap - barW, cy - barH, cx - gap, cy + barH)
         canvas.drawRoundRect(rect, 6f, 6f, iconPaint)
-        // Right bar
         rect.set(cx + gap, cy - barH, cx + gap + barW, cy + barH)
         canvas.drawRoundRect(rect, 6f, 6f, iconPaint)
     }
 
     companion object {
-        const val BUBBLE_SIZE = 140  // px
+        const val BUBBLE_SIZE = 140
     }
 }

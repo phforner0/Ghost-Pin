@@ -65,7 +65,9 @@ class GpxParser @Inject constructor() {
                         try {
                             val lat = latAttr.toDouble()
                             val lng = lonAttr.toDouble()
-                            waypoints.add(Waypoint(lat, lng))
+                            if (lat in -90.0..90.0 && lng in -180.0..180.0 && lat.isFinite() && lng.isFinite()) {
+                                waypoints.add(Waypoint(lat, lng))
+                            }
                         } catch (e: NumberFormatException) {
                             // Skip invalid float points gracefully
                         }
