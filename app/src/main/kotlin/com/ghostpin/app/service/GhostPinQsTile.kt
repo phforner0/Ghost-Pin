@@ -2,6 +2,7 @@ package com.ghostpin.app.service
 
 import android.content.ComponentName
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
@@ -92,15 +93,15 @@ class GhostPinQsTile : TileService() {
         when (state) {
             is SimulationState.Running -> {
                 tile.state = Tile.STATE_ACTIVE
-                tile.subtitle = state.profileName
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) tile.subtitle = state.profileName
             }
             is SimulationState.Paused -> {
                 tile.state = Tile.STATE_ACTIVE
-                tile.subtitle = "Paused"
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) tile.subtitle = "Paused"
             }
             else -> {
                 tile.state = Tile.STATE_INACTIVE
-                tile.subtitle = null
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) tile.subtitle = null
             }
         }
         tile.label = "GhostPin"

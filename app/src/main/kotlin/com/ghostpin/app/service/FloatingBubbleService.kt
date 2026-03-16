@@ -108,6 +108,8 @@ class FloatingBubbleService : Service() {
             onPlay  = { startSimulation() },
             onPause = { pauseSimulation() },
             onStop  = { stopSimulation() },
+            onNextWaypoint = { skipNextWaypoint() },
+            onPreviousWaypoint = { skipPreviousWaypoint() },
         )
         bubbleView = bubble
         wm.addView(bubble, bubble.windowParams)
@@ -189,6 +191,23 @@ class FloatingBubbleService : Service() {
         startService(
             Intent(this, SimulationService::class.java).apply {
                 action = SimulationService.ACTION_PAUSE
+            }
+        )
+    }
+
+
+    private fun skipNextWaypoint() {
+        startService(
+            Intent(this, SimulationService::class.java).apply {
+                action = SimulationService.ACTION_SKIP_NEXT_WAYPOINT
+            }
+        )
+    }
+
+    private fun skipPreviousWaypoint() {
+        startService(
+            Intent(this, SimulationService::class.java).apply {
+                action = SimulationService.ACTION_SKIP_PREV_WAYPOINT
             }
         )
     }

@@ -6,7 +6,7 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_MOCK_LOCATION"
-        tools:ignore="ProtectedPermissions" />
+        tools:ignore="ProtectedPermissions,MockLocation" />
 
     <!-- Foreground service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -20,7 +20,7 @@
     <!-- Sprint 5: Automation custom permission -->
     <permission
         android:name="com.ghostpin.permission.AUTOMATION"
-        android:protectionLevel="normal"
+        android:protectionLevel="signature"
         android:label="GhostPin Automation"
         android:description="@string/app_name" />
 
