@@ -76,6 +76,7 @@ class SimulationService : LifecycleService() {
         const val EXTRA_MODE          = "extra_mode"
         const val EXTRA_WAYPOINTS_LAT = "extra_waypoints_lat"
         const val EXTRA_WAYPOINTS_LNG = "extra_waypoints_lng"
+        const val EXTRA_WAYPOINT_PAUSE_SEC = "extra_waypoint_pause_sec"
 
         const val ACTION_START        = "com.ghostpin.ACTION_START"
         const val ACTION_STOP         = "com.ghostpin.ACTION_STOP"
@@ -183,6 +184,7 @@ class SimulationService : LifecycleService() {
         val frequencyHz = intent.getIntExtra(EXTRA_FREQUENCY_HZ, DEFAULT_FREQUENCY)
             .coerceIn(MIN_FREQUENCY, MAX_FREQUENCY)
         val speedRatio = intent.getDoubleExtra(EXTRA_SPEED_RATIO, 1.0).coerceIn(0.0, 1.0)
+        val waypointPauseSec = intent.getDoubleExtra(EXTRA_WAYPOINT_PAUSE_SEC, 0.0).coerceIn(0.0, 30.0)
 
         // ── Start overlay bubble ──────────────────────────────────────────────
         if (android.provider.Settings.canDrawOverlays(this)) {
@@ -209,6 +211,7 @@ class SimulationService : LifecycleService() {
                 frequencyHz = frequencyHz,
                 speedRatio  = speedRatio,
                 appMode     = appMode,
+                waypointPauseSec = waypointPauseSec,
                 resumeState = pausedState,
             )
             return START_NOT_STICKY
@@ -256,7 +259,7 @@ class SimulationService : LifecycleService() {
 
         repository.emitConfig(SimulationConfig(profile.name, startLat, startLng, routeId = intent.getStringExtra(EXTRA_ROUTE_ID)))
         startForeground(NOTIFICATION_ID, buildNotification(profile.name))
-        startSimulation(profile, startLat, startLng, endLat, endLng, frequencyHz, speedRatio, appMode, resumeState = null, waypoints = waypointsList)
+        startSimulation(profile, startLat, startLng, endLat, endLng, frequencyHz, speedRatio, appMode, waypointPauseSec = waypointPauseSec, resumeState = null, waypoints = waypointsList)
 
         return START_NOT_STICKY
     }
@@ -278,6 +281,7 @@ class SimulationService : LifecycleService() {
         frequencyHz: Int,
         speedRatio:  Double = 1.0,
         appMode:     AppMode = AppMode.CLASSIC,
+        waypointPauseSec: Double = 0.0,
         resumeState: SimulationState.Paused? = null,
         waypoints:   List<com.ghostpin.core.model.Waypoint> = emptyList(),
     ) {
@@ -371,6 +375,7 @@ class SimulationService : LifecycleService() {
 
                 val totalDist = route.distanceMeters.takeIf { it > 0 } ?: 1.0
                 val speedMs   = profile.maxSpeedMs * speedRatio
+                var lastWaypointIndex = 0
 
                 while (progress < 1.0) {
                     val frameStart = System.currentTimeMillis()
@@ -378,6 +383,14 @@ class SimulationService : LifecycleService() {
                     if (pendingWaypointSkip != 0) {
                         progress = skipToAdjacentWaypoint(route, progress, pendingWaypointSkip)
                         pendingWaypointSkip = 0
+                    }
+
+                    if (appMode == AppMode.WAYPOINTS && waypointPauseSec > 0.0) {
+                        val idx = currentWaypointIndex(route, progress)
+                        if (idx > lastWaypointIndex) {
+                            lastWaypointIndex = idx
+                            delay((waypointPauseSec * 1000.0).toLong())
+                        }
                     }
 
                     val (lat, lng) = interpolate(route, progress)
@@ -578,6 +591,22 @@ class SimulationService : LifecycleService() {
         return 0f
     }
 
+
+
+    private fun currentWaypointIndex(route: Route, progress: Double): Int {
+        if (route.waypoints.size < 2) return 0
+        val totalDist = route.distanceMeters.coerceAtLeast(1.0)
+        val target = progress.coerceIn(0.0, 1.0) * totalDist
+        var covered = 0.0
+        for (i in 0 until route.waypoints.size - 1) {
+            val a = route.waypoints[i]
+            val b = route.waypoints[i + 1]
+            val segDist = haversineMeters(a.lat, a.lng, b.lat, b.lng)
+            if (covered + segDist >= target) return i + 1
+            covered += segDist
+        }
+        return route.waypoints.lastIndex
+    }
 
     private fun skipToAdjacentWaypoint(route: Route, progress: Double, direction: Int): Double {
         if (route.waypoints.size < 2) return progress

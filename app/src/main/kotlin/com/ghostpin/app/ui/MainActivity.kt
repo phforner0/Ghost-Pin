@@ -3,6 +3,7 @@ package com.ghostpin.app.ui
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Geocoder
 import android.net.Uri
 import android.os.Build
 import com.ghostpin.core.model.distanceMeters
@@ -56,6 +57,8 @@ import com.ghostpin.core.model.Waypoint
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.maplibre.android.MapLibre
 import org.maplibre.android.maps.MapView
 
@@ -153,7 +156,7 @@ class MainActivity : ComponentActivity() {
         if (needed.isNotEmpty()) locationPermissionLauncher.launch(needed.toTypedArray())
     }
 
-    private fun startSimulation(profile: MovementProfile) {
+    private fun startSimulation(profile: MovementProfile, waypointPauseSec: Double = 0.0) {
         val intent =
                 Intent(this, SimulationService::class.java).apply {
                     putExtra(SimulationService.EXTRA_PROFILE_NAME, profile.name)
@@ -171,6 +174,7 @@ class MainActivity : ComponentActivity() {
                     val currentWaypoints = viewModel.waypoints.value
                     putExtra(SimulationService.EXTRA_WAYPOINTS_LAT, currentWaypoints.map { it.lat }.toDoubleArray())
                     putExtra(SimulationService.EXTRA_WAYPOINTS_LNG, currentWaypoints.map { it.lng }.toDoubleArray())
+                    putExtra(SimulationService.EXTRA_WAYPOINT_PAUSE_SEC, waypointPauseSec)
                 }
         ContextCompat.startForegroundService(this, intent)
     }
@@ -389,7 +393,22 @@ fun GhostPinScreen(
                         selectedProfile = selectedProfile,
                         enabled = !isBusy,
                         onSelectProfile = viewModel::selectProfile,
-                        onStart = { startSimulation(selectedProfile) }
+                        onAddAddress = { address ->
+                            coroutineScope.launch {
+                                val geocoder = Geocoder(context)
+                                val point = withContext(Dispatchers.IO) {
+                                    runCatching { geocoder.getFromLocationName(address, 1) }
+                                        .getOrNull()
+                                        ?.firstOrNull()
+                                }
+                                if (point != null) {
+                                    viewModel.addWaypoint(Waypoint(point.latitude, point.longitude, label = address))
+                                } else {
+                                    snackbarHostState.showSnackbar("Address not found")
+                                }
+                            }
+                        },
+                        onStart = { pauseSec -> startSimulation(selectedProfile, pauseSec) }
                     )
                 }
                 AppMode.GPX -> {
@@ -460,7 +479,8 @@ fun WaypointsModePanel(
         selectedProfile: MovementProfile,
         enabled: Boolean,
         onSelectProfile: (MovementProfile) -> Unit,
-        onStart: () -> Unit,
+        onAddAddress: (String) -> Unit,
+        onStart: (Double) -> Unit,
 ) {
     Card(
             modifier = Modifier.fillMaxWidth(),
@@ -471,6 +491,9 @@ fun WaypointsModePanel(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            var addressQuery by remember { mutableStateOf("") }
+            var waypointPauseSec by remember { mutableFloatStateOf(0f) }
+
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                         text = "Waypoints Mode",
@@ -482,6 +505,40 @@ fun WaypointsModePanel(
                         text = "Long press on the map to add stops to your route.",
                         color = Color(0xFFB0BEC5),
                         fontSize = 13.sp,
+                )
+            }
+
+            OutlinedTextField(
+                value = addressQuery,
+                onValueChange = { addressQuery = it },
+                label = { Text("Add stop by address") },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = enabled,
+                singleLine = true,
+                trailingIcon = {
+                    TextButton(
+                        onClick = {
+                            val q = addressQuery.trim()
+                            if (q.isNotEmpty()) {
+                                onAddAddress(q)
+                                addressQuery = ""
+                            }
+                        },
+                        enabled = enabled && addressQuery.isNotBlank()
+                    ) { Text("Add") }
+                }
+            )
+
+            Column {
+                Text("Pause at each stop: ${"%.1f".format(waypointPauseSec)}s", color = Color(0xFFB0BEC5), fontSize = 12.sp)
+                Slider(
+                    value = waypointPauseSec,
+                    onValueChange = {
+                        waypointPauseSec = it
+                    },
+                    valueRange = 0f..10f,
+                    steps = 9,
+                    enabled = enabled
                 )
             }
 
@@ -534,7 +591,7 @@ fun WaypointsModePanel(
             )
 
             Button(
-                    onClick = onStart,
+                    onClick = { onStart(waypointPauseSec.toDouble()) },
                     enabled = enabled && waypoints.size >= 2,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00BFA5))
