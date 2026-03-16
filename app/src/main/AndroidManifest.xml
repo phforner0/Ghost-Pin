@@ -20,7 +20,7 @@
     <!-- Sprint 5: Automation custom permission -->
     <permission
         android:name="com.ghostpin.permission.AUTOMATION"
-        android:protectionLevel="normal"
+        android:protectionLevel="signature"
         android:label="GhostPin Automation"
         android:description="@string/app_name" />
 
