@@ -100,12 +100,14 @@ class RouteFileParser @Inject constructor() {
             }
         }
 
-        // Extract track name
-        val trackName = nameOverride ?: doc.getElementsByTagName("name").item(0)
-            ?.textContent?.trim() ?: "Imported GPX Route"
+        // Extract track name (accept both <name> and legacy/custom <n>)
+        val trackName = nameOverride
+            ?: doc.getElementsByTagName("name").item(0)?.textContent?.trim()
+            ?: doc.getElementsByTagName("n").item(0)?.textContent?.trim()
+            ?: "Imported GPX Route"
 
         buildRoute(waypoints, trackName, "GPX")
-    }.onFailure { e -> Log.e(TAG, "GPX parse error: ${e.message}") }
+    }.onFailure { e -> logError("GPX parse error: ${e.message}") }
 
     // ── KML ──────────────────────────────────────────────────────────────────
 
@@ -129,7 +131,7 @@ class RouteFileParser @Inject constructor() {
             ?.textContent?.trim() ?: "Imported KML Route"
 
         buildRoute(waypoints, placemarkName, "KML")
-    }.onFailure { e -> Log.e(TAG, "KML parse error: ${e.message}") }
+    }.onFailure { e -> logError("KML parse error: ${e.message}") }
 
     // ── TCX ──────────────────────────────────────────────────────────────────
 
@@ -171,7 +173,7 @@ class RouteFileParser @Inject constructor() {
             ?.nodeValue?.trim() ?: "Imported TCX Route"
 
         buildRoute(waypoints, activityName, "TCX")
-    }.onFailure { e -> Log.e(TAG, "TCX parse error: ${e.message}") }
+    }.onFailure { e -> logError("TCX parse error: ${e.message}") }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -192,6 +194,14 @@ class RouteFileParser @Inject constructor() {
         !lat.isNaN() && !lat.isInfinite() && lat in -90.0..90.0 &&
         !lng.isNaN() && !lng.isInfinite() && lng in -180.0..180.0
 
+    private fun logDebug(message: String) {
+        runCatching { Log.d(TAG, message) }
+    }
+
+    private fun logError(message: String) {
+        runCatching { Log.e(TAG, message) }
+    }
+
     private fun buildRoute(
         waypoints: List<Waypoint>,
         name: String,
@@ -209,7 +219,7 @@ class RouteFileParser @Inject constructor() {
             "All $format waypoints are identical — route has zero length."
         }
 
-        Log.d(TAG, "Parsed $format: ${waypoints.size} waypoints → '$name'")
+        logDebug("Parsed $format: ${waypoints.size} waypoints → '$name'")
         return Route(
             id = UUID.randomUUID().toString(),
             name = name,
