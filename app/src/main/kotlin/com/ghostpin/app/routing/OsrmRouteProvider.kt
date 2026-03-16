@@ -91,6 +91,34 @@ class OsrmRouteProvider @Inject constructor() {
     }
 
     /**
+     * Fetch a street-snapped route passing through multiple waypoints sequentially.
+     */
+    suspend fun fetchMultiRoute(
+        waypoints: List<Waypoint>,
+        profile: MovementProfile,
+    ): Result<Route> = withContext(Dispatchers.IO) {
+        if (waypoints.size < 2) {
+            return@withContext Result.failure(IllegalArgumentException("At least 2 waypoints are required"))
+        }
+
+        val osrmProfile = profile.toOsrmProfile()
+
+        // Drones don't follow roads — skip OSRM entirely
+        if (osrmProfile == null) {
+            return@withContext Result.success(fallbackMultiRoute(waypoints))
+        }
+
+        runCatching {
+            val coordsString = waypoints.joinToString(";") { "${it.lng},${it.lat}" }
+            val url = "$BASE_URL/$osrmProfile/$coordsString?overview=full&geometries=geojson&steps=false"
+            val json = httpGet(url)
+            parseOsrmResponse(json)
+        }.onFailure { e ->
+            Log.w(TAG, "Multi-route fetch failed — will use straight-line fallback: ${e.message}")
+        }
+    }
+
+    /**
      * Build a straight-line [Route] between two points.
      * Used as fallback when OSRM is unavailable or for the Drone profile.
      */
@@ -106,6 +134,15 @@ class OsrmRouteProvider @Inject constructor() {
             Waypoint(lat = startLat, lng = startLng),
             Waypoint(lat = endLat,   lng = endLng),
         ),
+    )
+
+    /**
+     * Build a straight-line [Route] through multiple points.
+     */
+    fun fallbackMultiRoute(waypoints: List<Waypoint>): Route = Route(
+        id = "fallback-multi-${System.currentTimeMillis()}",
+        name = "Direct Multi-Route (fallback)",
+        waypoints = waypoints,
     )
 
     // ── Private helpers ──────────────────────────────────────────────────────

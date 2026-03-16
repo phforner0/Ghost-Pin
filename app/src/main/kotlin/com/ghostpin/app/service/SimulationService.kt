@@ -13,20 +13,22 @@ import com.ghostpin.app.R
 import com.ghostpin.app.data.SimulationRepository
 import com.ghostpin.app.routing.OsrmRouteProvider
 import com.ghostpin.app.ui.MainActivity
-import com.ghostpin.app.util.LogSanitizer
-import com.ghostpin.app.util.MockLocationInjector
-import com.ghostpin.app.util.TrajectoryValidator
+import com.ghostpin.core.security.LogSanitizer
+import com.ghostpin.app.location.MockLocationInjector
+import com.ghostpin.engine.validation.TrajectoryValidator
 import com.ghostpin.core.model.AppMode
 import com.ghostpin.core.model.DefaultCoordinates
 import com.ghostpin.core.model.MockLocation
 import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.model.Route
+import com.ghostpin.core.model.distanceMeters
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.math.*
 
 /**
  * Background service that drives the mock GPS location simulation.
@@ -64,12 +66,13 @@ class SimulationService : LifecycleService() {
         const val EXTRA_END_LNG       = "end_lng"
         const val EXTRA_FREQUENCY_HZ  = "frequency_hz"
         const val EXTRA_SPEED_RATIO   = "speed_ratio"
-        const val EXTRA_ROUTE_ID      = "route_id"
+        const val EXTRA_ROUTE_ID      = "extra_route_id"
+        // Sprint 6
+        const val EXTRA_MODE          = "extra_mode"
+        const val EXTRA_WAYPOINTS_LAT = "extra_waypoints_lat"
+        const val EXTRA_WAYPOINTS_LNG = "extra_waypoints_lng"
 
-        /** Sprint 6 — operating mode passed from the UI. Value is [AppMode.name]. */
-        const val EXTRA_MODE          = "app_mode"
-
-        const val ACTION_START        = "com.ghostpin.action.START"
+        const val ACTION_START        = "com.ghostpin.ACTION_START"
         const val ACTION_STOP         = "com.ghostpin.action.STOP"
         const val ACTION_PAUSE        = "com.ghostpin.action.PAUSE"
         const val ACTION_SET_ROUTE    = "com.ghostpin.action.SET_ROUTE"
@@ -127,10 +130,11 @@ class SimulationService : LifecycleService() {
         if (android.provider.Settings.canDrawOverlays(this)) {
             // For JOYSTICK mode pass the auto-open flag so the overlay
             // shows the joystick immediately without a manual toggle.
-            val bubbleIntent = FloatingBubbleService.showIntent(
-                context       = this,
-                autoJoystick  = appMode == AppMode.JOYSTICK,
-            )
+            val bubbleIntent = if (appMode == AppMode.JOYSTICK) {
+                FloatingBubbleService.showJoystickIntent(this)
+            } else {
+                FloatingBubbleService.showIntent(this)
+            }
             startService(bubbleIntent)
         }
 
@@ -175,8 +179,16 @@ class SimulationService : LifecycleService() {
             Log.w(TAG, LogSanitizer.sanitizeString("Unknown profile '$profileName' — defaulting to Pedestrian."))
         }
 
+        val waypointsLat = intent.getDoubleArrayExtra(EXTRA_WAYPOINTS_LAT)
+        val waypointsLng = intent.getDoubleArrayExtra(EXTRA_WAYPOINTS_LNG)
+        val waypointsList = if (waypointsLat != null && waypointsLng != null && waypointsLat.size == waypointsLng.size) {
+            waypointsLat.zip(waypointsLng).map { com.ghostpin.core.model.Waypoint(it.first, it.second) }
+        } else {
+            emptyList()
+        }
+
         startForeground(NOTIFICATION_ID, buildNotification(profile.name))
-        startSimulation(profile, startLat, startLng, endLat, endLng, frequencyHz, appMode, resumeState = null)
+        startSimulation(profile, startLat, startLng, endLat, endLng, frequencyHz, appMode, resumeState = null, waypoints = waypointsList)
 
         return START_NOT_STICKY
     }
@@ -198,6 +210,7 @@ class SimulationService : LifecycleService() {
         frequencyHz: Int,
         appMode:     AppMode = AppMode.CLASSIC,
         resumeState: SimulationState.Paused? = null,
+        waypoints:   List<com.ghostpin.core.model.Waypoint> = emptyList(),
     ) {
         simulationJob?.cancel()
         if (resumeState == null) repository.emitRoute(null)
@@ -243,7 +256,22 @@ class SimulationService : LifecycleService() {
                         return@launch
                     }
 
-                    // Classic / Waypoints: fetch from OSRM (or fallback)
+                    // Waypoints Mode -> fetch using multiple points
+                    appMode == AppMode.WAYPOINTS && waypoints.size >= 2 -> {
+                        repository.emitState(SimulationState.FetchingRoute(profile.name))
+                        val newRoute = osrmRouteProvider
+                            .fetchMultiRoute(waypoints, profile)
+                            .getOrElse { error ->
+                                Log.w(TAG, LogSanitizer.sanitizeString(
+                                    "OSRM multi-fetch failed — straight-line fallback: ${error.message}"
+                                ))
+                                osrmRouteProvider.fallbackMultiRoute(waypoints)
+                            }
+                        repository.emitRoute(newRoute)
+                        newRoute
+                    }
+
+                    // Classic Mode: fetch from OSRM (or fallback)
                     else -> {
                         repository.emitState(SimulationState.FetchingRoute(profile.name))
                         val newRoute = osrmRouteProvider

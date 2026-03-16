@@ -50,10 +50,15 @@ class MapController(
         private const val SOURCE_PIN_END = "source_pin_end"
         private const val LAYER_PIN_END = "layer_pin_end"
 
+        // Waypoints pin
+        private const val SOURCE_PIN_WAYPOINTS = "source_pin_waypoints"
+        private const val LAYER_PIN_WAYPOINTS = "layer_pin_waypoints"
+
         // Icon image IDs
         private const val ICON_POSITION = "icon_position"
         private const val ICON_PIN_START = "icon_pin_start"
         private const val ICON_PIN_END = "icon_pin_end"
+        private const val ICON_PIN_WAYPOINT = "icon_pin_waypoint"
 
         // Bug #4: full street tiles from OpenFreeMap (free, no API key)
         private const val MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
@@ -120,6 +125,26 @@ class MapController(
                 SymbolLayer(LAYER_PIN_END, SOURCE_PIN_END)
                         .withProperties(
                                 iconImage(ICON_PIN_END),
+                                iconAllowOverlap(true),
+                                iconIgnorePlacement(true),
+                                iconAnchor("bottom"),
+                                iconSize(1.0f),
+                        )
+        )
+
+        // ── Waypoints pin (Amber circle) ──────────────────────────────────
+        style.addSource(GeoJsonSource(SOURCE_PIN_WAYPOINTS))
+        style.addImage(
+                ICON_PIN_WAYPOINT,
+                createPinBitmap(
+                        fillArgb = android.graphics.Color.parseColor("#FFC107"), // amber
+                        borderArgb = android.graphics.Color.WHITE,
+                )
+        )
+        style.addLayer(
+                SymbolLayer(LAYER_PIN_WAYPOINTS, SOURCE_PIN_WAYPOINTS)
+                        .withProperties(
+                                iconImage(ICON_PIN_WAYPOINT),
                                 iconAllowOverlap(true),
                                 iconIgnorePlacement(true),
                                 iconAnchor("bottom"),
@@ -195,7 +220,27 @@ class MapController(
         updatePin(currentStyle, SOURCE_PIN_START, startLat, startLng)
         updatePin(currentStyle, SOURCE_PIN_END, endLat, endLng)
 
+        // Hide multi-waypoints
+        currentStyle.getSourceAs<GeoJsonSource>(SOURCE_PIN_WAYPOINTS)
+                ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+
         fitCamera(listOf(LatLng(startLat, startLng), LatLng(endLat, endLng)))
+    }
+
+    /** Display multiple waypoints on the map. */
+    fun updateWaypoints(waypoints: List<com.ghostpin.core.model.Waypoint>) {
+        val currentStyle = style ?: return
+        val features = waypoints.map { Feature.fromGeometry(Point.fromLngLat(it.lng, it.lat)) }
+        val collection = FeatureCollection.fromFeatures(features)
+        currentStyle.getSourceAs<GeoJsonSource>(SOURCE_PIN_WAYPOINTS)?.setGeoJson(collection)
+
+        // Hide classic start/end pins
+        updatePin(currentStyle, SOURCE_PIN_START, Double.NaN, Double.NaN)
+        updatePin(currentStyle, SOURCE_PIN_END, Double.NaN, Double.NaN)
+
+        if (waypoints.isNotEmpty()) {
+            fitCamera(waypoints.map { LatLng(it.lat, it.lng) })
+        }
     }
 
     /** Move the animated position dot to the current mock location. */
@@ -248,6 +293,8 @@ class MapController(
         s.getSourceAs<GeoJsonSource>(SOURCE_PIN_START)
                 ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
         s.getSourceAs<GeoJsonSource>(SOURCE_PIN_END)
+                ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+        s.getSourceAs<GeoJsonSource>(SOURCE_PIN_WAYPOINTS)
                 ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
     }
 

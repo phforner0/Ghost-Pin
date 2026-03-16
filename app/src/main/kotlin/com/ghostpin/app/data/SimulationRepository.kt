@@ -70,12 +70,14 @@ class SimulationRepository @Inject constructor() {
         _lastUsedConfig.value = config
     }
 
-    fun setManualMode(isManual: Boolean) {
-        _isManualMode.value = isManual
+    /** Update joystick overlay state (magnitude, angle) */
+    fun updateJoystickState(joystickState: JoystickState) {
+        _joystickState.value = joystickState
     }
 
-    fun updateJoystick(angle: Float, magnitude: Float) {
-        _joystickState.value = JoystickState(angle, magnitude)
+    /** Enable or disable manual (joystick) navigation mode */
+    fun setManualMode(isManual: Boolean) {
+        _isManualMode.value = isManual
     }
 
     /** Reset both state and route to their idle defaults. */

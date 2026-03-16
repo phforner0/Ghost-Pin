@@ -71,8 +71,8 @@ dependencies {
     implementation(project(":engine"))
 
     // Hilt — using KSP
-    implementation("com.google.dagger:hilt-android:2.54")
-    ksp("com.google.dagger:hilt-android-compiler:2.54")
+    implementation("com.google.dagger:hilt-android:2.55")
+    ksp("com.google.dagger:hilt-android-compiler:2.55")
 
     // Room — Sprint 4: profile + route persistence
     val roomVersion = "2.6.1"

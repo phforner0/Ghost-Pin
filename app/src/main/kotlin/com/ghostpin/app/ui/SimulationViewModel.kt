@@ -149,16 +149,15 @@ constructor(
     fun loadGpxFromUri(context: Context, uri: Uri) {
         viewModelScope.launch {
             _gpxLoadState.value = GpxLoadState.Loading
-            val result =
-                    withContext(Dispatchers.IO) {
-                        runCatching {
-                            val stream =
-                                    context.contentResolver.openInputStream(uri)
-                                            ?: error("Cannot open stream for URI: $uri")
-                            gpxParser.parse(stream)
-                        }
-                                .getOrElse { outer -> Result.failure(outer) }
-                    }
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    val stream = context.contentResolver.openInputStream(uri)
+                        ?: throw IllegalStateException("Cannot open stream for URI: $uri")
+                    gpxParser.parse(stream)
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
+            }
 
             result.fold(
                     onSuccess = { route ->
@@ -217,9 +216,39 @@ constructor(
     private val _startPlaced = MutableStateFlow(false)
     val startPlaced: StateFlow<Boolean> = _startPlaced.asStateFlow()
 
+    // ── Waypoints (Multi-Stop) ────────────────────────────────────────────────
+
+    private val _waypoints = MutableStateFlow<List<Waypoint>>(emptyList())
+    val waypoints: StateFlow<List<Waypoint>> = _waypoints.asStateFlow()
+
+    fun addWaypoint(waypoint: Waypoint) {
+        _waypoints.value = _waypoints.value + waypoint
+        clearRouteIfIdle()
+    }
+
+    fun removeWaypoint(index: Int) {
+        val current = _waypoints.value.toMutableList()
+        if (index in current.indices) {
+            current.removeAt(index)
+            _waypoints.value = current
+            clearRouteIfIdle()
+        }
+    }
+
+    private fun clearRouteIfIdle() {
+        if (repository.state.value is SimulationState.Idle) {
+            repository.emitRoute(null)
+        }
+    }
+
     // ── Map interaction ───────────────────────────────────────────────────────
 
     fun onMapLongPress(lat: Double, lng: Double) {
+        if (_selectedMode.value == AppMode.WAYPOINTS) {
+            addWaypoint(Waypoint(lat, lng))
+            return
+        }
+
         when {
             !_startPlaced.value -> {
                 _startLat.value = lat
@@ -232,9 +261,6 @@ constructor(
                 _startPlaced.value = false
             }
         }
-        // Clear cached route whenever pins change
-        if (repository.state.value is SimulationState.Idle) {
-            repository.emitRoute(null)
-        }
+        clearRouteIfIdle()
     }
 }

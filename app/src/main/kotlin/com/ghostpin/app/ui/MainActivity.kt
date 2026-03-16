@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import com.ghostpin.core.model.distanceMeters
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,6 +17,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -163,6 +165,10 @@ class MainActivity : ComponentActivity() {
                     )
                     // Sprint 6 — Task 23/24: inform the service about the current operating mode
                     putExtra(SimulationService.EXTRA_MODE, viewModel.selectedMode.value.name)
+                    
+                    val currentWaypoints = viewModel.waypoints.value
+                    putExtra(SimulationService.EXTRA_WAYPOINTS_LAT, currentWaypoints.map { it.lat }.toDoubleArray())
+                    putExtra(SimulationService.EXTRA_WAYPOINTS_LNG, currentWaypoints.map { it.lng }.toDoubleArray())
                 }
         ContextCompat.startForegroundService(this, intent)
     }
@@ -342,12 +348,16 @@ fun GhostPinScreen(
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            val waypoints by viewModel.waypoints.collectAsState()
+
             // Map with overlays — state hoisted; no viewModel reference inside
             InteractiveMap(
                     startLat = startLat,
                     startLng = startLng,
                     endLat = endLat,
                     endLng = endLng,
+                    waypoints = waypoints,
+                    appMode = selectedMode,
                     route = route,
                     startPlaced = startPlaced,
                     simulationState = simulationState,
@@ -368,7 +378,17 @@ fun GhostPinScreen(
                     )
                 }
                 AppMode.JOYSTICK -> JoystickModePanel()
-                AppMode.WAYPOINTS -> WaypointsModePanel()
+                AppMode.WAYPOINTS -> {
+                    WaypointsModePanel(
+                        waypoints = waypoints,
+                        onRemoveWaypoint = viewModel::removeWaypoint,
+                        profiles = viewModel.profiles,
+                        selectedProfile = selectedProfile,
+                        enabled = !isBusy,
+                        onSelectProfile = viewModel::selectProfile,
+                        onStart = { startSimulation(selectedProfile) }
+                    )
+                }
                 AppMode.GPX -> {
                     val gpxLoadState by viewModel.gpxLoadState.collectAsState()
                     GpxModePanel(
@@ -429,28 +449,81 @@ fun JoystickModePanel() {
 }
 
 @Composable
-fun WaypointsModePanel() {
+fun WaypointsModePanel(
+        waypoints: List<Waypoint>,
+        onRemoveWaypoint: (Int) -> Unit,
+        profiles: List<MovementProfile>,
+        selectedProfile: MovementProfile,
+        enabled: Boolean,
+        onSelectProfile: (MovementProfile) -> Unit,
+        onStart: () -> Unit,
+) {
     Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1B1B)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1B1C)),
     ) {
         Column(
                 modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                    text = "Waypoints Mode [Coming Soon]",
-                    color = Color(0xFFB0BEC5),
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                        text = "Waypoints Mode",
+                        color = Color(0xFF80CBC4),
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 16.sp,
+                )
+                Text(
+                        text = "Long press on the map to add stops to your route.",
+                        color = Color(0xFFB0BEC5),
+                        fontSize = 13.sp,
+                )
+            }
+
+            // Waypoints List
+            if (waypoints.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 140.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    waypoints.forEachIndexed { index, wp ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${index + 1}. ${String.format("%.4f", wp.lat)}, ${String.format("%.4f", wp.lng)}",
+                                color = Color.White,
+                                fontSize = 14.sp
+                            )
+                            IconButton(onClick = { onRemoveWaypoint(index) }, enabled = enabled) {
+                                Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color(0xFFEF5350))
+                            }
+                        }
+                    }
+                }
+            }
+
+            ProfileSelector(
+                    profiles = profiles,
+                    selectedProfile = selectedProfile,
+                    enabled = enabled,
+                    onSelect = onSelectProfile,
             )
-            Text(
-                    text =
-                            "Long press on the map to add multiple waypoints forming a complex route.",
-                    color = Color(0xFF757575),
-                    fontSize = 14.sp,
-            )
+
+            Button(
+                    onClick = onStart,
+                    enabled = enabled && waypoints.size >= 2,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00BFA5))
+            ) {
+                Text("Start Multi-Stop Route", color = Color.White, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
@@ -626,10 +699,12 @@ fun InteractiveMap(
         startLng: Double,
         endLat: Double,
         endLng: Double,
+        waypoints: List<Waypoint>,
+        appMode: AppMode,
         route: Route?,
         startPlaced: Boolean,
         simulationState: SimulationState,
-        deviceLocation: Pair<Double, Double>?, // ← NOVO
+        deviceLocation: Pair<Double, Double>?,
         onMapLongPress: (Double, Double) -> Unit,
         modifier: Modifier = Modifier,
 ) {
@@ -668,18 +743,20 @@ fun InteractiveMap(
     }
 
     // Update map whenever relevant state changes
-    LaunchedEffect(simulationState, startLat, startLng, endLat, endLng, route) {
+    LaunchedEffect(simulationState, startLat, startLng, endLat, endLng, waypoints, appMode, route) {
         val controller = mapController ?: return@LaunchedEffect
         when (simulationState) {
             is SimulationState.Idle, is SimulationState.FetchingRoute -> {
                 controller.clearPosition()
                 val fetched = route
                 if (fetched != null) controller.updateRoute(fetched)
+                else if (appMode == AppMode.WAYPOINTS) controller.updateWaypoints(waypoints)
                 else controller.updateRoute(startLat, startLng, endLat, endLng)
             }
             is SimulationState.Running -> {
                 val fetched = route
                 if (fetched != null) controller.updateRoute(fetched)
+                else if (appMode == AppMode.WAYPOINTS) controller.updateWaypoints(waypoints)
                 else controller.updateRoute(startLat, startLng, endLat, endLng)
                 controller.updatePosition(simulationState.currentLocation)
             }

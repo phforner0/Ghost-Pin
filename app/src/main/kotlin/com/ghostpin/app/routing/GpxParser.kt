@@ -7,6 +7,7 @@ import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserException
 import java.io.IOException
 import java.io.InputStream
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -17,6 +18,10 @@ import javax.inject.Singleton
  * This implementation uses [XmlPullParser] to efficiently extract `<trkpt>`
  * or `<wpt>` coordinates without loading the entire XML document into memory
  * (DOM), avoiding OOM on large, dense recorded tracks.
+ *
+ * Fix: Route constructor now supplies the required `id` and `name` fields and
+ * drops the non-existent `distanceMeters` / `durationSeconds` parameters that
+ * were causing a compilation error and cascading KSP/Hilt failures.
  */
 @Singleton
 class GpxParser @Inject constructor() {
@@ -39,23 +44,23 @@ class GpxParser @Inject constructor() {
                 setInput(inputStream, null)
                 nextTag()
             }
-            
+
             val waypoints = mutableListOf<Waypoint>()
-            
+
             // Fast-forward to the root <gpx> tag
             parser.require(XmlPullParser.START_TAG, ns, "gpx")
-            
+
             while (parser.next() != XmlPullParser.END_DOCUMENT) {
                 if (parser.eventType != XmlPullParser.START_TAG) {
                     continue
                 }
-                
+
                 val name = parser.name
                 // Prioritize track points, but fallback to waypoints if it's a generic file
                 if (name == "trkpt" || name == "wpt") {
                     val latAttr = parser.getAttributeValue(null, "lat")
                     val lonAttr = parser.getAttributeValue(null, "lon")
-                    
+
                     if (latAttr != null && lonAttr != null) {
                         try {
                             val lat = latAttr.toDouble()
@@ -74,12 +79,15 @@ class GpxParser @Inject constructor() {
                     }
                 }
             }
-            
+
             if (waypoints.size >= 2) {
+                // Fix (🔴): Route requires `id` and `name` — previously called with
+                // non-existent `distanceMeters` and `durationSeconds` parameters,
+                // which caused a Kotlin compilation error and cascading KSP failures.
                 Result.success(Route(
-                    waypoints = waypoints,
-                    distanceMeters = estimateDistance(waypoints),
-                    durationSeconds = 0.0 // Handled cleanly by SpeedController later
+                    id = "gpx_${System.currentTimeMillis()}",
+                    name = "Imported GPX Route",
+                    waypoints = waypoints
                 ))
             } else {
                 Result.failure(IllegalArgumentException("GPX file contains fewer than 2 points."))
@@ -91,32 +99,7 @@ class GpxParser @Inject constructor() {
         }
     }
 
-    /** Fast distance estimation for raw file points using Haversine */
-    private fun estimateDistance(points: List<Waypoint>): Double {
-        var distance = 0.0
-        for (i in 0 until points.size - 1) {
-            val p1 = points[i]
-            val p2 = points[i + 1]
-            distance += haversineMeters(p1.lat, p1.lng, p2.lat, p2.lng)
-        }
-        return distance
-    }
-
-    private fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val R = 6371e3 // Earth's radius in meters
-        val a1 = Math.toRadians(lat1)
-        val a2 = Math.toRadians(lat2)
-        val dLat = Math.toRadians(lat2 - lat1)
-        val dLon = Math.toRadians(lon2 - lon1)
-
-        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(a1) * Math.cos(a2) *
-                Math.sin(dLon / 2) * Math.sin(dLon / 2)
-        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-        return R * c
-    }
-
-    /** Forward skips the parser to the end of an uninteresting element to avoid deep parsing overhead. */
+    /** Forward-skips the parser to the end of an uninteresting element to avoid deep parsing overhead. */
     @Throws(XmlPullParserException::class, IOException::class)
     private fun skip(parser: XmlPullParser) {
         if (parser.eventType != XmlPullParser.START_TAG) {
@@ -125,7 +108,7 @@ class GpxParser @Inject constructor() {
         var depth = 1
         while (depth != 0) {
             when (parser.next()) {
-                XmlPullParser.END_TAG -> depth--
+                XmlPullParser.END_TAG   -> depth--
                 XmlPullParser.START_TAG -> depth++
             }
         }
