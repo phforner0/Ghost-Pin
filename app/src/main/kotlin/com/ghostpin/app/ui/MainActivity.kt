@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Folder
@@ -51,6 +52,7 @@ import com.ghostpin.app.ui.onboarding.OnboardingScreen
 import com.ghostpin.core.model.AppMode
 import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.model.Route
+import com.ghostpin.core.model.Waypoint
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.launch
@@ -382,6 +384,7 @@ fun GhostPinScreen(
                     WaypointsModePanel(
                         waypoints = waypoints,
                         onRemoveWaypoint = viewModel::removeWaypoint,
+                        onClearWaypoints = viewModel::clearWaypoints,
                         profiles = viewModel.profiles,
                         selectedProfile = selectedProfile,
                         enabled = !isBusy,
@@ -452,6 +455,7 @@ fun JoystickModePanel() {
 fun WaypointsModePanel(
         waypoints: List<Waypoint>,
         onRemoveWaypoint: (Int) -> Unit,
+        onClearWaypoints: () -> Unit,
         profiles: List<MovementProfile>,
         selectedProfile: MovementProfile,
         enabled: Boolean,
@@ -479,6 +483,19 @@ fun WaypointsModePanel(
                         color = Color(0xFFB0BEC5),
                         fontSize = 13.sp,
                 )
+            }
+
+            if (waypoints.isNotEmpty()) {
+                OutlinedButton(
+                    onClick = onClearWaypoints,
+                    enabled = enabled,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF5350))
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Clear all waypoints")
+                }
             }
 
             // Waypoints List

@@ -12,6 +12,7 @@ import com.ghostpin.core.model.AppMode
 import com.ghostpin.core.model.DefaultCoordinates
 import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.model.Route
+import com.ghostpin.core.model.Waypoint
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -223,6 +224,12 @@ constructor(
 
     fun addWaypoint(waypoint: Waypoint) {
         _waypoints.value = _waypoints.value + waypoint
+        clearRouteIfIdle()
+    }
+
+
+    fun clearWaypoints() {
+        _waypoints.value = emptyList()
         clearRouteIfIdle()
     }
 
