@@ -1,11 +1,13 @@
 package com.ghostpin.app.service
 
+import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
+import android.widget.Toast
 import com.ghostpin.app.data.SimulationRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
@@ -71,7 +73,11 @@ class GhostPinQsTile : TileService() {
             startService(intent)
         } else {
             // Start simulation with last-used config (or skip if none)
-            val config = simulationRepository.lastUsedConfig.value ?: return
+            val config = simulationRepository.lastUsedConfig.value ?: run {
+                Toast.makeText(this, "Open GhostPin and start a simulation once to configure Quick Tile", Toast.LENGTH_LONG).show()
+                openMainActivityFromTile()
+                return
+            }
             val intent = Intent(this, SimulationService::class.java).apply {
                 action = SimulationService.ACTION_START
                 putExtra(SimulationService.EXTRA_PROFILE_NAME, config.profileName)
@@ -106,6 +112,25 @@ class GhostPinQsTile : TileService() {
         }
         tile.label = "GhostPin"
         tile.updateTile()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun openMainActivityFromTile() {
+        val launchIntent = Intent(this, com.ghostpin.app.ui.MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startActivityAndCollapse(
+                PendingIntent.getActivity(
+                    this,
+                    0,
+                    launchIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+            )
+        } else {
+            startActivity(launchIntent)
+        }
     }
 
     companion object {
