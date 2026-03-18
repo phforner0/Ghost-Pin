@@ -38,7 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -405,9 +405,21 @@ fun GhostPinScreen(
                             coroutineScope.launch {
                                 val geocoder = Geocoder(context)
                                 val point = withContext(Dispatchers.IO) {
-                                    runCatching { geocoder.getFromLocationName(address, 1) }
-                                        .getOrNull()
-                                        ?.firstOrNull()
+                                    runCatching {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                            var result: android.location.Address? = null
+                                            val latch = java.util.concurrent.CountDownLatch(1)
+                                            geocoder.getFromLocationName(address, 1) { list ->
+                                                result = list.firstOrNull()
+                                                latch.countDown()
+                                            }
+                                            latch.await(5, java.util.concurrent.TimeUnit.SECONDS)
+                                            result
+                                        } else {
+                                            @Suppress("DEPRECATION")
+                                            geocoder.getFromLocationName(address, 1)?.firstOrNull()
+                                        }
+                                    }.getOrNull()
                                 }
                                 if (point != null) {
                                     viewModel.addWaypoint(Waypoint(point.latitude, point.longitude, label = address))
