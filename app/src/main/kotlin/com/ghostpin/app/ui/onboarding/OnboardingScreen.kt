@@ -57,6 +57,7 @@ fun OnboardingScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(pageCount = { 3 })
+    var showSkipConfirm by remember { mutableStateOf(false) }
 
     // Refresh permission status on resume (user may return from Settings)
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -100,15 +101,7 @@ fun OnboardingScreen(
         ) {
             // Skip button
             TextButton(
-                    onClick = {
-                        viewModel.completeOnboarding()
-                        val coords = viewModel.validateCoordinates()
-                        onComplete(
-                                state.selectedProfile,
-                                coords?.first ?: -23.5505,
-                                coords?.second ?: -46.6333,
-                        )
-                    }
+                    onClick = { showSkipConfirm = true }
             ) { Text("Skip", color = GhostPinColors.TextSecondary) }
 
             if (pagerState.currentPage < 2) {
@@ -138,6 +131,40 @@ fun OnboardingScreen(
             }
         }
     }
+
+    if (showSkipConfirm) {
+        AlertDialog(
+                onDismissRequest = { showSkipConfirm = false },
+                title = { Text("Skip setup?", color = GhostPinColors.TextPrimary) },
+                text = {
+                    Text(
+                            "Some permissions or Mock Location setup may still be pending. You can continue, but simulation may fail until setup is complete.",
+                            color = GhostPinColors.TextSecondary
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                            onClick = {
+                                showSkipConfirm = false
+                                viewModel.completeOnboarding()
+                                val coords = viewModel.validateCoordinates()
+                                onComplete(
+                                        state.selectedProfile,
+                                        coords?.first ?: -23.5505,
+                                        coords?.second ?: -46.6333,
+                                )
+                            }
+                    ) { Text("Continue", color = GhostPinColors.Warning) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSkipConfirm = false }) {
+                        Text("Back", color = GhostPinColors.TextSecondary)
+                    }
+                },
+                containerColor = GhostPinColors.Surface,
+        )
+    }
+
 }
 
 // ── Step indicator ──────────────────────────────────────────────────────
@@ -358,6 +385,7 @@ private fun SimulationSetupStep(
         viewModel: OnboardingViewModel
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var showCoordError by remember { mutableStateOf(false) }
 
     Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -408,8 +436,15 @@ private fun SimulationSetupStep(
         // Coordinates
         OutlinedTextField(
                 value = state.startLat,
-                onValueChange = { viewModel.setStartLat(it) },
+                onValueChange = {
+                    viewModel.setStartLat(it)
+                    showCoordError = false
+                },
                 label = { Text("Latitude") },
+                isError = showCoordError,
+                supportingText = {
+                    if (showCoordError) Text("Use latitude between -90 and 90", color = GhostPinColors.Error)
+                },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth(),
                 colors =
@@ -418,13 +453,21 @@ private fun SimulationSetupStep(
                                 focusedTextColor = GhostPinColors.TextPrimary,
                                 unfocusedBorderColor = GhostPinColors.TextSecondary,
                                 focusedBorderColor = GhostPinColors.Primary,
+                                errorBorderColor = GhostPinColors.Error,
                         ),
         )
 
         OutlinedTextField(
                 value = state.startLng,
-                onValueChange = { viewModel.setStartLng(it) },
+                onValueChange = {
+                    viewModel.setStartLng(it)
+                    showCoordError = false
+                },
                 label = { Text("Longitude") },
+                isError = showCoordError,
+                supportingText = {
+                    if (showCoordError) Text("Use longitude between -180 and 180", color = GhostPinColors.Error)
+                },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth(),
                 colors =
@@ -433,6 +476,7 @@ private fun SimulationSetupStep(
                                 focusedTextColor = GhostPinColors.TextPrimary,
                                 unfocusedBorderColor = GhostPinColors.TextSecondary,
                                 focusedBorderColor = GhostPinColors.Primary,
+                                errorBorderColor = GhostPinColors.Error,
                         ),
         )
 
@@ -444,5 +488,9 @@ private fun SimulationSetupStep(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
         )
+
+        LaunchedEffect(state.startLat, state.startLng) {
+            showCoordError = viewModel.validateCoordinates() == null
+        }
     }
 }

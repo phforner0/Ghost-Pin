@@ -3,6 +3,7 @@ package com.ghostpin.app.ui
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Geocoder
 import android.net.Uri
 import android.os.Build
 import com.ghostpin.core.model.distanceMeters
@@ -21,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Folder
@@ -51,9 +53,12 @@ import com.ghostpin.app.ui.onboarding.OnboardingScreen
 import com.ghostpin.core.model.AppMode
 import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.model.Route
+import com.ghostpin.core.model.Waypoint
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.maplibre.android.MapLibre
 import org.maplibre.android.maps.MapView
 
@@ -151,7 +156,7 @@ class MainActivity : ComponentActivity() {
         if (needed.isNotEmpty()) locationPermissionLauncher.launch(needed.toTypedArray())
     }
 
-    private fun startSimulation(profile: MovementProfile) {
+    private fun startSimulation(profile: MovementProfile, waypointPauseSec: Double = 0.0) {
         val intent =
                 Intent(this, SimulationService::class.java).apply {
                     putExtra(SimulationService.EXTRA_PROFILE_NAME, profile.name)
@@ -169,6 +174,7 @@ class MainActivity : ComponentActivity() {
                     val currentWaypoints = viewModel.waypoints.value
                     putExtra(SimulationService.EXTRA_WAYPOINTS_LAT, currentWaypoints.map { it.lat }.toDoubleArray())
                     putExtra(SimulationService.EXTRA_WAYPOINTS_LNG, currentWaypoints.map { it.lng }.toDoubleArray())
+                    putExtra(SimulationService.EXTRA_WAYPOINT_PAUSE_SEC, waypointPauseSec)
                 }
         ContextCompat.startForegroundService(this, intent)
     }
@@ -219,7 +225,7 @@ fun GhostPinScreen(
         viewModel: SimulationViewModel,
         permissionMessage: String?,
         onPermissionMessageDismissed: () -> Unit,
-        onStartSimulation: (MovementProfile) -> Unit,
+        onStartSimulation: (MovementProfile, Double) -> Unit,
         onStopSimulation: () -> Unit,
         onPickGpxFile: () -> Unit = {}, // ← novo param
 ) {
@@ -245,11 +251,19 @@ fun GhostPinScreen(
     LaunchedEffect(permissionMessage) {
         if (permissionMessage != null) {
             coroutineScope.launch {
-                snackbarHostState.showSnackbar(
+                val result = snackbarHostState.showSnackbar(
                         message = permissionMessage,
-                        actionLabel = "Dismiss",
+                        actionLabel = "Open settings",
                         duration = SnackbarDuration.Long,
                 )
+                if (result == SnackbarResult.ActionPerformed) {
+                    context.startActivity(
+                        Intent(
+                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                    )
+                }
                 onPermissionMessageDismissed()
             }
         }
@@ -279,7 +293,7 @@ fun GhostPinScreen(
             floatingActionButton = {
                 ExtendedFloatingActionButton(
                         onClick = {
-                            if (isBusy) onStopSimulation() else onStartSimulation(selectedProfile)
+                            if (isBusy) onStopSimulation() else onStartSimulation(selectedProfile, 0.0)
                         },
                         containerColor = if (isBusy) Color(0xFFCF6679) else Color(0xFF80CBC4),
                         contentColor = Color(0xFF003734),
@@ -288,7 +302,7 @@ fun GhostPinScreen(
                                     imageVector =
                                             if (isBusy) Icons.Default.Stop
                                             else Icons.Default.PlayArrow,
-                                    contentDescription = null,
+                                    contentDescription = if (isBusy) "Stop simulation" else "Start simulation",
                             )
                         },
                         text = {
@@ -310,23 +324,23 @@ fun GhostPinScreen(
                                         AppMode.CLASSIC ->
                                                 Icon(
                                                         Icons.Default.LocationOn,
-                                                        contentDescription = null
+                                                        contentDescription = "Classic mode"
                                                 )
                                         AppMode.JOYSTICK ->
                                                 Icon(
                                                         Icons.Default.Gamepad,
-                                                        contentDescription = null
+                                                        contentDescription = "Joystick mode"
                                                 )
                                         AppMode.WAYPOINTS ->
-                                                Icon(Icons.Default.Map, contentDescription = null)
+                                                Icon(Icons.Default.Map, contentDescription = "Waypoints mode")
                                         AppMode.GPX ->
                                                 Icon(
                                                         Icons.Default.Folder,
-                                                        contentDescription = null
+                                                        contentDescription = "GPX mode"
                                                 )
                                     }
                                 },
-                                label = { Text(mode.displayName, fontSize = 10.sp) },
+                                label = { Text(mode.displayName, fontSize = 12.sp) },
                                 colors =
                                         NavigationBarItemDefaults.colors(
                                                 selectedIconColor = Color(0xFF003734),
@@ -382,11 +396,27 @@ fun GhostPinScreen(
                     WaypointsModePanel(
                         waypoints = waypoints,
                         onRemoveWaypoint = viewModel::removeWaypoint,
+                        onClearWaypoints = viewModel::clearWaypoints,
                         profiles = viewModel.profiles,
                         selectedProfile = selectedProfile,
                         enabled = !isBusy,
                         onSelectProfile = viewModel::selectProfile,
-                        onStart = { startSimulation(selectedProfile) }
+                        onAddAddress = { address ->
+                            coroutineScope.launch {
+                                val geocoder = Geocoder(context)
+                                val point = withContext(Dispatchers.IO) {
+                                    runCatching { geocoder.getFromLocationName(address, 1) }
+                                        .getOrNull()
+                                        ?.firstOrNull()
+                                }
+                                if (point != null) {
+                                    viewModel.addWaypoint(Waypoint(point.latitude, point.longitude, label = address))
+                                } else {
+                                    snackbarHostState.showSnackbar("Address not found")
+                                }
+                            }
+                        },
+                        onStart = { pauseSec -> onStartSimulation(selectedProfile, pauseSec) }
                     )
                 }
                 AppMode.GPX -> {
@@ -452,11 +482,13 @@ fun JoystickModePanel() {
 fun WaypointsModePanel(
         waypoints: List<Waypoint>,
         onRemoveWaypoint: (Int) -> Unit,
+        onClearWaypoints: () -> Unit,
         profiles: List<MovementProfile>,
         selectedProfile: MovementProfile,
         enabled: Boolean,
         onSelectProfile: (MovementProfile) -> Unit,
-        onStart: () -> Unit,
+        onAddAddress: (String) -> Unit,
+        onStart: (Double) -> Unit,
 ) {
     Card(
             modifier = Modifier.fillMaxWidth(),
@@ -467,6 +499,9 @@ fun WaypointsModePanel(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            var addressQuery by remember { mutableStateOf("") }
+            var waypointPauseSec by remember { mutableFloatStateOf(0f) }
+
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                         text = "Waypoints Mode",
@@ -479,6 +514,53 @@ fun WaypointsModePanel(
                         color = Color(0xFFB0BEC5),
                         fontSize = 13.sp,
                 )
+            }
+
+            OutlinedTextField(
+                value = addressQuery,
+                onValueChange = { addressQuery = it },
+                label = { Text("Add stop by address") },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = enabled,
+                singleLine = true,
+                trailingIcon = {
+                    TextButton(
+                        onClick = {
+                            val q = addressQuery.trim()
+                            if (q.isNotEmpty()) {
+                                onAddAddress(q)
+                                addressQuery = ""
+                            }
+                        },
+                        enabled = enabled && addressQuery.isNotBlank()
+                    ) { Text("Add") }
+                }
+            )
+
+            Column {
+                Text("Pause at each stop: ${"%.1f".format(waypointPauseSec)}s", color = Color(0xFFB0BEC5), fontSize = 12.sp)
+                Slider(
+                    value = waypointPauseSec,
+                    onValueChange = {
+                        waypointPauseSec = it
+                    },
+                    valueRange = 0f..10f,
+                    steps = 9,
+                    enabled = enabled
+                )
+            }
+
+            if (waypoints.isNotEmpty()) {
+                OutlinedButton(
+                    onClick = onClearWaypoints,
+                    enabled = enabled,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF5350))
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = "Clear all waypoints")
+                    Spacer(Modifier.width(8.dp))
+                    Text("Clear all waypoints")
+                }
             }
 
             // Waypoints List
@@ -517,7 +599,7 @@ fun WaypointsModePanel(
             )
 
             Button(
-                    onClick = onStart,
+                    onClick = { onStart(waypointPauseSec.toDouble()) },
                     enabled = enabled && waypoints.size >= 2,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00BFA5))
@@ -547,7 +629,7 @@ fun GpxModePanel(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                         imageVector = Icons.Default.Folder,
-                        contentDescription = null,
+                        contentDescription = "GPX import",
                         tint = Color(0xFF80CBC4),
                         modifier = Modifier.size(20.dp),
                 )
@@ -582,7 +664,7 @@ fun GpxModePanel(
                     ) {
                         Icon(
                                 Icons.Default.FileOpen,
-                                contentDescription = null,
+                                contentDescription = "Choose GPX file",
                                 modifier = Modifier.size(18.dp)
                         )
                         Spacer(Modifier.width(8.dp))
@@ -661,7 +743,7 @@ fun GpxModePanel(
                         ) {
                             Icon(
                                     imageVector = Icons.Default.Error,
-                                    contentDescription = null,
+                                    contentDescription = "GPX error",
                                     tint = Color(0xFFCF6679),
                                     modifier = Modifier.size(18.dp),
                             )
@@ -885,7 +967,7 @@ fun SimulationStatusCard(state: SimulationState) {
         ) {
             Icon(
                     imageVector = Icons.Default.MyLocation,
-                    contentDescription = null,
+                    contentDescription = "Simulation status",
                     tint =
                             when (state) {
                                 is SimulationState.Running -> Color(0xFF80CBC4)
