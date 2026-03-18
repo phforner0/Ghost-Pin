@@ -98,7 +98,7 @@ constructor(
      * Example values: "5m 30s", "1h 12m".
      */
     val routeEtaText: StateFlow<String?> =
-        combine(repository.currentRoute, _selectedProfile) { route, profile ->
+        combine(repository.route, _selectedProfile) { route, profile ->
             route?.let { formatDuration(it.estimateDuration(profile)) }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
