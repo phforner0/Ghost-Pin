@@ -225,7 +225,7 @@ fun GhostPinScreen(
         viewModel: SimulationViewModel,
         permissionMessage: String?,
         onPermissionMessageDismissed: () -> Unit,
-        onStartSimulation: (MovementProfile) -> Unit,
+        onStartSimulation: (MovementProfile, Double) -> Unit,
         onStopSimulation: () -> Unit,
         onPickGpxFile: () -> Unit = {}, // ← novo param
 ) {
@@ -251,11 +251,19 @@ fun GhostPinScreen(
     LaunchedEffect(permissionMessage) {
         if (permissionMessage != null) {
             coroutineScope.launch {
-                snackbarHostState.showSnackbar(
+                val result = snackbarHostState.showSnackbar(
                         message = permissionMessage,
-                        actionLabel = "Dismiss",
+                        actionLabel = "Open settings",
                         duration = SnackbarDuration.Long,
                 )
+                if (result == SnackbarResult.ActionPerformed) {
+                    context.startActivity(
+                        Intent(
+                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                    )
+                }
                 onPermissionMessageDismissed()
             }
         }
@@ -285,7 +293,7 @@ fun GhostPinScreen(
             floatingActionButton = {
                 ExtendedFloatingActionButton(
                         onClick = {
-                            if (isBusy) onStopSimulation() else onStartSimulation(selectedProfile)
+                            if (isBusy) onStopSimulation() else onStartSimulation(selectedProfile, 0.0)
                         },
                         containerColor = if (isBusy) Color(0xFFCF6679) else Color(0xFF80CBC4),
                         contentColor = Color(0xFF003734),
@@ -294,7 +302,7 @@ fun GhostPinScreen(
                                     imageVector =
                                             if (isBusy) Icons.Default.Stop
                                             else Icons.Default.PlayArrow,
-                                    contentDescription = null,
+                                    contentDescription = if (isBusy) "Stop simulation" else "Start simulation",
                             )
                         },
                         text = {
@@ -316,23 +324,23 @@ fun GhostPinScreen(
                                         AppMode.CLASSIC ->
                                                 Icon(
                                                         Icons.Default.LocationOn,
-                                                        contentDescription = null
+                                                        contentDescription = "Classic mode"
                                                 )
                                         AppMode.JOYSTICK ->
                                                 Icon(
                                                         Icons.Default.Gamepad,
-                                                        contentDescription = null
+                                                        contentDescription = "Joystick mode"
                                                 )
                                         AppMode.WAYPOINTS ->
-                                                Icon(Icons.Default.Map, contentDescription = null)
+                                                Icon(Icons.Default.Map, contentDescription = "Waypoints mode")
                                         AppMode.GPX ->
                                                 Icon(
                                                         Icons.Default.Folder,
-                                                        contentDescription = null
+                                                        contentDescription = "GPX mode"
                                                 )
                                     }
                                 },
-                                label = { Text(mode.displayName, fontSize = 10.sp) },
+                                label = { Text(mode.displayName, fontSize = 12.sp) },
                                 colors =
                                         NavigationBarItemDefaults.colors(
                                                 selectedIconColor = Color(0xFF003734),
@@ -408,7 +416,7 @@ fun GhostPinScreen(
                                 }
                             }
                         },
-                        onStart = { _ -> onStartSimulation(selectedProfile) }
+                        onStart = { pauseSec -> onStartSimulation(selectedProfile, pauseSec) }
                     )
                 }
                 AppMode.GPX -> {
@@ -549,7 +557,7 @@ fun WaypointsModePanel(
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF5350))
                 ) {
-                    Icon(Icons.Default.Delete, contentDescription = null)
+                    Icon(Icons.Default.Delete, contentDescription = "Clear all waypoints")
                     Spacer(Modifier.width(8.dp))
                     Text("Clear all waypoints")
                 }
@@ -621,7 +629,7 @@ fun GpxModePanel(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                         imageVector = Icons.Default.Folder,
-                        contentDescription = null,
+                        contentDescription = "GPX import",
                         tint = Color(0xFF80CBC4),
                         modifier = Modifier.size(20.dp),
                 )
@@ -656,7 +664,7 @@ fun GpxModePanel(
                     ) {
                         Icon(
                                 Icons.Default.FileOpen,
-                                contentDescription = null,
+                                contentDescription = "Choose GPX file",
                                 modifier = Modifier.size(18.dp)
                         )
                         Spacer(Modifier.width(8.dp))
@@ -735,7 +743,7 @@ fun GpxModePanel(
                         ) {
                             Icon(
                                     imageVector = Icons.Default.Error,
-                                    contentDescription = null,
+                                    contentDescription = "GPX error",
                                     tint = Color(0xFFCF6679),
                                     modifier = Modifier.size(18.dp),
                             )
@@ -959,7 +967,7 @@ fun SimulationStatusCard(state: SimulationState) {
         ) {
             Icon(
                     imageVector = Icons.Default.MyLocation,
-                    contentDescription = null,
+                    contentDescription = "Simulation status",
                     tint =
                             when (state) {
                                 is SimulationState.Running -> Color(0xFF80CBC4)
