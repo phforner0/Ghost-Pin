@@ -3,7 +3,6 @@ package com.ghostpin.app.ui
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.Geocoder
 import android.net.Uri
 import android.os.Build
 import com.ghostpin.core.model.distanceMeters
@@ -16,6 +15,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -363,6 +363,9 @@ fun GhostPinScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             val waypoints by viewModel.waypoints.collectAsState()
+            val geoSuggestions by viewModel.geoSuggestions.collectAsState()
+            val isSearching by viewModel.isSearching.collectAsState()
+            val routeEtaText by viewModel.routeEtaText.collectAsState()
 
             // Map with overlays — state hoisted; no viewModel reference inside
             InteractiveMap(
@@ -380,7 +383,7 @@ fun GhostPinScreen(
                     modifier = Modifier.fillMaxWidth().weight(1f),
             )
 
-            SimulationStatusCard(state = simulationState)
+            SimulationStatusCard(state = simulationState, etaText = routeEtaText)
 
             when (selectedMode) {
                 AppMode.CLASSIC -> {
@@ -401,33 +404,11 @@ fun GhostPinScreen(
                         selectedProfile = selectedProfile,
                         enabled = !isBusy,
                         onSelectProfile = viewModel::selectProfile,
-                        onAddAddress = { address ->
-                            coroutineScope.launch {
-                                val geocoder = Geocoder(context)
-                                val point = withContext(Dispatchers.IO) {
-                                    runCatching {
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                            var result: android.location.Address? = null
-                                            val latch = java.util.concurrent.CountDownLatch(1)
-                                            geocoder.getFromLocationName(address, 1) { list ->
-                                                result = list.firstOrNull()
-                                                latch.countDown()
-                                            }
-                                            latch.await(5, java.util.concurrent.TimeUnit.SECONDS)
-                                            result
-                                        } else {
-                                            @Suppress("DEPRECATION")
-                                            geocoder.getFromLocationName(address, 1)?.firstOrNull()
-                                        }
-                                    }.getOrNull()
-                                }
-                                if (point != null) {
-                                    viewModel.addWaypoint(Waypoint(point.latitude, point.longitude, label = address))
-                                } else {
-                                    snackbarHostState.showSnackbar("Address not found")
-                                }
-                            }
-                        },
+                        geoSuggestions = geoSuggestions,
+                        isSearching = isSearching,
+                        onSearchAddress = viewModel::searchAddress,
+                        onSelectSuggestion = viewModel::addWaypointFromGeoResult,
+                        onClearSuggestions = viewModel::clearSuggestions,
                         onStart = { pauseSec -> onStartSimulation(selectedProfile, pauseSec) }
                     )
                 }
@@ -499,7 +480,11 @@ fun WaypointsModePanel(
         selectedProfile: MovementProfile,
         enabled: Boolean,
         onSelectProfile: (MovementProfile) -> Unit,
-        onAddAddress: (String) -> Unit,
+        geoSuggestions: List<com.ghostpin.app.routing.GeocodingProvider.GeoResult>,
+        isSearching: Boolean,
+        onSearchAddress: (String) -> Unit,
+        onSelectSuggestion: (com.ghostpin.app.routing.GeocodingProvider.GeoResult) -> Unit,
+        onClearSuggestions: () -> Unit,
         onStart: (Double) -> Unit,
 ) {
     Card(
@@ -522,32 +507,85 @@ fun WaypointsModePanel(
                         fontSize = 16.sp,
                 )
                 Text(
-                        text = "Long press on the map to add stops to your route.",
+                        text = "Long press on the map to add stops, or search by address.",
                         color = Color(0xFFB0BEC5),
                         fontSize = 13.sp,
                 )
             }
 
-            OutlinedTextField(
-                value = addressQuery,
-                onValueChange = { addressQuery = it },
-                label = { Text("Add stop by address") },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = enabled,
-                singleLine = true,
-                trailingIcon = {
-                    TextButton(
-                        onClick = {
-                            val q = addressQuery.trim()
-                            if (q.isNotEmpty()) {
-                                onAddAddress(q)
+            // Address search field with autocomplete
+            Column {
+                OutlinedTextField(
+                    value = addressQuery,
+                    onValueChange = { value ->
+                        addressQuery = value
+                        onSearchAddress(value)
+                    },
+                    label = { Text("Search address or place") },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = enabled,
+                    singleLine = true,
+                    trailingIcon = {
+                        if (isSearching) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = Color(0xFF80CBC4)
+                            )
+                        } else if (addressQuery.isNotBlank()) {
+                            IconButton(onClick = {
                                 addressQuery = ""
+                                onClearSuggestions()
+                            }) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color(0xFFB0BEC5))
                             }
-                        },
-                        enabled = enabled && addressQuery.isNotBlank()
-                    ) { Text("Add") }
+                        }
+                    }
+                )
+
+                // Suggestions dropdown
+                if (geoSuggestions.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 180.dp),
+                        shape = RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2B))
+                    ) {
+                        Column(
+                            modifier = Modifier.verticalScroll(rememberScrollState())
+                        ) {
+                            geoSuggestions.forEach { result ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            onSelectSuggestion(result)
+                                            addressQuery = ""
+                                            onClearSuggestions()
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.LocationOn,
+                                        contentDescription = null,
+                                        tint = Color(0xFF80CBC4),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = result.displayName,
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        maxLines = 2
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
-            )
+            }
 
             Column {
                 Text("Pause at each stop: ${"%.1f".format(waypointPauseSec)}s", color = Color(0xFFB0BEC5), fontSize = 12.sp)
@@ -591,9 +629,10 @@ fun WaypointsModePanel(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${index + 1}. ${String.format("%.4f", wp.lat)}, ${String.format("%.4f", wp.lng)}",
+                                text = "${index + 1}. ${wp.label ?: "${String.format("%.4f", wp.lat)}, ${String.format("%.4f", wp.lng)}"}",
                                 color = Color.White,
-                                fontSize = 14.sp
+                                fontSize = 14.sp,
+                                modifier = Modifier.weight(1f)
                             )
                             IconButton(onClick = { onRemoveWaypoint(index) }, enabled = enabled) {
                                 Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color(0xFFEF5350))
@@ -967,7 +1006,7 @@ fun InteractiveMap(
 
 /** Fix (🟡): Accepts [SimulationState] directly — no ViewModel reference needed. */
 @Composable
-fun SimulationStatusCard(state: SimulationState) {
+fun SimulationStatusCard(state: SimulationState, etaText: String? = null) {
     Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -990,7 +1029,7 @@ fun SimulationStatusCard(state: SimulationState) {
                     modifier = Modifier.size(28.dp),
             )
             Spacer(Modifier.width(12.dp))
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                         text =
                                 when (state) {
@@ -1006,13 +1045,22 @@ fun SimulationStatusCard(state: SimulationState) {
                         fontSize = 15.sp,
                         color = Color(0xFFE0E0E0),
                 )
+                // Show ETA when a route is loaded but simulation hasn't started
+                if (state is SimulationState.Idle && etaText != null) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                            text = "ETA: $etaText",
+                            fontSize = 13.sp,
+                            color = Color(0xFF80CBC4),
+                    )
+                }
                 if (state is SimulationState.Running) {
                     Spacer(Modifier.height(2.dp))
                     Text(
                             text =
-                                    "Frame #${state.frameCount} · " +
-                                            "${state.progressPercent.toInt()}% · " +
-                                            "${state.elapsedTimeSec}s",
+                                    "${state.progressPercent.toInt()}% · " +
+                                            "${state.elapsedTimeSec}s elapsed" +
+                                            (if (etaText != null) " · ETA ~$etaText" else ""),
                             fontSize = 13.sp,
                             color = Color(0xFF888888),
                     )

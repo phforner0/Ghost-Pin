@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ghostpin.app.data.SimulationRepository
+import com.ghostpin.app.routing.GeocodingProvider
 import com.ghostpin.app.routing.GpxParser
 import com.ghostpin.app.service.SimulationState
 import com.ghostpin.core.model.AppMode
@@ -13,6 +14,8 @@ import com.ghostpin.core.model.DefaultCoordinates
 import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.model.Route
 import com.ghostpin.core.model.Waypoint
+import com.ghostpin.core.model.estimateDuration
+import com.ghostpin.core.model.formatDuration
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -20,8 +23,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -44,9 +50,57 @@ class SimulationViewModel
 constructor(
         private val repository: SimulationRepository,
         private val gpxParser: GpxParser,
+        private val geocodingProvider: GeocodingProvider,
 ) : ViewModel() {
 
     init {}
+
+    // ── Geocoding suggestions (Task 26) ──────────────────────────────────
+
+    private val _geoSuggestions = MutableStateFlow<List<GeocodingProvider.GeoResult>>(emptyList())
+    val geoSuggestions: StateFlow<List<GeocodingProvider.GeoResult>> = _geoSuggestions.asStateFlow()
+
+    private val _isSearching = MutableStateFlow(false)
+    val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
+
+    private var searchJob: Job? = null
+
+    /** Debounced address search — fires Nominatim query 400ms after last keystroke. */
+    fun searchAddress(query: String) {
+        searchJob?.cancel()
+        if (query.length < 3) {
+            _geoSuggestions.value = emptyList()
+            return
+        }
+        searchJob = viewModelScope.launch {
+            delay(400) // debounce
+            _isSearching.value = true
+            _geoSuggestions.value = geocodingProvider.search(query)
+            _isSearching.value = false
+        }
+    }
+
+    /** Add a waypoint from a geocoding suggestion. */
+    fun addWaypointFromGeoResult(result: GeocodingProvider.GeoResult) {
+        addWaypoint(Waypoint(result.lat, result.lng, label = result.displayName))
+        _geoSuggestions.value = emptyList()
+    }
+
+    fun clearSuggestions() {
+        _geoSuggestions.value = emptyList()
+    }
+
+    // ── Route ETA (Task 27) ─────────────────────────────────────────
+
+    /**
+     * Human-readable ETA string for the currently loaded route + selected profile.
+     * Null when no route is available. Recomputes automatically on route/profile change.
+     * Example values: "5m 30s", "1h 12m".
+     */
+    val routeEtaText: StateFlow<String?> =
+        combine(repository.currentRoute, _selectedProfile) { route, profile ->
+            route?.let { formatDuration(it.estimateDuration(profile)) }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     // ── Real device location (one-shot, for map cold-start centering) ─────────
 
