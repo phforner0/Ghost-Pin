@@ -42,6 +42,7 @@ fun InteractiveMap(
         route: Route?,
         startPlaced: Boolean,
         simulationState: SimulationState,
+        previewPlayhead: Waypoint? = null,
         deviceLocation: Pair<Double, Double>?,
         onMapLongPress: (Double, Double) -> Unit,
         modifier: Modifier = Modifier,
@@ -79,7 +80,7 @@ fun InteractiveMap(
     }
 
     // Update map whenever relevant state changes
-    LaunchedEffect(simulationState, startLat, startLng, endLat, endLng, waypoints, appMode, route) {
+    LaunchedEffect(simulationState, startLat, startLng, endLat, endLng, waypoints, appMode, route, previewPlayhead) {
         val controller = mapController ?: return@LaunchedEffect
         when (simulationState) {
             is SimulationState.Idle, is SimulationState.FetchingRoute -> {
@@ -99,6 +100,7 @@ fun InteractiveMap(
             is SimulationState.Paused -> controller.updatePosition(simulationState.lastLocation)
             is SimulationState.Error -> controller.clearPosition()
         }
+        controller.updatePreviewPlayhead(previewPlayhead)
     }
 
     // Hint text: tells user what the next long-press will do

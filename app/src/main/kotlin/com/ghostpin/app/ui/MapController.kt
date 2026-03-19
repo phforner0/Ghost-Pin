@@ -41,6 +41,8 @@ class MapController(
         private const val SOURCE_POSITION = "source_position"
         private const val LAYER_POSITION_ACCURACY = "layer_position_accuracy"
         private const val LAYER_POSITION_ICON = "layer_position_icon"
+        private const val SOURCE_PLAYHEAD = "source_playhead"
+        private const val LAYER_PLAYHEAD = "layer_playhead"
 
         // Start pin  (Bug #5)
         private const val SOURCE_PIN_START = "source_pin_start"
@@ -56,6 +58,7 @@ class MapController(
 
         // Icon image IDs
         private const val ICON_POSITION = "icon_position"
+        private const val ICON_PLAYHEAD = "icon_playhead"
         private const val ICON_PIN_START = "icon_pin_start"
         private const val ICON_PIN_END = "icon_pin_end"
         private const val ICON_PIN_WAYPOINT = "icon_pin_waypoint"
@@ -175,6 +178,18 @@ class MapController(
                                 iconIgnorePlacement(true),
                         )
         )
+
+        // ── Route preview playhead ────────────────────────────────────────
+        style.addSource(GeoJsonSource(SOURCE_PLAYHEAD))
+        style.addImage(ICON_PLAYHEAD, createPlayheadBitmap())
+        style.addLayer(
+                SymbolLayer(LAYER_PLAYHEAD, SOURCE_PLAYHEAD)
+                        .withProperties(
+                                iconImage(ICON_PLAYHEAD),
+                                iconAllowOverlap(true),
+                                iconIgnorePlacement(true),
+                        )
+        )
     }
 
     // ── Public API ───────────────────────────────────────────────────────────
@@ -269,6 +284,18 @@ class MapController(
                 ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
     }
 
+    /** Render route preview playhead marker at the given waypoint position. */
+    fun updatePreviewPlayhead(waypoint: com.ghostpin.core.model.Waypoint?) {
+        val currentStyle = style ?: return
+        val source = currentStyle.getSourceAs<GeoJsonSource>(SOURCE_PLAYHEAD) ?: return
+        if (waypoint == null) {
+            source.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+            return
+        }
+        val point = Point.fromLngLat(waypoint.lng, waypoint.lat)
+        source.setGeoJson(Feature.fromGeometry(point))
+    }
+
     /**
      * Centers the camera on a single point without needing a second pin. Used on cold-start to jump
      * to the user's real GPS location before any pins are placed.
@@ -295,6 +322,8 @@ class MapController(
         s.getSourceAs<GeoJsonSource>(SOURCE_PIN_END)
                 ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
         s.getSourceAs<GeoJsonSource>(SOURCE_PIN_WAYPOINTS)
+                ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+        s.getSourceAs<GeoJsonSource>(SOURCE_PLAYHEAD)
                 ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
     }
 
@@ -360,6 +389,23 @@ class MapController(
 
         val innerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE }
         canvas.drawCircle(cx, cx, cx * 0.45f, innerPaint)
+        return bitmap
+    }
+
+    /** Small amber marker for route-preview playhead. */
+    private fun createPlayheadBitmap(): Bitmap {
+        val size = 28
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val cx = size / 2f
+        val outer = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.parseColor("#FFC107")
+        }
+        val inner = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.WHITE
+        }
+        canvas.drawCircle(cx, cx, cx * 0.92f, outer)
+        canvas.drawCircle(cx, cx, cx * 0.45f, inner)
         return bitmap
     }
 }
