@@ -1,6 +1,7 @@
 package com.ghostpin.app.ui
 
 import androidx.compose.runtime.*
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -14,6 +15,7 @@ object AppRoute {
     const val ONBOARDING = "onboarding"
     const val MAIN = "main"
     const val ROUTE_EDITOR = "route_editor"
+    const val HISTORY = "history"
 }
 
 /**
@@ -70,6 +72,9 @@ fun AppNavHost(
                 onNavigateToRouteEditor = {
                     navController.navigate(AppRoute.ROUTE_EDITOR)
                 },
+                onNavigateToHistory = {
+                    navController.navigate(AppRoute.HISTORY)
+                },
             )
         }
 
@@ -77,6 +82,22 @@ fun AppNavHost(
         composable(AppRoute.ROUTE_EDITOR) {
             RouteEditorScreen(
                 onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(AppRoute.HISTORY) {
+            val historyViewModel: HistoryViewModel = hiltViewModel()
+            HistoryScreen(
+                viewModel = historyViewModel,
+                onBack = { navController.popBackStack() },
+                onReplay = { history ->
+                    viewModel.applyReplayConfig(history)
+                    navController.navigate(AppRoute.MAIN) {
+                        popUpTo(AppRoute.HISTORY) { inclusive = true }
+                    }
+                    val profile = MovementProfile.BUILT_IN[history.profileIdOrName] ?: viewModel.selectedProfile.value
+                    onStartSimulation(profile, 0.0)
+                },
             )
         }
     }

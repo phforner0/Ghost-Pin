@@ -1,5 +1,7 @@
 package com.ghostpin.app.data
 
+import com.ghostpin.app.data.db.SimulationHistoryDao
+import com.ghostpin.app.data.db.SimulationHistoryEntity
 import com.ghostpin.app.service.SimulationState
 import com.ghostpin.core.model.Route
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -8,6 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.ghostpin.core.model.JoystickState
+import java.util.UUID
 
 /**
  * Central source of truth for simulation state, shared between
@@ -23,7 +26,9 @@ import com.ghostpin.core.model.JoystickState
  *   SimulationService ──emitState()──▶ SimulationRepository ──state──▶ SimulationViewModel
  */
 @Singleton
-class SimulationRepository @Inject constructor() {
+class SimulationRepository @Inject constructor(
+    private val simulationHistoryDao: SimulationHistoryDao,
+) {
 
     private val _state = MutableStateFlow<SimulationState>(SimulationState.Idle)
 
@@ -70,6 +75,10 @@ class SimulationRepository @Inject constructor() {
         _lastUsedConfig.value = config
     }
 
+    fun emitOptionalConfig(config: SimulationConfig?) {
+        _lastUsedConfig.value = config
+    }
+
     /** Update joystick overlay state (magnitude, angle) */
     fun updateJoystickState(joystickState: JoystickState) {
         _joystickState.value = joystickState
@@ -85,4 +94,49 @@ class SimulationRepository @Inject constructor() {
         _state.value = SimulationState.Idle
         _route.value = null
     }
+
+    suspend fun startHistory(profileIdOrName: String, routeId: String?): String {
+        val id = UUID.randomUUID().toString()
+        simulationHistoryDao.insert(
+            SimulationHistoryEntity(
+                id = id,
+                profileIdOrName = profileIdOrName,
+                routeId = routeId,
+                startedAtMs = System.currentTimeMillis(),
+                endedAtMs = null,
+                durationMs = null,
+                avgSpeedMs = null,
+                distanceMeters = 0.0,
+                resultStatus = "RUNNING",
+            )
+        )
+        return id
+    }
+
+    suspend fun finishHistory(
+        id: String,
+        durationMs: Long,
+        distanceMeters: Double,
+        resultStatus: String,
+    ) {
+        val endedAtMs = System.currentTimeMillis()
+        val avgSpeed = if (durationMs > 0) distanceMeters / (durationMs / 1000.0) else 0.0
+        simulationHistoryDao.closeById(
+            id = id,
+            endedAtMs = endedAtMs,
+            durationMs = durationMs,
+            avgSpeedMs = avgSpeed,
+            distanceMeters = distanceMeters,
+            resultStatus = resultStatus,
+        )
+    }
+
+    suspend fun listHistoryPaged(page: Int, pageSize: Int): List<SimulationHistoryEntity> =
+        simulationHistoryDao.listPaged(limit = pageSize, offset = page * pageSize)
+
+    suspend fun getHistoryById(id: String): SimulationHistoryEntity? = simulationHistoryDao.getById(id)
+
+    suspend fun deleteHistoryById(id: String) = simulationHistoryDao.deleteById(id)
+
+    suspend fun clearHistory() = simulationHistoryDao.clearHistory()
 }

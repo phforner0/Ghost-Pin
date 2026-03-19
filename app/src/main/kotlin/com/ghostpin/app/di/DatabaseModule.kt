@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.ghostpin.app.data.db.GhostPinDatabase
 import com.ghostpin.app.data.db.ProfileDao
 import com.ghostpin.app.data.db.RouteDao
+import com.ghostpin.app.data.db.SimulationHistoryDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -32,7 +33,7 @@ object DatabaseModule {
             GhostPinDatabase::class.java,
             "ghostpin.db",
         )
-            // addMigrations(MIGRATION_1_2, ...) will go here in future sprints
+            .addMigrations(GhostPinDatabase.MIGRATION_1_2)
             .build()
 
     @Provides
@@ -42,4 +43,8 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideRouteDao(db: GhostPinDatabase): RouteDao = db.routeDao()
+
+    @Provides
+    @Singleton
+    fun provideSimulationHistoryDao(db: GhostPinDatabase): SimulationHistoryDao = db.simulationHistoryDao()
 }

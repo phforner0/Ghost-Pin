@@ -6,6 +6,8 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ghostpin.app.data.SimulationRepository
+import com.ghostpin.app.data.SimulationConfig
+import com.ghostpin.app.data.db.SimulationHistoryEntity
 import com.ghostpin.app.routing.GeocodingProvider
 import com.ghostpin.app.routing.GpxParser
 import com.ghostpin.app.service.SimulationState
@@ -246,6 +248,7 @@ constructor(
                     .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val route: StateFlow<Route?> = repository.route
+    val lastUsedConfig: StateFlow<SimulationConfig?> = repository.lastUsedConfig
 
     // ── Map pin coordinates ───────────────────────────────────────────────────
 
@@ -266,6 +269,25 @@ constructor(
     }
     fun setStartLng(lng: Double) {
         _startLng.value = lng
+    }
+
+    /**
+     * Applies a previously executed simulation configuration to speed up replay.
+     */
+    fun applyReplayConfig(history: SimulationHistoryEntity) {
+        val profile = MovementProfile.BUILT_IN[history.profileIdOrName]
+        if (profile != null) {
+            selectProfile(profile)
+        }
+        setAppMode(AppMode.CLASSIC)
+        repository.emitOptionalConfig(
+            SimulationConfig(
+                profileName = history.profileIdOrName,
+                startLat = _startLat.value,
+                startLng = _startLng.value,
+                routeId = history.routeId,
+            )
+        )
     }
 
     private val _startPlaced = MutableStateFlow(false)
