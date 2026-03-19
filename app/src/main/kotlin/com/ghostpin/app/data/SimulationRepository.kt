@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.ghostpin.core.model.JoystickState
+import com.ghostpin.engine.interpolation.RepeatPolicy
 import java.util.UUID
 
 /**
@@ -204,6 +205,8 @@ class SimulationRepository @Inject constructor(
             startLat = base?.startLat ?: com.ghostpin.core.model.DefaultCoordinates.START_LAT,
             startLng = base?.startLng ?: com.ghostpin.core.model.DefaultCoordinates.START_LNG,
             routeId = favorite.routeId,
+            repeatPolicy = base?.repeatPolicy ?: RepeatPolicy.NONE,
+            repeatCount = base?.repeatCount ?: 1,
         )
         return FavoriteResolution.Valid(config, favorite)
     }

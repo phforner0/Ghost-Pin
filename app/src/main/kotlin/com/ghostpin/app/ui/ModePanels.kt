@@ -26,6 +26,7 @@ import com.ghostpin.app.routing.GeocodingProvider
 import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.model.Waypoint
 import com.ghostpin.core.model.distanceMeters
+import com.ghostpin.engine.interpolation.RepeatPolicy
 
 // ── Mode Panels ─────────────────────────────────────────────────────────────
 
@@ -34,14 +35,27 @@ fun ClassicModePanel(
         profiles: List<MovementProfile>,
         selectedProfile: MovementProfile,
         enabled: Boolean,
-        onSelect: (MovementProfile) -> Unit
+        onSelect: (MovementProfile) -> Unit,
+        repeatPolicy: RepeatPolicy,
+        repeatCount: Int,
+        onRepeatPolicyChange: (RepeatPolicy) -> Unit,
+        onRepeatCountChange: (Int) -> Unit,
 ) {
-    ProfileSelector(
-            profiles = profiles,
-            selectedProfile = selectedProfile,
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        RepeatPolicySelector(
+            repeatPolicy = repeatPolicy,
+            repeatCount = repeatCount,
             enabled = enabled,
-            onSelect = onSelect,
-    )
+            onRepeatPolicyChange = onRepeatPolicyChange,
+            onRepeatCountChange = onRepeatCountChange,
+        )
+        ProfileSelector(
+                profiles = profiles,
+                selectedProfile = selectedProfile,
+                enabled = enabled,
+                onSelect = onSelect,
+        )
+    }
 }
 
 @Composable
@@ -86,6 +100,10 @@ fun WaypointsModePanel(
         onSelectSuggestion: (GeocodingProvider.GeoResult) -> Unit,
         onClearSuggestions: () -> Unit,
         onStart: (Double) -> Unit,
+        repeatPolicy: RepeatPolicy,
+        repeatCount: Int,
+        onRepeatPolicyChange: (RepeatPolicy) -> Unit,
+        onRepeatCountChange: (Int) -> Unit,
 ) {
     Card(
             modifier = Modifier.fillMaxWidth(),
@@ -279,6 +297,13 @@ fun WaypointsModePanel(
                     enabled = enabled,
                     onSelect = onSelectProfile,
             )
+            RepeatPolicySelector(
+                repeatPolicy = repeatPolicy,
+                repeatCount = repeatCount,
+                enabled = enabled,
+                onRepeatPolicyChange = onRepeatPolicyChange,
+                onRepeatCountChange = onRepeatCountChange,
+            )
 
             Button(
                     onClick = { onStart(waypointPauseSec.toDouble()) },
@@ -287,6 +312,49 @@ fun WaypointsModePanel(
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00BFA5))
             ) {
                 Text("Start Multi-Stop Route", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RepeatPolicySelector(
+    repeatPolicy: RepeatPolicy,
+    repeatCount: Int,
+    enabled: Boolean,
+    onRepeatPolicyChange: (RepeatPolicy) -> Unit,
+    onRepeatCountChange: (Int) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Repetição da rota", color = Color(0xFFB0BEC5), fontSize = 13.sp)
+        val policies = listOf(
+            RepeatPolicy.NONE to "Sem repetição",
+            RepeatPolicy.LOOP_N to "Loop N",
+            RepeatPolicy.LOOP_INFINITE to "Loop ∞",
+            RepeatPolicy.PING_PONG_N to "Ping-pong N",
+            RepeatPolicy.PING_PONG_INFINITE to "Ping-pong ∞",
+        )
+        policies.forEach { (policy, label) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(
+                    selected = repeatPolicy == policy,
+                    onClick = { if (enabled) onRepeatPolicyChange(policy) },
+                    enabled = enabled,
+                )
+                Text(label, color = Color.White, fontSize = 13.sp)
+            }
+        }
+        if (repeatPolicy == RepeatPolicy.LOOP_N || repeatPolicy == RepeatPolicy.PING_PONG_N) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("N = $repeatCount", color = Color(0xFFB0BEC5), fontSize = 12.sp)
+                Row {
+                    TextButton(onClick = { onRepeatCountChange((repeatCount - 1).coerceAtLeast(1)) }, enabled = enabled) { Text("-") }
+                    TextButton(onClick = { onRepeatCountChange(repeatCount + 1) }, enabled = enabled) { Text("+") }
+                }
             }
         }
     }

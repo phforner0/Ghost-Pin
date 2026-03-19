@@ -19,6 +19,7 @@ import com.ghostpin.core.model.Route
 import com.ghostpin.core.model.Waypoint
 import com.ghostpin.core.model.estimateDuration
 import com.ghostpin.core.model.formatDuration
+import com.ghostpin.engine.interpolation.RepeatPolicy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -186,6 +187,20 @@ constructor(
         }
     }
 
+    private val _repeatPolicy = MutableStateFlow(RepeatPolicy.NONE)
+    val repeatPolicy: StateFlow<RepeatPolicy> = _repeatPolicy.asStateFlow()
+
+    private val _repeatCount = MutableStateFlow(2)
+    val repeatCount: StateFlow<Int> = _repeatCount.asStateFlow()
+
+    fun setRepeatPolicy(policy: RepeatPolicy) {
+        _repeatPolicy.value = policy
+    }
+
+    fun setRepeatCount(value: Int) {
+        _repeatCount.value = value.coerceAtLeast(1)
+    }
+
     // ── GPX route loading (Task 23) ───────────────────────────────────────────
 
     /** Represents the lifecycle of a GPX file import triggered by the user's file picker. */
@@ -293,6 +308,8 @@ constructor(
                 startLat = _startLat.value,
                 startLng = _startLng.value,
                 routeId = history.routeId,
+                repeatPolicy = repeatPolicy.value,
+                repeatCount = repeatCount.value,
             )
         )
     }

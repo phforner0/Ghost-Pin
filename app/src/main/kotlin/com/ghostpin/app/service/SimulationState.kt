@@ -23,6 +23,10 @@ sealed class SimulationState {
         val currentLocation: MockLocation,
         val profileName: String,
         val progressPercent: Float,
+        val lapProgressPercent: Float = progressPercent,
+        val currentLap: Int = 1,
+        val totalLapsLabel: String = "1",
+        val direction: Int = 1,
         val elapsedTimeSec: Long,
         val frameCount: Long,
     ) : SimulationState()
@@ -32,6 +36,10 @@ sealed class SimulationState {
         val lastLocation: MockLocation,
         val profileName: String,
         val progressPercent: Float,
+        val lapProgressPercent: Float = progressPercent,
+        val currentLap: Int = 1,
+        val totalLapsLabel: String = "1",
+        val direction: Int = 1,
         val elapsedTimeSec: Long,
     ) : SimulationState()
 
