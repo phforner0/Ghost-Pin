@@ -18,8 +18,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ghostpin.app.routing.GeocodingProvider
@@ -131,19 +133,34 @@ fun WaypointsModePanel(
         onRepeatPolicyChange: (RepeatPolicy) -> Unit,
         onRepeatCountChange: (Int) -> Unit,
 ) {
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+    val suggestionsMaxHeight = remember(screenHeight) { (screenHeight * 0.25f).coerceIn(120.dp, 240.dp) }
+    val waypointsMaxHeight = remember(screenHeight) { (screenHeight * 0.30f).coerceIn(140.dp, 320.dp) }
+
     Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceDim, contentColor = MaterialTheme.colorScheme.onSurface),
     ) {
+        var addressQuery by remember { mutableStateOf("") }
+        var waypointPauseSec by remember { mutableFloatStateOf(0f) }
+        var showClearConfirmation by remember { mutableStateOf(false) }
+        var showAllSuggestions by remember { mutableStateOf(false) }
+        var showAllWaypoints by remember { mutableStateOf(false) }
+        val haptic = LocalHapticFeedback.current
+
         Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = Modifier
+                    .imePadding()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            var addressQuery by remember { mutableStateOf("") }
-            var waypointPauseSec by remember { mutableFloatStateOf(0f) }
-            var showClearConfirmation by remember { mutableStateOf(false) }
-            val haptic = LocalHapticFeedback.current
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
 
             // Confirmation dialog for clearing all waypoints
             if (showClearConfirmation) {
@@ -217,45 +234,18 @@ fun WaypointsModePanel(
 
                 // Suggestions dropdown
                 if (geoSuggestions.isNotEmpty()) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 180.dp),
-                        shape = RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceDropdown, contentColor = MaterialTheme.colorScheme.onSurface)
-                    ) {
-                        Column(
-                            modifier = Modifier.verticalScroll(rememberScrollState())
-                        ) {
-                            geoSuggestions.forEach { result ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            onSelectSuggestion(result)
-                                            addressQuery = ""
-                                            onClearSuggestions()
-                                        }
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Default.LocationOn,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = result.displayName,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        fontSize = 13.sp,
-                                        maxLines = 2
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    SuggestionsList(
+                        geoSuggestions = geoSuggestions,
+                        maxHeight = suggestionsMaxHeight,
+                        expanded = showAllSuggestions,
+                        onToggleExpanded = { showAllSuggestions = !showAllSuggestions },
+                        onSelectSuggestion = { result ->
+                            onSelectSuggestion(result)
+                            addressQuery = ""
+                            onClearSuggestions()
+                            showAllSuggestions = false
+                        },
+                    )
                 }
             }
 
@@ -287,34 +277,17 @@ fun WaypointsModePanel(
 
             // Waypoints List
             if (waypoints.isNotEmpty()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 140.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    waypoints.forEachIndexed { index, wp ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${index + 1}. ${wp.label ?: "${String.format("%.4f", wp.lat)}, ${String.format("%.4f", wp.lng)}"}",
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 14.sp,
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(onClick = {
-                                onRemoveWaypoint(index)
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            }, enabled = enabled) {
-                                Icon(Icons.Default.Delete, contentDescription = "Remove", tint = MaterialTheme.colorScheme.error)
-                            }
-                        }
-                    }
-                }
+                WaypointsList(
+                    waypoints = waypoints,
+                    maxHeight = waypointsMaxHeight,
+                    expanded = showAllWaypoints,
+                    onToggleExpanded = { showAllWaypoints = !showAllWaypoints },
+                    enabled = enabled,
+                    onRemoveWaypoint = { index ->
+                        onRemoveWaypoint(index)
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    },
+                )
             }
 
             ProfileSelector(
@@ -330,6 +303,7 @@ fun WaypointsModePanel(
                 onRepeatPolicyChange = onRepeatPolicyChange,
                 onRepeatCountChange = onRepeatCountChange,
             )
+            }
 
             Button(
                     onClick = { onStart(waypointPauseSec.toDouble()) },
@@ -338,6 +312,110 @@ fun WaypointsModePanel(
                     colors = modeButtonColors()
             ) {
                 Text("Start Multi-Stop Route", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SuggestionsList(
+    geoSuggestions: List<GeocodingProvider.GeoResult>,
+    maxHeight: Dp,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    onSelectSuggestion: (GeocodingProvider.GeoResult) -> Unit,
+) {
+    val visibleItems = ((maxHeight / 56.dp).toInt()).coerceAtLeast(1)
+    val visibleSuggestions = if (expanded) geoSuggestions else geoSuggestions.take(visibleItems)
+    val hiddenCount = (geoSuggestions.size - visibleSuggestions.size).coerceAtLeast(0)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = maxHeight),
+        shape = RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceDropdown, contentColor = MaterialTheme.colorScheme.onSurface),
+    ) {
+        Column {
+            visibleSuggestions.forEach { result ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelectSuggestion(result) }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.LocationOn,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = result.displayName,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 13.sp,
+                        maxLines = 2,
+                    )
+                }
+            }
+            if (hiddenCount > 0) {
+                TextButton(onClick = onToggleExpanded, modifier = Modifier.align(Alignment.End)) {
+                    Text("+ $hiddenCount more suggestions")
+                }
+            } else if (expanded && geoSuggestions.size > visibleItems) {
+                TextButton(onClick = onToggleExpanded, modifier = Modifier.align(Alignment.End)) {
+                    Text("Show fewer suggestions")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WaypointsList(
+    waypoints: List<Waypoint>,
+    maxHeight: Dp,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    enabled: Boolean,
+    onRemoveWaypoint: (Int) -> Unit,
+) {
+    val visibleItems = ((maxHeight / 48.dp).toInt()).coerceAtLeast(1)
+    val visibleWaypoints = if (expanded) waypoints else waypoints.take(visibleItems)
+    val hiddenCount = (waypoints.size - visibleWaypoints.size).coerceAtLeast(0)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = maxHeight),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        visibleWaypoints.forEachIndexed { index, wp ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "${index + 1}. ${wp.label ?: "${String.format("%.4f", wp.lat)}, ${String.format("%.4f", wp.lng)}"}",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 14.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { onRemoveWaypoint(index) }, enabled = enabled) {
+                    Icon(Icons.Default.Delete, contentDescription = "Remove", tint = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+        if (hiddenCount > 0) {
+            TextButton(onClick = onToggleExpanded, modifier = Modifier.align(Alignment.End)) {
+                Text("+ $hiddenCount more waypoints")
+            }
+        } else if (expanded && waypoints.size > visibleItems) {
+            TextButton(onClick = onToggleExpanded, modifier = Modifier.align(Alignment.End)) {
+                Text("Show fewer waypoints")
             }
         }
     }
@@ -630,6 +708,58 @@ private fun WaypointsModePanelInactivePreview() {
             onRepeatCountChange = {},
         )
     }
+}
+
+@Preview(
+    name = "Waypoints Compact Height",
+    showBackground = true,
+    device = "spec:width=360dp,height=640dp,dpi=420",
+)
+@Composable
+private fun WaypointsModePanelCompactPreview() {
+    GhostPinTheme {
+        WaypointsModePanel(
+            waypoints = List(12) { idx ->
+                Waypoint(
+                    lat = -23.5505 + (idx * 0.001),
+                    lng = -46.6333 - (idx * 0.001),
+                    label = "Stop ${idx + 1}",
+                )
+            },
+            onRemoveWaypoint = {},
+            onClearWaypoints = {},
+            profiles = listOf(MovementProfile.PEDESTRIAN, MovementProfile.BICYCLE),
+            selectedProfile = MovementProfile.PEDESTRIAN,
+            enabled = true,
+            onSelectProfile = {},
+            geoSuggestions = List(8) { idx ->
+                GeocodingProvider.GeoResult(
+                    displayName = "Suggestion ${idx + 1}",
+                    lat = -23.5505,
+                    lng = -46.6333,
+                )
+            },
+            isSearching = false,
+            onSearchAddress = {},
+            onSelectSuggestion = {},
+            onClearSuggestions = {},
+            onStart = {},
+            repeatPolicy = RepeatPolicy.NONE,
+            repeatCount = 2,
+            onRepeatPolicyChange = {},
+            onRepeatCountChange = {},
+        )
+    }
+}
+
+@Preview(
+    name = "Waypoints Tall Low DPI",
+    showBackground = true,
+    device = "spec:width=411dp,height=891dp,dpi=280",
+)
+@Composable
+private fun WaypointsModePanelTallPreview() {
+    WaypointsModePanelCompactPreview()
 }
 
 private fun previewRoute() = Route(
