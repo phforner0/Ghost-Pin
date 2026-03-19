@@ -42,6 +42,40 @@ class AutomationReceiver : BroadcastReceiver() {
         const val EXTRA_FREQUENCY_HZ = "EXTRA_FREQUENCY_HZ"
         const val EXTRA_PROFILE_ID   = "EXTRA_PROFILE_ID"
         const val EXTRA_ROUTE_FILE   = "EXTRA_ROUTE_FILE"
+
+        fun buildStartServiceIntent(context: Context, sourceIntent: Intent): Intent {
+            return Intent(context, SimulationService::class.java).apply {
+                action = SimulationService.ACTION_START
+
+                if (sourceIntent.hasExtra(EXTRA_LAT) && sourceIntent.hasExtra(EXTRA_LNG)) {
+                    val lat = sourceIntent.getDoubleExtra(EXTRA_LAT, 0.0).coerceIn(-90.0, 90.0)
+                    val lng = sourceIntent.getDoubleExtra(EXTRA_LNG, 0.0).coerceIn(-180.0, 180.0)
+                    putExtra(SimulationService.EXTRA_START_LAT, lat)
+                    putExtra(SimulationService.EXTRA_START_LNG, lng)
+                }
+
+                if (sourceIntent.hasExtra(EXTRA_PROFILE_ID)) {
+                    val profileId = sourceIntent.getStringExtra(EXTRA_PROFILE_ID) ?: "Car"
+                    val validProfile = if (MovementProfile.BUILT_IN.containsKey(profileId)) {
+                        profileId
+                    } else {
+                        Log.w(TAG, "Unknown profile '${LogSanitizer.sanitizeString(profileId)}', defaulting to Car")
+                        "Car"
+                    }
+                    putExtra(SimulationService.EXTRA_PROFILE_NAME, validProfile)
+                }
+
+                if (sourceIntent.hasExtra(EXTRA_SPEED_RATIO)) {
+                    val ratio = sourceIntent.getDoubleExtra(EXTRA_SPEED_RATIO, 0.65).coerceIn(0.0, 1.0)
+                    putExtra(SimulationService.EXTRA_SPEED_RATIO, ratio)
+                }
+
+                if (sourceIntent.hasExtra(EXTRA_FREQUENCY_HZ)) {
+                    val freq = sourceIntent.getIntExtra(EXTRA_FREQUENCY_HZ, 5).coerceIn(1, 60)
+                    putExtra(SimulationService.EXTRA_FREQUENCY_HZ, freq)
+                }
+            }
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -59,43 +93,7 @@ class AutomationReceiver : BroadcastReceiver() {
     }
 
     private fun handleStart(context: Context, intent: Intent) {
-        val serviceIntent = Intent(context, SimulationService::class.java).apply {
-            this.action = SimulationService.ACTION_START
-
-            // Optional lat/lng override
-            if (intent.hasExtra(EXTRA_LAT) && intent.hasExtra(EXTRA_LNG)) {
-                val lat = intent.getDoubleExtra(EXTRA_LAT, 0.0).coerceIn(-90.0, 90.0)
-                val lng = intent.getDoubleExtra(EXTRA_LNG, 0.0).coerceIn(-180.0, 180.0)
-                putExtra(SimulationService.EXTRA_START_LAT, lat)
-                putExtra(SimulationService.EXTRA_START_LNG, lng)
-            }
-
-            // Optional profile
-            if (intent.hasExtra(EXTRA_PROFILE_ID)) {
-                val profileId = intent.getStringExtra(EXTRA_PROFILE_ID) ?: "Car"
-                val validProfile = if (MovementProfile.BUILT_IN.containsKey(profileId)) {
-                    profileId
-                } else {
-                    Log.w(TAG, "Unknown profile '${LogSanitizer.sanitizeString(profileId)}', defaulting to Car")
-                    "Car"
-                }
-                putExtra(SimulationService.EXTRA_PROFILE_NAME, validProfile)
-            }
-
-            // Optional speed ratio
-            if (intent.hasExtra(EXTRA_SPEED_RATIO)) {
-                val ratio = intent.getDoubleExtra(EXTRA_SPEED_RATIO, 0.65).coerceIn(0.0, 1.0)
-                putExtra(SimulationService.EXTRA_SPEED_RATIO, ratio)
-            }
-
-            // Optional frequency
-            if (intent.hasExtra(EXTRA_FREQUENCY_HZ)) {
-                val freq = intent.getIntExtra(EXTRA_FREQUENCY_HZ, 5).coerceIn(1, 60)
-                putExtra(SimulationService.EXTRA_FREQUENCY_HZ, freq)
-            }
-        }
-
-        context.startForegroundService(serviceIntent)
+        context.startForegroundService(buildStartServiceIntent(context, intent))
     }
 
     private fun handleStop(context: Context) {

@@ -4,19 +4,11 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.ghostpin.app.scheduling.ScheduleDao
+import com.ghostpin.app.scheduling.ScheduleEntity
 
 /**
  * GhostPin Room database.
- *
- * Sprint 4 — Tasks 14 & 17.
- *
- * Version history:
- *   1 — Sprint 4: profiles + routes tables.
- *   2 — Sprint 7: simulation_history table.
- *   3 — Favorites support: favorite_simulations table.
- *
- * Migrations: use [androidx.room.migration.Migration] for incremental schema changes
- * in future sprints. destructiveMigration is NOT enabled — data must be preserved.
  */
 @Database(
     entities = [
@@ -24,8 +16,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         RouteEntity::class,
         SimulationHistoryEntity::class,
         FavoriteSimulationEntity::class,
+        ScheduleEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class GhostPinDatabase : RoomDatabase() {
@@ -33,6 +26,7 @@ abstract class GhostPinDatabase : RoomDatabase() {
     abstract fun routeDao(): RouteDao
     abstract fun simulationHistoryDao(): SimulationHistoryDao
     abstract fun favoriteSimulationDao(): FavoriteSimulationDao
+    abstract fun scheduleDao(): ScheduleDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -69,6 +63,28 @@ abstract class GhostPinDatabase : RoomDatabase() {
                         `frequencyHz` INTEGER NOT NULL,
                         `createdAtMs` INTEGER NOT NULL,
                         `updatedAtMs` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `schedules` (
+                        `id` TEXT NOT NULL,
+                        `startAtMs` INTEGER NOT NULL,
+                        `stopAtMs` INTEGER,
+                        `profileName` TEXT NOT NULL,
+                        `startLat` REAL NOT NULL,
+                        `startLng` REAL NOT NULL,
+                        `speedRatio` REAL NOT NULL,
+                        `frequencyHz` INTEGER NOT NULL,
+                        `enabled` INTEGER NOT NULL,
+                        `createdAtMs` INTEGER NOT NULL,
                         PRIMARY KEY(`id`)
                     )
                     """.trimIndent()
