@@ -90,19 +90,7 @@ constructor(
         _geoSuggestions.value = emptyList()
     }
 
-    // ── Route ETA (Task 27) ─────────────────────────────────────────
 
-    /**
-     * Human-readable ETA string for the currently loaded route + selected profile.
-     * Null when no route is available. Recomputes automatically on route/profile change.
-     * Example values: "5m 30s", "1h 12m".
-     */
-    val routeEtaText: StateFlow<String?> =
-        combine(repository.route, _selectedProfile) { route, profile ->
-            route?.let { formatDuration(it.estimateDuration(profile)) }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-
-    // ── Real device location (one-shot, for map cold-start centering) ─────────
 
     private val _deviceLocation = MutableStateFlow<Pair<Double, Double>?>(null)
     /**
@@ -161,6 +149,18 @@ constructor(
     fun selectProfile(profile: MovementProfile) {
         _selectedProfile.value = profile
     }
+
+    // ── Route ETA (Task 27) ─────────────────────────────────────────
+
+    /**
+     * Human-readable ETA string for the currently loaded route + selected profile.
+     * Null when no route is available. Recomputes automatically on route/profile change.
+     * Example values: "5m 30s", "1h 12m".
+     */
+    val routeEtaText: StateFlow<String?> =
+        combine(repository.route, _selectedProfile) { route, profile ->
+            route?.let { formatDuration(it.estimateDuration(profile)) }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     // ── Operating mode ────────────────────────────────────────────────────────
 

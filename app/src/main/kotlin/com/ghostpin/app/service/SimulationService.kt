@@ -415,7 +415,7 @@ class SimulationService : LifecycleService() {
                         frameCount      = frameCount,
                     )
                     repository.emitState(runningState)
-                    GhostPinWidget.updateAll(this@SimulationService, isRunning = true, profileName = profile.name)
+                    GhostPinWidget.updateAll(this@SimulationService, runningState)
 
                     val distPerFrame = speedMs * deltaTimeSec
                     progress  = (progress + distPerFrame / totalDist).coerceAtMost(1.0)
@@ -428,7 +428,7 @@ class SimulationService : LifecycleService() {
 
                 // Simulation completed normally
                 repository.reset()
-                GhostPinWidget.updateAll(this@SimulationService, isRunning = false, profileName = null)
+                GhostPinWidget.updateAll(this@SimulationService, SimulationState.Idle)
                 mockLocationInjector.unregisterProvider()
                 stopSelf()
 
@@ -437,7 +437,7 @@ class SimulationService : LifecycleService() {
                 Log.e(TAG, "Simulation error", e)
                 repository.emitState(SimulationState.Error(e.message ?: "Unknown simulation error"))
                 repository.emitRoute(null)
-                GhostPinWidget.updateAll(this@SimulationService, isRunning = false, profileName = null)
+                GhostPinWidget.updateAll(this@SimulationService, SimulationState.Idle)
                 stopSelf()
             }
         }
@@ -502,7 +502,7 @@ class SimulationService : LifecycleService() {
                     elapsedTimeSec  = elapsedSec,
                     frameCount      = frameCount,
                 ))
-                GhostPinWidget.updateAll(this@SimulationService, isRunning = true, profileName = profile.name)
+                GhostPinWidget.updateAll(this@SimulationService, repository.state.value)
 
                 frameCount++
                 elapsedSec++
@@ -522,13 +522,14 @@ class SimulationService : LifecycleService() {
         if (currentState is SimulationState.Running) {
             simulationJob?.cancel()
             simulationJob = null
-            repository.emitState(SimulationState.Paused(
+            val pausedState = SimulationState.Paused(
                 lastLocation    = currentState.currentLocation,
                 profileName     = currentState.profileName,
                 progressPercent = currentState.progressPercent,
                 elapsedTimeSec  = currentState.elapsedTimeSec,
-            ))
-            GhostPinWidget.updateAll(this, isRunning = false, profileName = currentState.profileName)
+            )
+            repository.emitState(pausedState)
+            GhostPinWidget.updateAll(this, pausedState)
         }
     }
 
@@ -537,7 +538,7 @@ class SimulationService : LifecycleService() {
         simulationJob = null
         runCatching { mockLocationInjector.unregisterProvider() }
         repository.reset()
-        GhostPinWidget.updateAll(this, isRunning = false, profileName = null)
+        GhostPinWidget.updateAll(this, SimulationState.Idle)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

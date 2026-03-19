@@ -1,0 +1,13 @@
+# ktlint configuration for GhostPin
+# See https://pinterest.github.io/ktlint/latest/rules/configuration-ktlintrc/
+
+[*.{kt,kts}]
+# Disable wildcard imports rule (common in Android/Compose projects)
+ktlint_standard_no-wildcard-imports = disabled
+
+# Allow trailing commas (idiomatic in Kotlin)
+ktlint_standard_trailing-comma-on-call-site = disabled
+ktlint_standard_trailing-comma-on-declaration-site = disabled
+
+# Max line length (relaxed for Compose)
+max_line_length = 120

@@ -9,28 +9,19 @@ import android.content.Intent
 import android.widget.RemoteViews
 import com.ghostpin.app.R
 import com.ghostpin.app.service.SimulationService
+import com.ghostpin.app.service.SimulationState
 
 /**
  * Home screen widget showing simulation status and a start/stop button.
  *
  * Displays:
- *  - Status label ("Simulating" / "Paused" / "Stopped")
- *  - Active profile name (when running)
+ *  - Status label: "Simulating", "Paused", "Fetching…", or "Stopped"
+ *  - Active profile name (when running or paused)
+ *  - Route progress percentage (when running or paused)
  *  - Start/Stop toggle button
  *
- * Updates only on simulation state changes, not per-frame, to avoid
+ * Updates on simulation state changes, not per-frame, to avoid
  * excessive system resource usage.
- *
- * Declare in AndroidManifest with:
- *   <receiver android:name=".widget.GhostPinWidget"
- *             android:exported="false">
- *       <intent-filter>
- *           <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
- *       </intent-filter>
- *       <meta-data
- *           android:name="android.appwidget.provider"
- *           android:resource="@xml/ghost_pin_widget_info" />
- *   </receiver>
  */
 class GhostPinWidget : AppWidgetProvider() {
 
@@ -40,57 +31,65 @@ class GhostPinWidget : AppWidgetProvider() {
         appWidgetIds: IntArray,
     ) {
         for (id in appWidgetIds) {
-            updateWidget(context, appWidgetManager, id, isRunning = false, profileName = null)
+            updateWidget(context, appWidgetManager, id, SimulationState.Idle)
         }
     }
 
     companion object {
-        private const val ACTION_TOGGLE = "com.ghostpin.widget.TOGGLE"
-
         /**
-         * Update all widget instances with the current simulation state.
-         * Called from SimulationService when state changes.
+         * Update all widget instances with the current [SimulationState].
+         * Called from SimulationService whenever state changes.
          */
-        fun updateAll(context: Context, isRunning: Boolean, profileName: String?) {
+        fun updateAll(context: Context, state: SimulationState) {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(
                 ComponentName(context, GhostPinWidget::class.java)
             )
             for (id in ids) {
-                updateWidget(context, manager, id, isRunning, profileName)
+                updateWidget(context, manager, id, state)
             }
         }
+
 
         private fun updateWidget(
             context: Context,
             manager: AppWidgetManager,
             widgetId: Int,
-            isRunning: Boolean,
-            profileName: String?,
+            state: SimulationState,
         ) {
             val views = RemoteViews(context.packageName, R.layout.ghost_pin_widget_layout)
 
-            // Status text
-            views.setTextViewText(
-                R.id.widget_status,
-                if (isRunning) "Simulating" else "Stopped",
-            )
+            // ── Status label ─────────────────────────────────────────────────
+            val statusText = when (state) {
+                is SimulationState.Running       -> "Simulating"
+                is SimulationState.Paused        -> "Paused"
+                is SimulationState.FetchingRoute -> "Fetching route…"
+                is SimulationState.Error         -> "Error"
+                is SimulationState.Idle          -> "Stopped"
+            }
+            views.setTextViewText(R.id.widget_status, statusText)
 
-            // Profile name
-            views.setTextViewText(
-                R.id.widget_profile,
-                profileName ?: "—",
-            )
+            // ── Profile + progress ────────────────────────────────────────────
+            val secondaryText: String = when (state) {
+                is SimulationState.Running ->
+                    "${state.profileName} · ${state.progressPercent.toInt()}%"
+                is SimulationState.Paused ->
+                    "${state.profileName} · ${state.progressPercent.toInt()}% (paused)"
+                is SimulationState.FetchingRoute ->
+                    state.profileName
+                else -> "—"
+            }
+            views.setTextViewText(R.id.widget_profile, secondaryText)
 
-            // Button text and action
-            views.setTextViewText(
-                R.id.widget_button,
-                if (isRunning) "Stop" else "Start",
-            )
+            // ── Toggle button ─────────────────────────────────────────────────────
+            val isActive = state is SimulationState.Running || state is SimulationState.Paused
+            views.setTextViewText(R.id.widget_button, if (isActive) "Stop" else "Start")
 
-            // PendingIntent for the toggle button
+            // SimulationService uses ACTION_START for both "start" and "resume from pause"
+            val toggleAction = if (isActive) SimulationService.ACTION_STOP else SimulationService.ACTION_START
+
             val toggleIntent = Intent(context, SimulationService::class.java).apply {
-                action = if (isRunning) SimulationService.ACTION_STOP else SimulationService.ACTION_START
+                action = toggleAction
             }
             val pendingIntent = PendingIntent.getForegroundService(
                 context,

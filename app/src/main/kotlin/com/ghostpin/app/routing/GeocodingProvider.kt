@@ -91,7 +91,7 @@ class GeocodingProvider @Inject constructor() {
         }
     }
 
-    private fun parseResults(json: String): List<GeoResult> {
+    internal fun parseResults(json: String): List<GeoResult> {
         val array = JSONArray(json)
         val results = mutableListOf<GeoResult>()
         for (i in 0 until array.length()) {

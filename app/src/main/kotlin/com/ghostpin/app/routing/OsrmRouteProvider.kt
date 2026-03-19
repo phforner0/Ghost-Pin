@@ -196,7 +196,7 @@ class OsrmRouteProvider @Inject constructor() {
         }
     }
 
-    private fun parseOsrmResponse(json: String): Route {
+    internal fun parseOsrmResponse(json: String): Route {
         val root = JSONObject(json)
         val code = root.optString("code", "")
 
