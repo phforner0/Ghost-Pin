@@ -18,7 +18,9 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -89,10 +91,17 @@ fun GhostPinScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
 
     val deviceLocation by viewModel.deviceLocation.collectAsState()
     val favoriteSimulations by viewModel.favoriteSimulations.collectAsState()
     var favoritesExpanded by remember { mutableStateOf(false) }
+    val sheetPeekHeight =
+            when {
+                configuration.screenWidthDp < 600 -> 156.dp // compacto
+                configuration.screenWidthDp < 840 -> 192.dp // normal
+                else -> 232.dp // tablet
+            }
 
     // Show Snackbar when permissions are denied
     LaunchedEffect(permissionMessage) {
@@ -131,6 +140,10 @@ fun GhostPinScreen(
 
     Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
+            contentWindowInsets =
+                    WindowInsets.safeDrawing.only(
+                            WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+                    ),
             topBar = {
                 TopAppBar(
                         title = {
@@ -260,109 +273,141 @@ fun GhostPinScreen(
             },
             containerColor = Color(0xFF0A0A0A),
     ) { paddingValues ->
-        Column(
-                modifier =
-                        Modifier.fillMaxSize()
-                                .padding(paddingValues)
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            val waypoints by viewModel.waypoints.collectAsState()
-            val geoSuggestions by viewModel.geoSuggestions.collectAsState()
-            val isSearching by viewModel.isSearching.collectAsState()
-            val routeEtaText by viewModel.routeEtaText.collectAsState()
-            val repeatPolicy by viewModel.repeatPolicy.collectAsState()
-            val repeatCount by viewModel.repeatCount.collectAsState()
+        val waypoints by viewModel.waypoints.collectAsState()
+        val geoSuggestions by viewModel.geoSuggestions.collectAsState()
+        val isSearching by viewModel.isSearching.collectAsState()
+        val routeEtaText by viewModel.routeEtaText.collectAsState()
+        val repeatPolicy by viewModel.repeatPolicy.collectAsState()
+        val repeatCount by viewModel.repeatCount.collectAsState()
+        val gpxLoadState by viewModel.gpxLoadState.collectAsState()
 
-            // Map with overlays — state hoisted; no viewModel reference inside
-            InteractiveMap(
-                    startLat = startLat,
-                    startLng = startLng,
-                    endLat = endLat,
-                    endLng = endLng,
-                    waypoints = waypoints,
-                    appMode = selectedMode,
-                    route = route,
-                    startPlaced = startPlaced,
-                    simulationState = simulationState,
-                    deviceLocation = deviceLocation,
-                    onMapLongPress = viewModel::onMapLongPress,
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-            )
+        BottomSheetScaffold(
+                modifier = Modifier.fillMaxSize().padding(paddingValues),
+                sheetPeekHeight = sheetPeekHeight,
+                sheetDragHandle = { BottomSheetDefaults.DragHandle() },
+                sheetContainerColor = Color(0xFF121212),
+                contentColor = Color(0xFFE0E0E0),
+                sheetContent = {
+                    val scaffoldInsets = ScaffoldDefaults.contentWindowInsets.asPaddingValues()
+                    Column(
+                            modifier =
+                                    Modifier.fillMaxWidth()
+                                            .navigationBarsPadding()
+                                            .imePadding()
+                                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                                            .padding(
+                                                    bottom =
+                                                            scaffoldInsets.calculateBottomPadding() +
+                                                                    88.dp
+                                            ),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        // Animated mode panel transitions
+                        AnimatedContent(
+                                targetState = selectedMode,
+                                transitionSpec = {
+                                    (fadeIn() + slideInVertically { it / 4 }) togetherWith
+                                            (fadeOut() + slideOutVertically { -it / 4 })
+                                },
+                                label = "mode_panel",
+                        ) { mode ->
+                            when (mode) {
+                                AppMode.CLASSIC -> {
+                                    ClassicModePanel(
+                                            profiles = viewModel.profiles,
+                                            selectedProfile = selectedProfile,
+                                            enabled = !isBusy,
+                                            onSelect = viewModel::selectProfile,
+                                            repeatPolicy = repeatPolicy,
+                                            repeatCount = repeatCount,
+                                            onRepeatPolicyChange = viewModel::setRepeatPolicy,
+                                            onRepeatCountChange = viewModel::setRepeatCount,
+                                    )
+                                }
+                                AppMode.JOYSTICK -> JoystickModePanel()
+                                AppMode.WAYPOINTS -> {
+                                    WaypointsModePanel(
+                                        waypoints = waypoints,
+                                        onRemoveWaypoint = viewModel::removeWaypoint,
+                                        onClearWaypoints = viewModel::clearWaypoints,
+                                        profiles = viewModel.profiles,
+                                        selectedProfile = selectedProfile,
+                                        enabled = !isBusy,
+                                        onSelectProfile = viewModel::selectProfile,
+                                        geoSuggestions = geoSuggestions,
+                                        isSearching = isSearching,
+                                        onSearchAddress = viewModel::searchAddress,
+                                        onSelectSuggestion = viewModel::addWaypointFromGeoResult,
+                                        onClearSuggestions = viewModel::clearSuggestions,
+                                        onStart = { pauseSec ->
+                                            onStartSimulation(selectedProfile, pauseSec)
+                                        },
+                                        repeatPolicy = repeatPolicy,
+                                        repeatCount = repeatCount,
+                                        onRepeatPolicyChange = viewModel::setRepeatPolicy,
+                                        onRepeatCountChange = viewModel::setRepeatCount,
+                                    )
+                                }
+                                AppMode.GPX -> {
+                                    GpxModePanel(
+                                            gpxLoadState = gpxLoadState,
+                                            onPickFile = onPickGpxFile,
+                                            onClearRoute = viewModel::clearGpxRoute,
+                                    )
+                                }
+                            }
+                        }
 
-            SimulationStatusCard(state = simulationState, etaText = routeEtaText)
-
-            // OSRM fetch progress indicator
-            if (simulationState is SimulationState.FetchingRoute) {
-                LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF80CBC4),
-                    trackColor = Color(0xFF1E1E2E),
-                )
-            }
-
-            // Animated mode panel transitions
-            AnimatedContent(
-                targetState = selectedMode,
-                transitionSpec = {
-                    (fadeIn() + slideInVertically { it / 4 }) togetherWith
-                            (fadeOut() + slideOutVertically { -it / 4 })
-                },
-                label = "mode_panel",
-            ) { mode ->
-                when (mode) {
-                    AppMode.CLASSIC -> {
-                        ClassicModePanel(
-                                profiles = viewModel.profiles,
-                                selectedProfile = selectedProfile,
+                        Button(
+                                onClick = { viewModel.saveCurrentAsFavorite() },
+                                modifier = Modifier.fillMaxWidth(),
                                 enabled = !isBusy,
-                                onSelect = viewModel::selectProfile,
-                                repeatPolicy = repeatPolicy,
-                                repeatCount = repeatCount,
-                                onRepeatPolicyChange = viewModel::setRepeatPolicy,
-                                onRepeatCountChange = viewModel::setRepeatCount,
-                        )
+                        ) {
+                            Text("Salvar como favorito")
+                        }
                     }
-                    AppMode.JOYSTICK -> JoystickModePanel()
-                    AppMode.WAYPOINTS -> {
-                        WaypointsModePanel(
-                            waypoints = waypoints,
-                            onRemoveWaypoint = viewModel::removeWaypoint,
-                            onClearWaypoints = viewModel::clearWaypoints,
-                            profiles = viewModel.profiles,
-                            selectedProfile = selectedProfile,
-                            enabled = !isBusy,
-                            onSelectProfile = viewModel::selectProfile,
-                            geoSuggestions = geoSuggestions,
-                            isSearching = isSearching,
-                            onSearchAddress = viewModel::searchAddress,
-                            onSelectSuggestion = viewModel::addWaypointFromGeoResult,
-                            onClearSuggestions = viewModel::clearSuggestions,
-                            onStart = { pauseSec -> onStartSimulation(selectedProfile, pauseSec) },
-                            repeatPolicy = repeatPolicy,
-                            repeatCount = repeatCount,
-                            onRepeatPolicyChange = viewModel::setRepeatPolicy,
-                            onRepeatCountChange = viewModel::setRepeatCount,
-                        )
-                    }
-                    AppMode.GPX -> {
-                        val gpxLoadState by viewModel.gpxLoadState.collectAsState()
-                        GpxModePanel(
-                                gpxLoadState = gpxLoadState,
-                                onPickFile = onPickGpxFile,
-                                onClearRoute = viewModel::clearGpxRoute,
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(16.dp)) // FAB clearance inside scaffold
-            Button(
-                onClick = { viewModel.saveCurrentAsFavorite() },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isBusy,
+                },
+        ) { innerPadding ->
+            Box(
+                    modifier =
+                            Modifier.fillMaxSize()
+                                    .padding(innerPadding)
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                Text("Salvar como favorito")
+                // Map as the fixed main viewport with explicit minimum height.
+                InteractiveMap(
+                        startLat = startLat,
+                        startLng = startLng,
+                        endLat = endLat,
+                        endLng = endLng,
+                        waypoints = waypoints,
+                        appMode = selectedMode,
+                        route = route,
+                        startPlaced = startPlaced,
+                        simulationState = simulationState,
+                        deviceLocation = deviceLocation,
+                        onMapLongPress = viewModel::onMapLongPress,
+                        modifier = Modifier.fillMaxSize().heightIn(min = 280.dp),
+                )
+
+                // Status overlaid over the map to free bottom panel viewport.
+                SimulationStatusCard(
+                        state = simulationState,
+                        etaText = routeEtaText,
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+                )
+
+                // OSRM fetch progress indicator
+                if (simulationState is SimulationState.FetchingRoute) {
+                    LinearProgressIndicator(
+                            modifier =
+                                    Modifier.fillMaxWidth()
+                                            .align(Alignment.TopCenter)
+                                            .padding(top = 92.dp),
+                            color = Color(0xFF80CBC4),
+                            trackColor = Color(0xFF1E1E2E),
+                    )
+                }
             }
         }
     }
