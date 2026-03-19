@@ -31,6 +31,7 @@ fun AppNavHost(
     viewModel: SimulationViewModel,
     isOnboardingComplete: Boolean,
     permissionMessage: String?,
+    lowMemorySignal: Int = 0,
     onPermissionMessageDismissed: () -> Unit,
     onStartSimulation: (MovementProfile, Double) -> Unit,
     onStopSimulation: () -> Unit,
@@ -66,6 +67,7 @@ fun AppNavHost(
             GhostPinScreen(
                 viewModel = viewModel,
                 permissionMessage = permissionMessage,
+                lowMemorySignal = lowMemorySignal,
                 onPermissionMessageDismissed = onPermissionMessageDismissed,
                 onStartSimulation = onStartSimulation,
                 onStopSimulation = onStopSimulation,
@@ -114,4 +116,3 @@ fun AppNavHost(
         }
     }
 }
-
