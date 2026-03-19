@@ -18,9 +18,13 @@ import com.ghostpin.app.service.SimulationState
 
 /** Displays current simulation state with ETA when available. */
 @Composable
-fun SimulationStatusCard(state: SimulationState, etaText: String? = null) {
+fun SimulationStatusCard(
+    state: SimulationState,
+    etaText: String? = null,
+    modifier: Modifier = Modifier,
+) {
     Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2E)),
     ) {
