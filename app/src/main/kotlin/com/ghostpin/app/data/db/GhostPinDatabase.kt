@@ -13,19 +13,26 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * Version history:
  *   1 — Sprint 4: profiles + routes tables.
  *   2 — Sprint 7: simulation_history table.
+ *   3 — Favorites support: favorite_simulations table.
  *
  * Migrations: use [androidx.room.migration.Migration] for incremental schema changes
  * in future sprints. destructiveMigration is NOT enabled — data must be preserved.
  */
 @Database(
-    entities = [ProfileEntity::class, RouteEntity::class, SimulationHistoryEntity::class],
-    version = 2,
+    entities = [
+        ProfileEntity::class,
+        RouteEntity::class,
+        SimulationHistoryEntity::class,
+        FavoriteSimulationEntity::class,
+    ],
+    version = 3,
     exportSchema = true,
 )
 abstract class GhostPinDatabase : RoomDatabase() {
     abstract fun profileDao(): ProfileDao
     abstract fun routeDao(): RouteDao
     abstract fun simulationHistoryDao(): SimulationHistoryDao
+    abstract fun favoriteSimulationDao(): FavoriteSimulationDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -42,6 +49,26 @@ abstract class GhostPinDatabase : RoomDatabase() {
                         `avgSpeedMs` REAL,
                         `distanceMeters` REAL NOT NULL,
                         `resultStatus` TEXT NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `favorite_simulations` (
+                        `id` TEXT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `profileIdOrName` TEXT NOT NULL,
+                        `routeId` TEXT,
+                        `speedRatio` REAL NOT NULL,
+                        `frequencyHz` INTEGER NOT NULL,
+                        `createdAtMs` INTEGER NOT NULL,
+                        `updatedAtMs` INTEGER NOT NULL,
                         PRIMARY KEY(`id`)
                     )
                     """.trimIndent()

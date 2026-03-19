@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ghostpin.app.data.SimulationRepository
 import com.ghostpin.app.data.SimulationConfig
+import com.ghostpin.app.data.db.FavoriteSimulationEntity
 import com.ghostpin.app.data.db.SimulationHistoryEntity
 import com.ghostpin.app.routing.GeocodingProvider
 import com.ghostpin.app.routing.GpxParser
@@ -22,12 +23,14 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -249,6 +252,10 @@ constructor(
 
     val route: StateFlow<Route?> = repository.route
     val lastUsedConfig: StateFlow<SimulationConfig?> = repository.lastUsedConfig
+    val favoriteSimulations: StateFlow<List<FavoriteSimulationEntity>> =
+        repository.favoriteSimulations.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    private val _uiEvents = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val uiEvents = _uiEvents.asSharedFlow()
 
     // ── Map pin coordinates ───────────────────────────────────────────────────
 
@@ -288,6 +295,45 @@ constructor(
                 routeId = history.routeId,
             )
         )
+    }
+
+    fun saveCurrentAsFavorite(name: String? = null) {
+        viewModelScope.launch {
+            val trimmedName = name?.trim().orEmpty()
+            val favoriteName = if (trimmedName.isNotBlank()) trimmedName else "Favorite ${System.currentTimeMillis()}"
+            val routeId = route.value?.id ?: lastUsedConfig.value?.routeId
+            repository.saveFavorite(
+                name = favoriteName,
+                profileIdOrName = selectedProfile.value.name,
+                routeId = routeId,
+                speedRatio = 1.0,
+                frequencyHz = com.ghostpin.app.service.SimulationService.DEFAULT_FREQUENCY,
+            )
+            _uiEvents.emit("Favorito salvo: $favoriteName")
+        }
+    }
+
+    fun applyFavoriteById(id: String) {
+        viewModelScope.launch {
+            val favorite = favoriteSimulations.value.firstOrNull { it.id == id }
+            if (favorite == null) {
+                _uiEvents.emit("Favorito não encontrado.")
+                return@launch
+            }
+            when (val resolved = repository.resolveFavoriteConfig(favorite, repository.lastUsedConfig.value)) {
+                is SimulationRepository.FavoriteResolution.Valid -> {
+                    val profile = MovementProfile.BUILT_IN[resolved.config.profileName]
+                    if (profile != null) selectProfile(profile)
+                    repository.emitConfig(resolved.config)
+                    setAppMode(AppMode.CLASSIC)
+                    _uiEvents.emit("Favorito aplicado: ${resolved.favorite.name}")
+                }
+                is SimulationRepository.FavoriteResolution.Invalid -> {
+                    resolved.fallbackConfig?.let { repository.emitConfig(it) }
+                    _uiEvents.emit("Favorito inválido. ${resolved.reason}")
+                }
+            }
+        }
     }
 
     private val _startPlaced = MutableStateFlow(false)
