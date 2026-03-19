@@ -1,5 +1,7 @@
 package com.ghostpin.app.ui
 
+import android.app.ActivityManager
+import androidx.compose.foundation.Canvas
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -14,17 +16,27 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ghostpin.app.routing.RouteFileParser
 import com.ghostpin.app.ui.theme.GhostPinColors
+import com.ghostpin.core.math.GeoMath
+import com.ghostpin.core.model.Route
 import com.ghostpin.core.model.Waypoint
+import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 /**
  * Route Editor full-screen composable.
@@ -53,6 +65,20 @@ fun RouteEditorScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val savedRoutes by viewModel.savedRoutes.collectAsState(initial = emptyList())
+    val context = LocalContext.current
+    val activityManager = remember(context) { context.getSystemService(ActivityManager::class.java) }
+    val lowPerformanceDevice = remember(activityManager) { activityManager?.isLowRamDevice == true }
+    val currentRoute = remember(state.waypoints, state.segmentOverrides, state.routeName, state.routeId) {
+        viewModel.buildCurrentRoute()
+    }
+    val previewRoute = remember(currentRoute, lowPerformanceDevice) {
+        currentRoute?.let { downsampleRouteForPreview(it, lowPerformanceDevice) }
+    }
+    var isPreviewPlaying by remember(previewRoute?.id) { mutableStateOf(false) }
+    var previewProgress by remember(previewRoute?.id) { mutableFloatStateOf(0f) }
+    var previewSpeed by remember(previewRoute?.id) { mutableFloatStateOf(1f) }
+    val previewAltitude = remember(previewRoute) { previewRoute?.let { buildElevationProfile(it) } }
+    val simplifiedPreview = lowPerformanceDevice || (currentRoute?.waypoints?.size ?: 0) > 1800
 
     var showSavedRoutes by remember { mutableStateOf(false) }
     var showExportMenu by remember { mutableStateOf(false) }
@@ -62,10 +88,22 @@ fun RouteEditorScreen(
 
     // Handle export trigger
     LaunchedEffect(state.exportContent) {
-        state.exportContent?.let { (filename, content) ->
+        state.exportContent?.let { _ ->
             // The UI layer would call a system share sheet here.
             // We expose the content so the parent Activity can handle it.
             viewModel.clearExport()
+        }
+    }
+
+    LaunchedEffect(isPreviewPlaying, previewRoute?.id, previewSpeed) {
+        val route = previewRoute ?: return@LaunchedEffect
+        if (!isPreviewPlaying) return@LaunchedEffect
+        val maxIndex = (route.waypoints.size - 1).coerceAtLeast(1)
+        while (isPreviewPlaying && previewProgress < 1f) {
+            delay(16)
+            val progressDelta = (previewSpeed * (1f / maxIndex) * 0.6f)
+            previewProgress = (previewProgress + progressDelta).coerceIn(0f, 1f)
+            if (previewProgress >= 1f) isPreviewPlaying = false
         }
     }
 
@@ -118,7 +156,7 @@ fun RouteEditorScreen(
                         ),
                         modifier = Modifier.padding(end = 8.dp),
                     ) {
-                        Text("Use Route")
+                        Text("Iniciar com esta rota")
                     }
                 }
                 // Save
@@ -162,6 +200,22 @@ fun RouteEditorScreen(
                     }
                 }
             }
+
+            RoutePreviewCard(
+                route = previewRoute,
+                previewProgress = previewProgress,
+                isPlaying = isPreviewPlaying,
+                previewSpeed = previewSpeed,
+                elevationProfile = previewAltitude,
+                simplifiedPreview = simplifiedPreview,
+                onSeek = { previewProgress = it.coerceIn(0f, 1f) },
+                onPlayPause = {
+                    if (previewProgress >= 1f) previewProgress = 0f
+                    isPreviewPlaying = !isPreviewPlaying
+                },
+                onSpeedChange = { previewSpeed = it },
+                onStartWithRoute = { currentRoute?.let(onRouteReady) },
+            )
 
             // Section header
             Row(
@@ -343,6 +397,216 @@ fun RouteEditorScreen(
 }
 
 // ── Sub-composables ───────────────────────────────────────────────────────────
+
+private data class ElevationProfile(
+    val values: List<Float>,
+    val isEstimated: Boolean,
+)
+
+@Composable
+private fun RoutePreviewCard(
+    route: Route?,
+    previewProgress: Float,
+    isPlaying: Boolean,
+    previewSpeed: Float,
+    elevationProfile: ElevationProfile?,
+    simplifiedPreview: Boolean,
+    onSeek: (Float) -> Unit,
+    onPlayPause: () -> Unit,
+    onSpeedChange: (Float) -> Unit,
+    onStartWithRoute: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = GhostPinColors.Surface),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Preview da rota",
+                    color = GhostPinColors.TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.weight(1f))
+                if (simplifiedPreview) {
+                    Text(
+                        "Modo simplificado",
+                        color = GhostPinColors.Warning,
+                        fontSize = 11.sp,
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+
+            RoutePathPreview(
+                route = route,
+                progress = previewProgress,
+                height = if (simplifiedPreview) 110.dp else 150.dp,
+            )
+
+            elevationProfile?.let {
+                Spacer(Modifier.height(8.dp))
+                ElevationMiniGraph(
+                    profile = it,
+                    progress = previewProgress,
+                    height = if (simplifiedPreview) 52.dp else 72.dp,
+                )
+            }
+
+            Slider(
+                value = previewProgress,
+                onValueChange = {
+                    onSeek(it)
+                },
+                enabled = route != null && route.waypoints.size >= 2,
+                valueRange = 0f..1f,
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilledTonalIconButton(
+                    onClick = onPlayPause,
+                    enabled = route != null && route.waypoints.size >= 2,
+                ) {
+                    Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null)
+                }
+                listOf(1f, 2f, 4f).forEach { speed ->
+                    FilterChip(
+                        selected = previewSpeed == speed,
+                        onClick = { onSpeedChange(speed) },
+                        label = { Text("${speed.toInt()}x") },
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                Button(
+                    onClick = onStartWithRoute,
+                    enabled = route != null && route.waypoints.size >= 2,
+                    colors = ButtonDefaults.buttonColors(containerColor = GhostPinColors.Primary),
+                ) {
+                    Text("Iniciar com esta rota", color = GhostPinColors.Background)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoutePathPreview(route: Route?, progress: Float, height: Dp) {
+    Canvas(
+        modifier = Modifier.fillMaxWidth().height(height).background(
+            color = GhostPinColors.SurfaceVariant,
+            shape = RoundedCornerShape(8.dp),
+        )
+    ) {
+        val points = route?.waypoints.orEmpty()
+        if (points.size < 2) return@Canvas
+        val minLat = points.minOf { it.lat }
+        val maxLat = points.maxOf { it.lat }
+        val minLng = points.minOf { it.lng }
+        val maxLng = points.maxOf { it.lng }
+        val latRange = (maxLat - minLat).takeIf { it > 1e-7 } ?: 1e-7
+        val lngRange = (maxLng - minLng).takeIf { it > 1e-7 } ?: 1e-7
+        val padding = 20f
+        val mapped = points.map {
+            val x = ((it.lng - minLng) / lngRange).toFloat() * (size.width - 2 * padding) + padding
+            val y = ((maxLat - it.lat) / latRange).toFloat() * (size.height - 2 * padding) + padding
+            Offset(x, y)
+        }
+        val path = Path().apply {
+            moveTo(mapped.first().x, mapped.first().y)
+            mapped.drop(1).forEach { lineTo(it.x, it.y) }
+        }
+        drawPath(path, color = GhostPinColors.TextMuted, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4f, cap = StrokeCap.Round))
+        val playheadIndex = ((mapped.lastIndex) * progress).roundToInt().coerceIn(0, mapped.lastIndex)
+        drawCircle(
+            color = GhostPinColors.Primary,
+            radius = 9f,
+            center = mapped[playheadIndex],
+        )
+        drawCircle(color = Color.White, radius = 4f, center = mapped[playheadIndex])
+    }
+}
+
+@Composable
+private fun ElevationMiniGraph(profile: ElevationProfile, progress: Float, height: Dp) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Perfil de altitude", color = GhostPinColors.TextSecondary, fontSize = 11.sp)
+            if (profile.isEstimated) {
+                Text("  (estimada)", color = GhostPinColors.Warning, fontSize = 11.sp)
+            }
+        }
+        Canvas(
+            modifier = Modifier.fillMaxWidth().height(height).background(
+                color = GhostPinColors.SurfaceVariant,
+                shape = RoundedCornerShape(8.dp),
+            )
+        ) {
+            if (profile.values.size < 2) return@Canvas
+            val min = profile.values.minOrNull() ?: 0f
+            val max = profile.values.maxOrNull() ?: 1f
+            val range = (max - min).takeIf { it > 1e-4f } ?: 1f
+            val padding = 12f
+            val points = profile.values.mapIndexed { index, v ->
+                val x = (index.toFloat() / (profile.values.size - 1).coerceAtLeast(1)) * (size.width - 2 * padding) + padding
+                val y = size.height - (((v - min) / range) * (size.height - 2 * padding) + padding)
+                Offset(x, y)
+            }
+            val path = Path().apply {
+                moveTo(points.first().x, points.first().y)
+                points.drop(1).forEach { lineTo(it.x, it.y) }
+            }
+            drawPath(path, color = GhostPinColors.TextMuted, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f))
+            val px = progress.coerceIn(0f, 1f) * size.width
+            drawRect(
+                color = GhostPinColors.Primary.copy(alpha = 0.14f),
+                topLeft = Offset.Zero,
+                size = Size(px, size.height),
+            )
+        }
+    }
+}
+
+private fun downsampleRouteForPreview(route: Route, lowPerformance: Boolean): Route {
+    val maxPoints = if (lowPerformance) 120 else 320
+    if (route.waypoints.size <= maxPoints) return route
+    val sampled = downsampleWaypoints(route.waypoints, maxPoints)
+    return route.copy(waypoints = sampled)
+}
+
+private fun downsampleWaypoints(waypoints: List<Waypoint>, maxPoints: Int): List<Waypoint> {
+    if (waypoints.size <= maxPoints) return waypoints
+    val step = (waypoints.size - 1).toFloat() / (maxPoints - 1).toFloat()
+    return buildList(maxPoints) {
+        for (i in 0 until maxPoints) {
+            val index = (i * step).roundToInt().coerceIn(0, waypoints.lastIndex)
+            add(waypoints[index])
+        }
+    }
+}
+
+private fun buildElevationProfile(route: Route): ElevationProfile {
+    val waypoints = route.waypoints
+    val realAltitude = waypoints.any { kotlin.math.abs(it.altitude) > 0.001 }
+    if (realAltitude) {
+        return ElevationProfile(values = waypoints.map { it.altitude.toFloat() }, isEstimated = false)
+    }
+    val estimated = mutableListOf<Float>()
+    var distanceAcc = 0.0
+    waypoints.forEachIndexed { index, waypoint ->
+        if (index > 0) {
+            val prev = waypoints[index - 1]
+            distanceAcc += GeoMath.haversineMeters(prev.lat, prev.lng, waypoint.lat, waypoint.lng)
+        }
+        val synthetic = 35f + (kotlin.math.sin(distanceAcc / 650.0) * 18.0).toFloat()
+        estimated += synthetic
+    }
+    return ElevationProfile(values = estimated, isEstimated = true)
+}
 
 @Composable
 private fun WaypointCard(
