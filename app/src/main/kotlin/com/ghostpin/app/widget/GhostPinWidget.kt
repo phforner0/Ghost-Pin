@@ -99,6 +99,17 @@ class GhostPinWidget : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.widget_button, pendingIntent)
 
+            val favoriteIntent = Intent(context, SimulationService::class.java).apply {
+                action = SimulationService.ACTION_START_LAST_FAVORITE
+            }
+            val favoritePendingIntent = PendingIntent.getForegroundService(
+                context,
+                1,
+                favoriteIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            views.setOnClickPendingIntent(R.id.widget_button_favorite, favoritePendingIntent)
+
             manager.updateAppWidget(widgetId, views)
         }
     }

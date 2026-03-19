@@ -3,6 +3,7 @@ package com.ghostpin.app.di
 import android.content.Context
 import androidx.room.Room
 import com.ghostpin.app.data.db.GhostPinDatabase
+import com.ghostpin.app.data.db.FavoriteSimulationDao
 import com.ghostpin.app.data.db.ProfileDao
 import com.ghostpin.app.data.db.RouteDao
 import com.ghostpin.app.data.db.SimulationHistoryDao
@@ -33,7 +34,7 @@ object DatabaseModule {
             GhostPinDatabase::class.java,
             "ghostpin.db",
         )
-            .addMigrations(GhostPinDatabase.MIGRATION_1_2)
+            .addMigrations(GhostPinDatabase.MIGRATION_1_2, GhostPinDatabase.MIGRATION_2_3)
             .build()
 
     @Provides
@@ -47,4 +48,8 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideSimulationHistoryDao(db: GhostPinDatabase): SimulationHistoryDao = db.simulationHistoryDao()
+
+    @Provides
+    @Singleton
+    fun provideFavoriteSimulationDao(db: GhostPinDatabase): FavoriteSimulationDao = db.favoriteSimulationDao()
 }

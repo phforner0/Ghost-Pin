@@ -89,6 +89,7 @@ class SimulationService : LifecycleService() {
         const val ACTION_SET_PROFILE  = "com.ghostpin.ACTION_SET_PROFILE"
         const val ACTION_SKIP_NEXT_WAYPOINT = "com.ghostpin.ACTION_SKIP_NEXT_WAYPOINT"
         const val ACTION_SKIP_PREV_WAYPOINT = "com.ghostpin.ACTION_SKIP_PREV_WAYPOINT"
+        const val ACTION_START_LAST_FAVORITE = "com.ghostpin.ACTION_START_LAST_FAVORITE"
 
         const val NOTIFICATION_ID     = 1001
         const val DEFAULT_FREQUENCY   = 5   // Hz — smooth map animation
@@ -165,6 +166,41 @@ class SimulationService : LifecycleService() {
 
         if (intent.action == ACTION_SKIP_PREV_WAYPOINT) {
             pendingWaypointSkip = -1
+            return START_NOT_STICKY
+        }
+
+        if (intent.action == ACTION_START_LAST_FAVORITE) {
+            lifecycleScope.launch {
+                when (val resolution = repository.applyMostRecentFavorite(repository.lastUsedConfig.value)) {
+                    is SimulationRepository.FavoriteResolution.Valid -> {
+                        val startIntent = Intent(this@SimulationService, SimulationService::class.java).apply {
+                            action = ACTION_START
+                            putExtra(EXTRA_PROFILE_NAME, resolution.config.profileName)
+                            putExtra(EXTRA_START_LAT, resolution.config.startLat)
+                            putExtra(EXTRA_START_LNG, resolution.config.startLng)
+                            resolution.config.routeId?.let { putExtra(EXTRA_ROUTE_ID, it) }
+                        }
+                        startForegroundService(startIntent)
+                    }
+                    is SimulationRepository.FavoriteResolution.Invalid -> {
+                        val fallback = resolution.fallbackConfig
+                        if (fallback == null) {
+                            repository.emitState(SimulationState.Error(resolution.reason))
+                            stopSelf()
+                            return@launch
+                        }
+                        repository.emitState(SimulationState.Error("Favorite inválido. Usando última configuração."))
+                        val startIntent = Intent(this@SimulationService, SimulationService::class.java).apply {
+                            action = ACTION_START
+                            putExtra(EXTRA_PROFILE_NAME, fallback.profileName)
+                            putExtra(EXTRA_START_LAT, fallback.startLat)
+                            putExtra(EXTRA_START_LNG, fallback.startLng)
+                            fallback.routeId?.let { putExtra(EXTRA_ROUTE_ID, it) }
+                        }
+                        startForegroundService(startIntent)
+                    }
+                }
+            }
             return START_NOT_STICKY
         }
 

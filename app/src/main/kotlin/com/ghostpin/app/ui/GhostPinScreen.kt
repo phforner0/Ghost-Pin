@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Gamepad
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
@@ -88,6 +89,8 @@ fun GhostPinScreen(
     val context = LocalContext.current
 
     val deviceLocation by viewModel.deviceLocation.collectAsState()
+    val favoriteSimulations by viewModel.favoriteSimulations.collectAsState()
+    var favoritesExpanded by remember { mutableStateOf(false) }
 
     // Show Snackbar when permissions are denied
     LaunchedEffect(permissionMessage) {
@@ -111,6 +114,12 @@ fun GhostPinScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.uiEvents.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
     // Return map to the actual physical location whenever simulation is fully stopped
     LaunchedEffect(simulationState) {
         if (simulationState is SimulationState.Idle) {
@@ -131,6 +140,35 @@ fun GhostPinScreen(
                                         titleContentColor = Color(0xFF80CBC4),
                                 ),
                         actions = {
+                            Box {
+                                IconButton(onClick = { favoritesExpanded = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = "Favorites",
+                                        tint = Color(0xFF80CBC4),
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = favoritesExpanded,
+                                    onDismissRequest = { favoritesExpanded = false },
+                                ) {
+                                    favoriteSimulations.forEach { favorite ->
+                                        DropdownMenuItem(
+                                            text = { Text(favorite.name) },
+                                            onClick = {
+                                                favoritesExpanded = false
+                                                viewModel.applyFavoriteById(favorite.id)
+                                            }
+                                        )
+                                    }
+                                    if (favoriteSimulations.isEmpty()) {
+                                        DropdownMenuItem(
+                                            text = { Text("Nenhum favorito salvo") },
+                                            onClick = { favoritesExpanded = false },
+                                        )
+                                    }
+                                }
+                            }
                             IconButton(onClick = onNavigateToHistory) {
                                 Icon(
                                     imageVector = Icons.Default.History,
@@ -300,6 +338,13 @@ fun GhostPinScreen(
             }
 
             Spacer(Modifier.height(16.dp)) // FAB clearance inside scaffold
+            Button(
+                onClick = { viewModel.saveCurrentAsFavorite() },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isBusy,
+            ) {
+                Text("Salvar como favorito")
+            }
         }
     }
 }
