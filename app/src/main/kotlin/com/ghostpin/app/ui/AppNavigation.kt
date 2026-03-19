@@ -16,6 +16,7 @@ object AppRoute {
     const val MAIN = "main"
     const val ROUTE_EDITOR = "route_editor"
     const val HISTORY = "history"
+    const val SCHEDULE = "schedule"
 }
 
 /**
@@ -75,6 +76,9 @@ fun AppNavHost(
                 onNavigateToHistory = {
                     navController.navigate(AppRoute.HISTORY)
                 },
+                onNavigateToSchedule = {
+                    navController.navigate(AppRoute.SCHEDULE)
+                },
             )
         }
 
@@ -100,5 +104,14 @@ fun AppNavHost(
                 },
             )
         }
+
+        composable(AppRoute.SCHEDULE) {
+            ScheduleScreen(
+                onBack = { navController.popBackStack() },
+                defaultStartLat = viewModel.startLat.value,
+                defaultStartLng = viewModel.startLng.value,
+            )
+        }
     }
 }
+
