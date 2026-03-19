@@ -1,6 +1,7 @@
 package com.ghostpin.app.ui
 
 import android.app.ActivityManager
+import android.content.Context
 import androidx.compose.foundation.Canvas
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -66,7 +67,10 @@ fun RouteEditorScreen(
     val state by viewModel.state.collectAsState()
     val savedRoutes by viewModel.savedRoutes.collectAsState(initial = emptyList())
     val context = LocalContext.current
-    val activityManager = remember(context) { context.getSystemService(ActivityManager::class.java) }
+    val activityManager = remember(context) {
+        @Suppress("DEPRECATION")
+        context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+    }
     val lowPerformanceDevice = remember(activityManager) { activityManager?.isLowRamDevice == true }
     val currentRoute = remember(state.waypoints, state.segmentOverrides, state.routeName, state.routeId) {
         viewModel.buildCurrentRoute()
