@@ -19,7 +19,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -28,6 +27,10 @@ import androidx.compose.ui.unit.sp
 import com.ghostpin.app.service.SimulationState
 import com.ghostpin.app.ui.theme.GhostPinColors
 import com.ghostpin.app.ui.theme.GhostPinTypography
+import com.ghostpin.app.ui.theme.panelBackground
+import com.ghostpin.app.ui.theme.statusError
+import com.ghostpin.app.ui.theme.statusSuccess
+import com.ghostpin.app.ui.theme.statusWarning
 import com.ghostpin.core.model.AppMode
 import com.ghostpin.core.model.MovementProfile
 import kotlinx.coroutines.launch
@@ -42,12 +45,17 @@ fun GhostPinTheme(content: @Composable () -> Unit) {
                             primary = GhostPinColors.Primary,
                             onPrimary = GhostPinColors.OnPrimary,
                             primaryContainer = GhostPinColors.PrimaryDark,
+                            onPrimaryContainer = GhostPinColors.Primary,
                             secondary = GhostPinColors.TextSecondary,
+                            tertiary = GhostPinColors.Warning,
                             surface = GhostPinColors.Background,
+                            surfaceVariant = GhostPinColors.SurfaceVariant,
                             onSurface = GhostPinColors.TextPrimary,
                             background = GhostPinColors.BackgroundDeep,
                             onBackground = GhostPinColors.TextPrimary,
                             error = GhostPinColors.Error,
+                            errorContainer = GhostPinColors.ErrorContainer,
+                            onErrorContainer = GhostPinColors.Error,
                     ),
             typography = GhostPinTypography,
             content = content,
@@ -151,8 +159,8 @@ fun GhostPinScreen(
                         },
                         colors =
                                 TopAppBarDefaults.topAppBarColors(
-                                        containerColor = Color.Transparent,
-                                        titleContentColor = Color(0xFF80CBC4),
+                                        containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0f),
+                                        titleContentColor = MaterialTheme.colorScheme.primary,
                                 ),
                         actions = {
                             Box {
@@ -160,7 +168,7 @@ fun GhostPinScreen(
                                     Icon(
                                         imageVector = Icons.Default.Star,
                                         contentDescription = "Favorites",
-                                        tint = Color(0xFF80CBC4),
+                                        tint = MaterialTheme.colorScheme.primary,
                                     )
                                 }
                                 DropdownMenu(
@@ -188,21 +196,21 @@ fun GhostPinScreen(
                                 Icon(
                                     imageVector = Icons.Default.History,
                                     contentDescription = "History",
-                                    tint = Color(0xFF80CBC4),
+                                    tint = MaterialTheme.colorScheme.primary,
                                 )
                             }
                             IconButton(onClick = onNavigateToSchedule) {
                                 Icon(
                                     imageVector = Icons.Default.Schedule,
                                     contentDescription = "Schedule",
-                                    tint = Color(0xFF80CBC4),
+                                    tint = MaterialTheme.colorScheme.primary,
                                 )
                             }
                             IconButton(onClick = onNavigateToRouteEditor) {
                                 Icon(
                                     imageVector = Icons.Default.EditNote,
                                     contentDescription = "Route Editor",
-                                    tint = Color(0xFF80CBC4),
+                                    tint = MaterialTheme.colorScheme.primary,
                                 )
                             }
                         },
@@ -213,8 +221,8 @@ fun GhostPinScreen(
                         onClick = {
                             if (isBusy) onStopSimulation() else onStartSimulation(selectedProfile, 0.0)
                         },
-                        containerColor = if (isBusy) Color(0xFFCF6679) else Color(0xFF80CBC4),
-                        contentColor = Color(0xFF003734),
+                        containerColor = if (isBusy) MaterialTheme.colorScheme.statusError else MaterialTheme.colorScheme.statusSuccess,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
                         icon = {
                             Icon(
                                     imageVector =
@@ -230,8 +238,8 @@ fun GhostPinScreen(
             },
             bottomBar = {
                 NavigationBar(
-                        containerColor = Color(0xFF1E1E2E),
-                        contentColor = Color(0xFF80CBC4)
+                        containerColor = MaterialTheme.colorScheme.panelBackground,
+                        contentColor = MaterialTheme.colorScheme.primary
                 ) {
                     AppMode.entries.forEach { mode ->
                         NavigationBarItem(
@@ -261,17 +269,17 @@ fun GhostPinScreen(
                                 label = { Text(mode.displayName, fontSize = 12.sp) },
                                 colors =
                                         NavigationBarItemDefaults.colors(
-                                                selectedIconColor = Color(0xFF003734),
-                                                selectedTextColor = Color(0xFF80CBC4),
-                                                indicatorColor = Color(0xFF80CBC4),
-                                                unselectedIconColor = Color(0xFFB0BEC5),
-                                                unselectedTextColor = Color(0xFFB0BEC5)
+                                                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                                indicatorColor = MaterialTheme.colorScheme.primary,
+                                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                         )
                     }
                 }
             },
-            containerColor = Color(0xFF0A0A0A),
+            containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
         val waypoints by viewModel.waypoints.collectAsState()
         val geoSuggestions by viewModel.geoSuggestions.collectAsState()
@@ -285,8 +293,8 @@ fun GhostPinScreen(
                 modifier = Modifier.fillMaxSize().padding(paddingValues),
                 sheetPeekHeight = sheetPeekHeight,
                 sheetDragHandle = { BottomSheetDefaults.DragHandle() },
-                sheetContainerColor = Color(0xFF121212),
-                contentColor = Color(0xFFE0E0E0),
+                sheetContainerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
                 sheetContent = {
                     val scaffoldInsets = ScaffoldDefaults.contentWindowInsets.asPaddingValues()
                     Column(
@@ -404,8 +412,8 @@ fun GhostPinScreen(
                                     Modifier.fillMaxWidth()
                                             .align(Alignment.TopCenter)
                                             .padding(top = 92.dp),
-                            color = Color(0xFF80CBC4),
-                            trackColor = Color(0xFF1E1E2E),
+                            color = MaterialTheme.colorScheme.statusWarning,
+                            trackColor = MaterialTheme.colorScheme.panelBackground,
                     )
                 }
             }
