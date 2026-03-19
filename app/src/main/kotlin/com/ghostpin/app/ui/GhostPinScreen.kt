@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Gamepad
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.PlayArrow
@@ -69,6 +70,7 @@ fun GhostPinScreen(
         onStopSimulation: () -> Unit,
         onPickGpxFile: () -> Unit = {},
         onNavigateToRouteEditor: () -> Unit = {},
+        onNavigateToHistory: () -> Unit = {},
 ) {
     val selectedProfile by viewModel.selectedProfile.collectAsState()
     val selectedMode by viewModel.selectedMode.collectAsState()
@@ -129,6 +131,13 @@ fun GhostPinScreen(
                                         titleContentColor = Color(0xFF80CBC4),
                                 ),
                         actions = {
+                            IconButton(onClick = onNavigateToHistory) {
+                                Icon(
+                                    imageVector = Icons.Default.History,
+                                    contentDescription = "History",
+                                    tint = Color(0xFF80CBC4),
+                                )
+                            }
                             IconButton(onClick = onNavigateToRouteEditor) {
                                 Icon(
                                     imageVector = Icons.Default.EditNote,

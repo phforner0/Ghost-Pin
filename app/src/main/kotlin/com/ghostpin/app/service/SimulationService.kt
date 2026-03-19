@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.math.*
+import kotlin.math.roundToLong
 
 /**
  * Background service that drives the mock GPS location simulation.
@@ -60,6 +61,9 @@ class SimulationService : LifecycleService() {
 
     private var simulationJob: Job? = null
     private var pendingWaypointSkip: Int = 0
+    private var activeHistoryId: String? = null
+    private var activeHistoryStartedAtMs: Long? = null
+    private var activeHistoryRouteDistanceMeters: Double = 0.0
 
     companion object {
         private const val TAG = "SimulationService"
@@ -293,6 +297,14 @@ class SimulationService : LifecycleService() {
 
         simulationJob = lifecycleScope.launch {
             try {
+                if (resumeState == null) {
+                    activeHistoryStartedAtMs = System.currentTimeMillis()
+                    activeHistoryId = repository.startHistory(
+                        profileIdOrName = profile.name,
+                        routeId = repository.lastUsedConfig.value?.routeId,
+                    )
+                }
+
                 // ── 1. Obtain route ──────────────────────────────────────────
                 val route: Route = when {
                     // Resume: reuse the existing route already cached in repo
@@ -374,6 +386,7 @@ class SimulationService : LifecycleService() {
                 var frameCount    = 0L
 
                 val totalDist = route.distanceMeters.takeIf { it > 0 } ?: 1.0
+                activeHistoryRouteDistanceMeters = route.distanceMeters.coerceAtLeast(0.0)
                 val speedMs   = profile.maxSpeedMs * speedRatio
                 var lastWaypointIndex = 0
 
@@ -427,6 +440,10 @@ class SimulationService : LifecycleService() {
                 }
 
                 // Simulation completed normally
+                finishActiveHistory(
+                    resultStatus = "COMPLETED",
+                    distanceMeters = activeHistoryRouteDistanceMeters,
+                )
                 repository.reset()
                 GhostPinWidget.updateAll(this@SimulationService, SimulationState.Idle)
                 mockLocationInjector.unregisterProvider()
@@ -435,6 +452,10 @@ class SimulationService : LifecycleService() {
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.e(TAG, "Simulation error", e)
+                finishActiveHistory(
+                    resultStatus = "ERROR",
+                    distanceMeters = estimateCoveredDistanceMeters(),
+                )
                 repository.emitState(SimulationState.Error(e.message ?: "Unknown simulation error"))
                 repository.emitRoute(null)
                 GhostPinWidget.updateAll(this@SimulationService, SimulationState.Idle)
@@ -534,6 +555,14 @@ class SimulationService : LifecycleService() {
     }
 
     private fun stopSimulation() {
+        if (activeHistoryId != null) {
+            lifecycleScope.launch {
+                finishActiveHistory(
+                    resultStatus = "INTERRUPTED",
+                    distanceMeters = estimateCoveredDistanceMeters(),
+                )
+            }
+        }
         simulationJob?.cancel()
         simulationJob = null
         runCatching { mockLocationInjector.unregisterProvider() }
@@ -541,6 +570,34 @@ class SimulationService : LifecycleService() {
         GhostPinWidget.updateAll(this, SimulationState.Idle)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    private suspend fun finishActiveHistory(
+        resultStatus: String,
+        distanceMeters: Double,
+    ) {
+        val id = activeHistoryId ?: return
+        val startedAt = activeHistoryStartedAtMs ?: System.currentTimeMillis()
+        val durationMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+        repository.finishHistory(
+            id = id,
+            durationMs = durationMs,
+            distanceMeters = distanceMeters.coerceAtLeast(0.0),
+            resultStatus = resultStatus,
+        )
+        activeHistoryId = null
+        activeHistoryStartedAtMs = null
+        activeHistoryRouteDistanceMeters = 0.0
+    }
+
+    private fun estimateCoveredDistanceMeters(): Double {
+        val progress = when (val state = repository.state.value) {
+            is SimulationState.Running -> state.progressPercent.toDouble()
+            is SimulationState.Paused -> state.progressPercent.toDouble()
+            else -> 0.0
+        }.coerceIn(0.0, 1.0)
+
+        return (activeHistoryRouteDistanceMeters * progress).roundToLong().toDouble()
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
