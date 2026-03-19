@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -90,10 +91,17 @@ fun GhostPinScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
 
     val deviceLocation by viewModel.deviceLocation.collectAsState()
     val favoriteSimulations by viewModel.favoriteSimulations.collectAsState()
     var favoritesExpanded by remember { mutableStateOf(false) }
+    val sheetPeekHeight =
+            when {
+                configuration.screenWidthDp < 600 -> 156.dp // compacto
+                configuration.screenWidthDp < 840 -> 192.dp // normal
+                else -> 232.dp // tablet
+            }
 
     // Show Snackbar when permissions are denied
     LaunchedEffect(permissionMessage) {
@@ -275,17 +283,23 @@ fun GhostPinScreen(
 
         BottomSheetScaffold(
                 modifier = Modifier.fillMaxSize().padding(paddingValues),
-                sheetPeekHeight = 156.dp,
+                sheetPeekHeight = sheetPeekHeight,
                 sheetDragHandle = { BottomSheetDefaults.DragHandle() },
                 sheetContainerColor = Color(0xFF121212),
                 contentColor = Color(0xFFE0E0E0),
                 sheetContent = {
+                    val scaffoldInsets = ScaffoldDefaults.contentWindowInsets.asPaddingValues()
                     Column(
                             modifier =
                                     Modifier.fillMaxWidth()
                                             .navigationBarsPadding()
                                             .imePadding()
-                                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                                            .padding(
+                                                    bottom =
+                                                            scaffoldInsets.calculateBottomPadding() +
+                                                                    88.dp
+                                            ),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         // Animated mode panel transitions
