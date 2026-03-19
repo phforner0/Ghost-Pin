@@ -44,32 +44,38 @@ fun InteractiveMap(
         simulationState: SimulationState,
         previewPlayhead: Waypoint? = null,
         deviceLocation: Pair<Double, Double>?,
+        lowMemorySignal: Int = 0,
         onMapLongPress: (Double, Double) -> Unit,
         modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    val mapView = remember { MapView(context) }
-    var mapController by remember { mutableStateOf<MapController?>(null) }
+    val mapView = remember(context) { MapView(context).apply { onCreate(null) } }
+    var mapController by remember(mapView) { mutableStateOf<MapController?>(null) }
 
-    // Manage MapView lifecycle
-    DisposableEffect(lifecycleOwner) {
+    // Manage MapView lifecycle (destroy only once, on disposal).
+    DisposableEffect(lifecycleOwner, mapView) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> mapView.onStart()
                 Lifecycle.Event.ON_RESUME -> mapView.onResume()
                 Lifecycle.Event.ON_PAUSE -> mapView.onPause()
                 Lifecycle.Event.ON_STOP -> mapView.onStop()
-                Lifecycle.Event.ON_DESTROY -> mapView.onDestroy()
                 else -> {}
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            mapController = null
             mapView.onDestroy()
         }
+    }
+
+    // Forward Activity low-memory notifications to the MapView.
+    LaunchedEffect(lowMemorySignal) {
+        if (lowMemorySignal > 0) mapView.onLowMemory()
     }
 
     // Center map on real device location as soon as it becomes available.

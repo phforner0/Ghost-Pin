@@ -77,6 +77,7 @@ fun GhostPinTheme(content: @Composable () -> Unit) {
 fun GhostPinScreen(
         viewModel: SimulationViewModel,
         permissionMessage: String?,
+        lowMemorySignal: Int = 0,
         onPermissionMessageDismissed: () -> Unit,
         onStartSimulation: (MovementProfile, Double) -> Unit,
         onStopSimulation: () -> Unit,
@@ -394,6 +395,7 @@ fun GhostPinScreen(
                         startPlaced = startPlaced,
                         simulationState = simulationState,
                         deviceLocation = deviceLocation,
+                        lowMemorySignal = lowMemorySignal,
                         onMapLongPress = viewModel::onMapLongPress,
                         modifier = Modifier.fillMaxSize().heightIn(min = 280.dp),
                 )

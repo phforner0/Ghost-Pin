@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
     // preventing silent failure where the app would appear broken with no feedback.
     // The Snackbar is coordinated via a channel-style StateFlow read by GhostPinScreen.
     private val _permissionMessage = mutableStateOf<String?>(null)
+    private val _lowMemorySignal = mutableIntStateOf(0)
 
     private val locationPermissionLauncher =
             registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -66,6 +67,7 @@ class MainActivity : ComponentActivity() {
                         viewModel = viewModel,
                         isOnboardingComplete = complete,
                         permissionMessage = _permissionMessage.value,
+                        lowMemorySignal = _lowMemorySignal.intValue,
                         onPermissionMessageDismissed = { _permissionMessage.value = null },
                         onStartSimulation = ::startSimulation,
                         onStopSimulation = ::stopSimulation,
@@ -125,5 +127,10 @@ class MainActivity : ComponentActivity() {
                     action = SimulationService.ACTION_STOP
                 }
         )
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        _lowMemorySignal.intValue += 1
     }
 }
