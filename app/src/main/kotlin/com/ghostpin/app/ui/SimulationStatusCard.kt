@@ -70,11 +70,19 @@ fun SimulationStatusCard(state: SimulationState, etaText: String? = null) {
                     Spacer(Modifier.height(2.dp))
                     Text(
                             text =
-                                    "${state.progressPercent.toInt()}% · " +
+                                    "Volta ${state.currentLap}/${state.totalLapsLabel} · ${state.lapProgressPercent.times(100).toInt()}% · " +
                                             "${state.elapsedTimeSec}s elapsed" +
                                             (if (etaText != null) " · ETA ~$etaText" else ""),
                             fontSize = 13.sp,
                             color = Color(0xFF888888),
+                    )
+                }
+                if (state is SimulationState.Paused) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "Pausado na volta ${state.currentLap}/${state.totalLapsLabel} · ${state.lapProgressPercent.times(100).toInt()}%",
+                        fontSize = 13.sp,
+                        color = Color(0xFF888888),
                     )
                 }
                 if (state is SimulationState.Error) {

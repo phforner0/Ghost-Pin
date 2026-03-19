@@ -112,6 +112,8 @@ class MainActivity : ComponentActivity() {
                     putExtra(SimulationService.EXTRA_WAYPOINTS_LAT, currentWaypoints.map { it.lat }.toDoubleArray())
                     putExtra(SimulationService.EXTRA_WAYPOINTS_LNG, currentWaypoints.map { it.lng }.toDoubleArray())
                     putExtra(SimulationService.EXTRA_WAYPOINT_PAUSE_SEC, waypointPauseSec)
+                    putExtra(SimulationService.EXTRA_REPEAT_POLICY, viewModel.repeatPolicy.value.name)
+                    putExtra(SimulationService.EXTRA_REPEAT_COUNT, viewModel.repeatCount.value)
                     putExtra(SimulationService.EXTRA_ROUTE_ID, viewModel.lastUsedConfig.value?.routeId)
                 }
         ContextCompat.startForegroundService(this, intent)

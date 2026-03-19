@@ -222,4 +222,47 @@ class RouteInterpolatorTest {
             assertFalse(frame.bearing.isNaN(), "bearing is NaN at i=$i")
         }
     }
+
+    @Test
+    fun `repeat controller reaches final coordinate on last lap for LOOP_N`() {
+        val controller = RepeatTraversalController(
+            policy = RepeatPolicy.LOOP_N,
+            repeatCount = 2,
+        )
+        var state = RepeatTraversalState()
+        repeat(20) {
+            state = controller.advance(state, 0.11)
+        }
+        assertTrue(state.completed)
+        assertEquals(1.0, state.progress, 1e-9)
+        assertEquals(2, state.currentLap)
+    }
+
+    @Test
+    fun `repeat controller inverts direction on ping-pong edge`() {
+        val controller = RepeatTraversalController(
+            policy = RepeatPolicy.PING_PONG_INFINITE,
+            repeatCount = 1,
+        )
+        var state = RepeatTraversalState(progress = 0.95, direction = 1, currentLap = 1)
+        state = controller.advance(state, 0.1)
+        assertEquals(-1, state.direction)
+        assertEquals(2, state.currentLap)
+        assertTrue(state.progress < 1.0)
+    }
+
+    @Test
+    fun `repeat controller stops correctly after N ping-pong laps`() {
+        val controller = RepeatTraversalController(
+            policy = RepeatPolicy.PING_PONG_N,
+            repeatCount = 3,
+        )
+        var state = RepeatTraversalState()
+        repeat(50) {
+            state = controller.advance(state, 0.2)
+            if (state.completed) return@repeat
+        }
+        assertTrue(state.completed)
+        assertEquals(3, state.currentLap)
+    }
 }

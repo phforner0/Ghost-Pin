@@ -271,6 +271,8 @@ fun GhostPinScreen(
             val geoSuggestions by viewModel.geoSuggestions.collectAsState()
             val isSearching by viewModel.isSearching.collectAsState()
             val routeEtaText by viewModel.routeEtaText.collectAsState()
+            val repeatPolicy by viewModel.repeatPolicy.collectAsState()
+            val repeatCount by viewModel.repeatCount.collectAsState()
 
             // Map with overlays — state hoisted; no viewModel reference inside
             InteractiveMap(
@@ -315,6 +317,10 @@ fun GhostPinScreen(
                                 selectedProfile = selectedProfile,
                                 enabled = !isBusy,
                                 onSelect = viewModel::selectProfile,
+                                repeatPolicy = repeatPolicy,
+                                repeatCount = repeatCount,
+                                onRepeatPolicyChange = viewModel::setRepeatPolicy,
+                                onRepeatCountChange = viewModel::setRepeatCount,
                         )
                     }
                     AppMode.JOYSTICK -> JoystickModePanel()
@@ -332,7 +338,11 @@ fun GhostPinScreen(
                             onSearchAddress = viewModel::searchAddress,
                             onSelectSuggestion = viewModel::addWaypointFromGeoResult,
                             onClearSuggestions = viewModel::clearSuggestions,
-                            onStart = { pauseSec -> onStartSimulation(selectedProfile, pauseSec) }
+                            onStart = { pauseSec -> onStartSimulation(selectedProfile, pauseSec) },
+                            repeatPolicy = repeatPolicy,
+                            repeatCount = repeatCount,
+                            onRepeatPolicyChange = viewModel::setRepeatPolicy,
+                            onRepeatCountChange = viewModel::setRepeatCount,
                         )
                     }
                     AppMode.GPX -> {
