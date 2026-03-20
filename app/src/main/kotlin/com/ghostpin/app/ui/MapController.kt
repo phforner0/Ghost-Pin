@@ -35,6 +35,7 @@ class MapController(
     companion object {
         // Route polyline
         private const val SOURCE_ROUTE = "source_route"
+        private const val LAYER_ROUTE_CASING = "layer_route_casing"
         private const val LAYER_ROUTE = "layer_route"
 
         // Current position (animated dot)
@@ -52,13 +53,13 @@ class MapController(
 
         // Waypoints pin
         private const val SOURCE_PIN_WAYPOINTS = "source_pin_waypoints"
-        private const val LAYER_PIN_WAYPOINTS = "layer_pin_waypoints"
+        private const val LAYER_PIN_WAYPOINTS_CIRCLE = "layer_pin_waypoints_circle"
+        private const val LAYER_PIN_WAYPOINTS_LABEL = "layer_pin_waypoints_label"
 
         // Icon image IDs
         private const val ICON_POSITION = "icon_position"
         private const val ICON_PIN_START = "icon_pin_start"
         private const val ICON_PIN_END = "icon_pin_end"
-        private const val ICON_PIN_WAYPOINT = "icon_pin_waypoint"
 
         // Bug #4: full street tiles from OpenFreeMap (free, no API key)
         private const val MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
@@ -84,11 +85,19 @@ class MapController(
         // ── Route polyline ────────────────────────────────────────────────
         style.addSource(GeoJsonSource(SOURCE_ROUTE))
         style.addLayer(
+                LineLayer(LAYER_ROUTE_CASING, SOURCE_ROUTE)
+                        .withProperties(
+                                lineColor("#004D40"),
+                                lineWidth(7.5f),
+                                lineOpacity(0.7f),
+                        )
+        )
+        style.addLayer(
                 LineLayer(LAYER_ROUTE, SOURCE_ROUTE)
                         .withProperties(
                                 lineColor("#80CBC4"),
-                                lineWidth(3.5f),
-                                lineOpacity(0.85f),
+                                lineWidth(4.5f),
+                                lineOpacity(0.95f),
                         )
         )
 
@@ -132,23 +141,26 @@ class MapController(
                         )
         )
 
-        // ── Waypoints pin (Amber circle) ──────────────────────────────────
+        // ── Waypoints (numbered circles) ──────────────────────────────────
         style.addSource(GeoJsonSource(SOURCE_PIN_WAYPOINTS))
-        style.addImage(
-                ICON_PIN_WAYPOINT,
-                createPinBitmap(
-                        fillArgb = android.graphics.Color.parseColor("#FFC107"), // amber
-                        borderArgb = android.graphics.Color.WHITE,
+        style.addLayer(
+                CircleLayer(LAYER_PIN_WAYPOINTS_CIRCLE, SOURCE_PIN_WAYPOINTS)
+                        .withProperties(
+                                circleColor("#7E57C2"),
+                                circleStrokeColor("#FFFFFF"),
+                                circleStrokeWidth(2f),
+                                circleRadius(8f),
+                                circleOpacity(0.95f),
                 )
         )
         style.addLayer(
-                SymbolLayer(LAYER_PIN_WAYPOINTS, SOURCE_PIN_WAYPOINTS)
+                SymbolLayer(LAYER_PIN_WAYPOINTS_LABEL, SOURCE_PIN_WAYPOINTS)
                         .withProperties(
-                                iconImage(ICON_PIN_WAYPOINT),
-                                iconAllowOverlap(true),
-                                iconIgnorePlacement(true),
-                                iconAnchor("bottom"),
-                                iconSize(1.0f),
+                                textField("{order}"),
+                                textSize(11f),
+                                textColor("#FFFFFF"),
+                                textAllowOverlap(true),
+                                textIgnorePlacement(true),
                         )
         )
 
@@ -199,6 +211,8 @@ class MapController(
         val end = route.waypoints.last()
         updatePin(currentStyle, SOURCE_PIN_START, start.lat, start.lng)
         updatePin(currentStyle, SOURCE_PIN_END, end.lat, end.lng)
+        currentStyle.getSourceAs<GeoJsonSource>(SOURCE_PIN_WAYPOINTS)
+                ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
 
         // Fit camera to route bounds
         fitCamera(points.map { LatLng(it.latitude(), it.longitude()) })
@@ -230,7 +244,11 @@ class MapController(
     /** Display multiple waypoints on the map. */
     fun updateWaypoints(waypoints: List<com.ghostpin.core.model.Waypoint>) {
         val currentStyle = style ?: return
-        val features = waypoints.map { Feature.fromGeometry(Point.fromLngLat(it.lng, it.lat)) }
+        val features = waypoints.mapIndexed { index, waypoint ->
+            Feature.fromGeometry(Point.fromLngLat(waypoint.lng, waypoint.lat)).apply {
+                addNumberProperty("order", index + 1)
+            }
+        }
         val collection = FeatureCollection.fromFeatures(features)
         currentStyle.getSourceAs<GeoJsonSource>(SOURCE_PIN_WAYPOINTS)?.setGeoJson(collection)
 
@@ -275,7 +293,7 @@ class MapController(
      *
      * [zoom] = 15 gives a walkable street-level view (~800 m across).
      */
-    fun moveTo(lat: Double, lng: Double, zoom: Double = 15.0) {
+    fun moveTo(lat: Double, lng: Double, zoom: Double = 13.8) {
         map.easeCamera(
                 org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(
                         LatLng(lat, lng),

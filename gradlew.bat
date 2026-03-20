@@ -70,11 +70,30 @@ goto fail
 :execute
 @rem Setup the command line
 
-set CLASSPATH=
+set WRAPPER_JAR=%APP_HOME%\gradle\wrapper\gradle-wrapper.jar
+set CLASSPATH=%WRAPPER_JAR%
 
+if exist "%WRAPPER_JAR%" goto wrapperReady
 
+for /f "tokens=2 delims==" %%A in ('findstr /b "distributionUrl=" "%APP_HOME%\gradle\wrapper\gradle-wrapper.properties"') do set DISTRIBUTION_URL=%%A
+for /f "tokens=2 delims=-" %%A in ("%DISTRIBUTION_URL%") do set WRAPPER_VERSION=%%A
+set WRAPPER_JAR_URL=https://raw.githubusercontent.com/gradle/gradle/v%WRAPPER_VERSION%/gradle/wrapper/gradle-wrapper.jar
+
+if not exist "%APP_HOME%\gradle\wrapper" mkdir "%APP_HOME%\gradle\wrapper"
+powershell -NoProfile -Command "Invoke-WebRequest -UseBasicParsing -Uri '%WRAPPER_JAR_URL%' -OutFile '%WRAPPER_JAR%'"
+if %ERRORLEVEL% neq 0 goto downloadFail
+
+:wrapperReady
 @rem Execute Gradle
-"%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" -jar "%APP_HOME%\gradle\wrapper\gradle-wrapper.jar" %*
+"%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" -jar "%WRAPPER_JAR%" %*
+
+goto end
+
+:downloadFail
+echo. 1>&2
+echo ERROR: Failed to download missing Gradle wrapper jar from %WRAPPER_JAR_URL% 1>&2
+echo. 1>&2
+goto fail
 
 :end
 @rem End local scope for the variables with windows NT shell

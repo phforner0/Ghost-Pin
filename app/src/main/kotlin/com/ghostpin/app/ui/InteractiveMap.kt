@@ -51,6 +51,7 @@ fun InteractiveMap(
 
     val mapView = remember { MapView(context) }
     var mapController by remember { mutableStateOf<MapController?>(null) }
+    var hasCenteredOnDeviceLocation by remember { mutableStateOf(false) }
 
     // Manage MapView lifecycle
     DisposableEffect(lifecycleOwner) {
@@ -71,11 +72,15 @@ fun InteractiveMap(
         }
     }
 
-    // Center map on real device location as soon as it becomes available.
-    LaunchedEffect(deviceLocation) {
+    // Center map on real device location once (avoid aggressive zoom reset on every GPS update).
+    LaunchedEffect(deviceLocation, simulationState) {
+        if (simulationState !is SimulationState.Idle) return@LaunchedEffect
+        if (hasCenteredOnDeviceLocation) return@LaunchedEffect
+
         val loc = deviceLocation ?: return@LaunchedEffect
         val controller = mapController ?: return@LaunchedEffect
-        controller.moveTo(loc.first, loc.second, zoom = 15.0)
+        controller.moveTo(loc.first, loc.second)
+        hasCenteredOnDeviceLocation = true
     }
 
     // Update map whenever relevant state changes

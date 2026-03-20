@@ -102,6 +102,38 @@ die () {
     exit 1
 } >&2
 
+java_major_version() {
+    java_version_output=$("$1" -version 2>&1 | sed -n '1s/.*version "\(.*\)".*/\1/p')
+    java_major=${java_version_output%%.*}
+    [ "$java_major" = "1" ] && java_major=$(printf '%s' "$java_version_output" | sed -n 's/^1\.\([0-9]*\).*/\1/p')
+    printf '%s' "$java_major"
+}
+
+discover_java21_home() {
+    if command -v mise >/dev/null 2>&1; then
+        maybe_mise_home=$(mise where java@21 2>/dev/null)
+        if [ -x "$maybe_mise_home/bin/java" ]; then
+            printf '%s' "$maybe_mise_home"
+            return 0
+        fi
+    fi
+
+    for maybe_home in \
+        "$HOME/.sdkman/candidates/java/21" \
+        "$HOME/.local/share/mise/installs/java/21" \
+        "$HOME/.asdf/installs/java/21" \
+        /usr/lib/jvm/*21* \
+        /Library/Java/JavaVirtualMachines/*21*.jdk/Contents/Home
+    do
+        if [ -x "$maybe_home/bin/java" ]; then
+            printf '%s' "$maybe_home"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 # OS specific support (must be 'true' or 'false').
 cygwin=false
 msys=false
@@ -114,7 +146,25 @@ case "$( uname )" in                #(
   NONSTOP* )        nonstop=true ;;
 esac
 
-CLASSPATH="\\\"\\\""
+WRAPPER_JAR="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
+CLASSPATH="$WRAPPER_JAR"
+
+if [ ! -f "$WRAPPER_JAR" ]; then
+    WRAPPER_PROPERTIES="$APP_HOME/gradle/wrapper/gradle-wrapper.properties"
+    WRAPPER_VERSION=$(sed -n 's/^distributionUrl=.*gradle-\([0-9.]*\)-.*$/\1/p' "$WRAPPER_PROPERTIES")
+    WRAPPER_JAR_URL="https://raw.githubusercontent.com/gradle/gradle/v$WRAPPER_VERSION/gradle/wrapper/gradle-wrapper.jar"
+
+    [ -n "$WRAPPER_VERSION" ] || die "ERROR: Could not determine Gradle version from $WRAPPER_PROPERTIES"
+
+    mkdir -p "$APP_HOME/gradle/wrapper" || die "ERROR: Could not create wrapper directory"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL "$WRAPPER_JAR_URL" -o "$WRAPPER_JAR" || die "ERROR: Failed to download $WRAPPER_JAR_URL"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q -O "$WRAPPER_JAR" "$WRAPPER_JAR_URL" || die "ERROR: Failed to download $WRAPPER_JAR_URL"
+    else
+        die "ERROR: gradle-wrapper.jar is missing and neither curl nor wget is available to download it."
+    fi
+fi
 
 
 # Determine the Java command to use to start the JVM.
@@ -139,6 +189,16 @@ else
 
 Please set the JAVA_HOME variable in your environment to match the
 location of your Java installation."
+    fi
+fi
+
+current_java_major=$(java_major_version "$JAVACMD")
+if [ "${current_java_major:-0}" -ge 25 ]; then
+    compatible_java_home=$(discover_java21_home)
+    if [ -n "$compatible_java_home" ]; then
+        JAVACMD="$compatible_java_home/bin/java"
+        JAVA_HOME="$compatible_java_home"
+        export JAVA_HOME
     fi
 fi
 
@@ -213,7 +273,7 @@ DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
 set -- \
         "-Dorg.gradle.appname=$APP_BASE_NAME" \
         -classpath "$CLASSPATH" \
-        -jar "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" \
+        -jar "$WRAPPER_JAR" \
         "$@"
 
 # Stop when "xargs" is not available.
