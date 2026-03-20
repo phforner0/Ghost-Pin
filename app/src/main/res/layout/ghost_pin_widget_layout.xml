@@ -28,18 +28,37 @@
         android:textSize="11sp"
         android:layout_marginTop="2dp" />
 
-    <!-- Start/Stop button -->
-    <Button
-        android:id="@+id/widget_button"
+    <LinearLayout
         android:layout_width="wrap_content"
-        android:layout_height="36dp"
+        android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="Start"
-        android:textColor="#121212"
-        android:backgroundTint="#80CBC4"
-        android:textSize="12sp"
-        android:minWidth="80dp"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp" />
+        android:orientation="horizontal">
+
+        <!-- Start/Stop button -->
+        <Button
+            android:id="@+id/widget_button"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="Start"
+            android:textColor="#121212"
+            android:backgroundTint="#80CBC4"
+            android:textSize="12sp"
+            android:minWidth="80dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
+
+        <Button
+            android:id="@+id/widget_button_favorite"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:text="Último favorito"
+            android:textColor="#121212"
+            android:backgroundTint="#FFD54F"
+            android:textSize="12sp"
+            android:minWidth="110dp"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp" />
+    </LinearLayout>
 
 </LinearLayout>

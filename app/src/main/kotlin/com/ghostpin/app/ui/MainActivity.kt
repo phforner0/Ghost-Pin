@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
     // preventing silent failure where the app would appear broken with no feedback.
     // The Snackbar is coordinated via a channel-style StateFlow read by GhostPinScreen.
     private val _permissionMessage = mutableStateOf<String?>(null)
+    private val _lowMemorySignal = mutableIntStateOf(0)
 
     private val locationPermissionLauncher =
             registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -66,6 +67,7 @@ class MainActivity : ComponentActivity() {
                         viewModel = viewModel,
                         isOnboardingComplete = complete,
                         permissionMessage = _permissionMessage.value,
+                        lowMemorySignal = _lowMemorySignal.intValue,
                         onPermissionMessageDismissed = { _permissionMessage.value = null },
                         onStartSimulation = ::startSimulation,
                         onStopSimulation = ::stopSimulation,
@@ -112,6 +114,9 @@ class MainActivity : ComponentActivity() {
                     putExtra(SimulationService.EXTRA_WAYPOINTS_LAT, currentWaypoints.map { it.lat }.toDoubleArray())
                     putExtra(SimulationService.EXTRA_WAYPOINTS_LNG, currentWaypoints.map { it.lng }.toDoubleArray())
                     putExtra(SimulationService.EXTRA_WAYPOINT_PAUSE_SEC, waypointPauseSec)
+                    putExtra(SimulationService.EXTRA_REPEAT_POLICY, viewModel.repeatPolicy.value.name)
+                    putExtra(SimulationService.EXTRA_REPEAT_COUNT, viewModel.repeatCount.value)
+                    putExtra(SimulationService.EXTRA_ROUTE_ID, viewModel.lastUsedConfig.value?.routeId)
                 }
         ContextCompat.startForegroundService(this, intent)
     }
@@ -122,5 +127,10 @@ class MainActivity : ComponentActivity() {
                     action = SimulationService.ACTION_STOP
                 }
         )
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        _lowMemorySignal.intValue += 1
     }
 }

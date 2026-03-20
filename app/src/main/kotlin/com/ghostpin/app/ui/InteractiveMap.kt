@@ -42,7 +42,9 @@ fun InteractiveMap(
         route: Route?,
         startPlaced: Boolean,
         simulationState: SimulationState,
+        previewPlayhead: Waypoint? = null,
         deviceLocation: Pair<Double, Double>?,
+        lowMemorySignal: Int = 0,
         onMapLongPress: (Double, Double) -> Unit,
         modifier: Modifier = Modifier,
 ) {
@@ -53,21 +55,21 @@ fun InteractiveMap(
     var mapController by remember { mutableStateOf<MapController?>(null) }
     var hasCenteredOnDeviceLocation by remember { mutableStateOf(false) }
 
-    // Manage MapView lifecycle
-    DisposableEffect(lifecycleOwner) {
+    // Manage MapView lifecycle (destroy only once, on disposal).
+    DisposableEffect(lifecycleOwner, mapView) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> mapView.onStart()
                 Lifecycle.Event.ON_RESUME -> mapView.onResume()
                 Lifecycle.Event.ON_PAUSE -> mapView.onPause()
                 Lifecycle.Event.ON_STOP -> mapView.onStop()
-                Lifecycle.Event.ON_DESTROY -> mapView.onDestroy()
                 else -> {}
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            mapController = null
             mapView.onDestroy()
         }
     }
@@ -84,7 +86,7 @@ fun InteractiveMap(
     }
 
     // Update map whenever relevant state changes
-    LaunchedEffect(simulationState, startLat, startLng, endLat, endLng, waypoints, appMode, route) {
+    LaunchedEffect(simulationState, startLat, startLng, endLat, endLng, waypoints, appMode, route, previewPlayhead) {
         val controller = mapController ?: return@LaunchedEffect
         when (simulationState) {
             is SimulationState.Idle, is SimulationState.FetchingRoute -> {
@@ -104,6 +106,7 @@ fun InteractiveMap(
             is SimulationState.Paused -> controller.updatePosition(simulationState.lastLocation)
             is SimulationState.Error -> controller.clearPosition()
         }
+        controller.updatePreviewPlayhead(previewPlayhead)
     }
 
     // Hint text: tells user what the next long-press will do

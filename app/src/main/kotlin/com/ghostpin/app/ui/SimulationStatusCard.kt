@@ -8,21 +8,34 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ghostpin.app.service.SimulationState
+import com.ghostpin.app.ui.theme.panelBackground
+import com.ghostpin.app.ui.theme.statusError
+import com.ghostpin.app.ui.theme.statusSuccess
+import com.ghostpin.app.ui.theme.statusWarning
+import com.ghostpin.app.ui.theme.textMuted
+import com.ghostpin.core.model.MockLocation
 
 // ── Status Card ───────────────────────────────────────────────────────────────
 
 /** Displays current simulation state with ETA when available. */
 @Composable
-fun SimulationStatusCard(state: SimulationState, etaText: String? = null) {
+fun SimulationStatusCard(
+    state: SimulationState,
+    etaText: String? = null,
+    modifier: Modifier = Modifier,
+) {
     Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2E)),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.panelBackground,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
     ) {
         Row(
                 modifier = Modifier.padding(16.dp),
@@ -33,10 +46,10 @@ fun SimulationStatusCard(state: SimulationState, etaText: String? = null) {
                     contentDescription = "Simulation status",
                     tint =
                             when (state) {
-                                is SimulationState.Running -> Color(0xFF80CBC4)
-                                is SimulationState.FetchingRoute -> Color(0xFFFFB300)
-                                is SimulationState.Error -> Color(0xFFCF6679)
-                                else -> Color(0xFF666666)
+                                is SimulationState.Running -> MaterialTheme.colorScheme.statusSuccess
+                                is SimulationState.FetchingRoute -> MaterialTheme.colorScheme.statusWarning
+                                is SimulationState.Error -> MaterialTheme.colorScheme.statusError
+                                else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             },
                     modifier = Modifier.size(28.dp),
             )
@@ -55,7 +68,7 @@ fun SimulationStatusCard(state: SimulationState, etaText: String? = null) {
                                 },
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 15.sp,
-                        color = Color(0xFFE0E0E0),
+                        color = MaterialTheme.colorScheme.onSurface,
                 )
                 // Show ETA when a route is loaded but simulation hasn't started
                 if (state is SimulationState.Idle && etaText != null) {
@@ -63,18 +76,26 @@ fun SimulationStatusCard(state: SimulationState, etaText: String? = null) {
                     Text(
                             text = "ETA: $etaText",
                             fontSize = 13.sp,
-                            color = Color(0xFF80CBC4),
+                            color = MaterialTheme.colorScheme.statusSuccess,
                     )
                 }
                 if (state is SimulationState.Running) {
                     Spacer(Modifier.height(2.dp))
                     Text(
                             text =
-                                    "${state.progressPercent.toInt()}% · " +
+                                    "Volta ${state.currentLap}/${state.totalLapsLabel} · ${state.lapProgressPercent.times(100).toInt()}% · " +
                                             "${state.elapsedTimeSec}s elapsed" +
                                             (if (etaText != null) " · ETA ~$etaText" else ""),
                             fontSize = 13.sp,
-                            color = Color(0xFF888888),
+                            color = MaterialTheme.colorScheme.textMuted,
+                    )
+                }
+                if (state is SimulationState.Paused) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "Pausado na volta ${state.currentLap}/${state.totalLapsLabel} · ${state.lapProgressPercent.times(100).toInt()}%",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.textMuted,
                     )
                 }
                 if (state is SimulationState.Error) {
@@ -82,10 +103,40 @@ fun SimulationStatusCard(state: SimulationState, etaText: String? = null) {
                     Text(
                             text = state.message,
                             fontSize = 12.sp,
-                            color = Color(0xFFCF6679),
+                            color = MaterialTheme.colorScheme.statusError,
                     )
                 }
             }
         }
+    }
+}
+
+@Preview(name = "Status Running", showBackground = true)
+@Composable
+private fun SimulationStatusCardRunningPreview() {
+    GhostPinTheme {
+        SimulationStatusCard(
+            state = SimulationState.Running(
+                currentLocation = MockLocation(lat = -23.5505, lng = -46.6333),
+                profileName = "Pedestrian",
+                progressPercent = 0.42f,
+                lapProgressPercent = 0.42f,
+                currentLap = 1,
+                totalLapsLabel = "3",
+                elapsedTimeSec = 120,
+                frameCount = 840,
+            ),
+            etaText = "3m 10s",
+        )
+    }
+}
+
+@Preview(name = "Status Error", showBackground = true)
+@Composable
+private fun SimulationStatusCardErrorPreview() {
+    GhostPinTheme {
+        SimulationStatusCard(
+            state = SimulationState.Error("Falha ao calcular rota."),
+        )
     }
 }

@@ -16,6 +16,7 @@ object GhostPinColors {
     val Background         = Color(0xFF121212)    // Default surface background
     val Surface            = Color(0xFF1E1E2E)    // Cards, panels
     val SurfaceVariant     = Color(0xFF252535)     // Elevated cards
+    val PanelBackground    = Surface
     val SurfaceDim         = Color(0xFF1B1B1C)    // Waypoints panel background
     val SurfaceDark        = Color(0xFF1A1A2E)    // TopBar, GPX panel, map overlays
     val SurfaceDropdown    = Color(0xFF2A2A2B)    // Autocomplete dropdown
@@ -40,8 +41,11 @@ object GhostPinColors {
 
     // ── Semantic ─────────────────────────────────────────────────────────────
     val Error              = Color(0xFFCF6679)      // Error text / icons
+    val StatusError        = Error
     val ErrorBright        = Color(0xFFEF5350)      // Delete / destructive actions
     val Warning            = Color(0xFFFFB300)      // Warning / fetching state
+    val StatusWarning      = Warning
+    val StatusSuccess      = Primary
     val WaypointDefault    = Color(0xFF37474F)      // Waypoint default color
 
     // ── Overlay ──────────────────────────────────────────────────────────────

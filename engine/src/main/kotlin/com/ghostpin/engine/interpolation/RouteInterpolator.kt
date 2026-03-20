@@ -191,3 +191,118 @@ data class InterpolatedFrame(
     val bearing: Float,
     val progress: Double,
 )
+
+enum class RepeatPolicy {
+    NONE,
+    LOOP_N,
+    LOOP_INFINITE,
+    PING_PONG_N,
+    PING_PONG_INFINITE,
+}
+
+data class RepeatTraversalState(
+    val progress: Double = 0.0,
+    val direction: Int = 1, // +1 forward, -1 backward
+    val currentLap: Int = 1,
+    val completed: Boolean = false,
+)
+
+class RepeatTraversalController(
+    private val policy: RepeatPolicy,
+    private val repeatCount: Int,
+) {
+    init {
+        if (policy == RepeatPolicy.LOOP_N || policy == RepeatPolicy.PING_PONG_N) {
+            require(repeatCount >= 1) { "repeatCount must be >= 1 for $policy" }
+        }
+    }
+
+    fun totalLapsLabel(): String = when (policy) {
+        RepeatPolicy.NONE -> "1"
+        RepeatPolicy.LOOP_N, RepeatPolicy.PING_PONG_N -> repeatCount.toString()
+        RepeatPolicy.LOOP_INFINITE, RepeatPolicy.PING_PONG_INFINITE -> "∞"
+    }
+
+    fun advance(state: RepeatTraversalState, deltaProgress: Double): RepeatTraversalState {
+        if (state.completed) return state
+
+        var progress = state.progress + deltaProgress * state.direction
+        var direction = state.direction
+        var lap = state.currentLap
+        var completed = false
+
+        while (true) {
+            if (direction > 0 && progress >= 1.0) {
+                val overflow = progress - 1.0
+                when (policy) {
+                    RepeatPolicy.NONE -> {
+                        progress = 1.0
+                        completed = true
+                    }
+                    RepeatPolicy.LOOP_N -> {
+                        if (lap >= repeatCount) {
+                            progress = 1.0
+                            completed = true
+                        } else {
+                            lap += 1
+                            progress = overflow
+                        }
+                    }
+                    RepeatPolicy.LOOP_INFINITE -> {
+                        lap += 1
+                        progress = overflow
+                    }
+                    RepeatPolicy.PING_PONG_N -> {
+                        if (lap >= repeatCount) {
+                            progress = 1.0
+                            completed = true
+                        } else {
+                            lap += 1
+                            direction = -1
+                            progress = 1.0 - overflow
+                        }
+                    }
+                    RepeatPolicy.PING_PONG_INFINITE -> {
+                        lap += 1
+                        direction = -1
+                        progress = 1.0 - overflow
+                    }
+                }
+            } else if (direction < 0 && progress <= 0.0) {
+                val overflow = -progress
+                when (policy) {
+                    RepeatPolicy.NONE,
+                    RepeatPolicy.LOOP_N,
+                    RepeatPolicy.LOOP_INFINITE -> {
+                        progress = 0.0
+                    }
+                    RepeatPolicy.PING_PONG_N -> {
+                        if (lap >= repeatCount) {
+                            progress = 0.0
+                            completed = true
+                        } else {
+                            lap += 1
+                            direction = 1
+                            progress = overflow
+                        }
+                    }
+                    RepeatPolicy.PING_PONG_INFINITE -> {
+                        lap += 1
+                        direction = 1
+                        progress = overflow
+                    }
+                }
+            } else {
+                break
+            }
+            if (completed) break
+        }
+
+        return RepeatTraversalState(
+            progress = progress.coerceIn(0.0, 1.0),
+            direction = direction,
+            currentLap = lap,
+            completed = completed,
+        )
+    }
+}

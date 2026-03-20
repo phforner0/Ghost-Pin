@@ -1,5 +1,7 @@
 package com.ghostpin.app.data
 
+import com.ghostpin.engine.interpolation.RepeatPolicy
+
 /**
  * Lightweight snapshot of the last-used simulation configuration.
  *
@@ -17,4 +19,6 @@ data class SimulationConfig(
     val startLat: Double,
     val startLng: Double,
     val routeId: String? = null,
+    val repeatPolicy: RepeatPolicy = RepeatPolicy.NONE,
+    val repeatCount: Int = 1,
 )
