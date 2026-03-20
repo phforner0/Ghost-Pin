@@ -51,8 +51,9 @@ fun InteractiveMap(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    val mapView = remember(context) { MapView(context).apply { onCreate(null) } }
-    var mapController by remember(mapView) { mutableStateOf<MapController?>(null) }
+    val mapView = remember { MapView(context) }
+    var mapController by remember { mutableStateOf<MapController?>(null) }
+    var hasCenteredOnDeviceLocation by remember { mutableStateOf(false) }
 
     // Manage MapView lifecycle (destroy only once, on disposal).
     DisposableEffect(lifecycleOwner, mapView) {
@@ -73,16 +74,15 @@ fun InteractiveMap(
         }
     }
 
-    // Forward Activity low-memory notifications to the MapView.
-    LaunchedEffect(lowMemorySignal) {
-        if (lowMemorySignal > 0) mapView.onLowMemory()
-    }
+    // Center map on real device location once (avoid aggressive zoom reset on every GPS update).
+    LaunchedEffect(deviceLocation, simulationState) {
+        if (simulationState !is SimulationState.Idle) return@LaunchedEffect
+        if (hasCenteredOnDeviceLocation) return@LaunchedEffect
 
-    // Center map on real device location as soon as it becomes available.
-    LaunchedEffect(deviceLocation) {
         val loc = deviceLocation ?: return@LaunchedEffect
         val controller = mapController ?: return@LaunchedEffect
-        controller.moveTo(loc.first, loc.second, zoom = 15.0)
+        controller.moveTo(loc.first, loc.second)
+        hasCenteredOnDeviceLocation = true
     }
 
     // Update map whenever relevant state changes
