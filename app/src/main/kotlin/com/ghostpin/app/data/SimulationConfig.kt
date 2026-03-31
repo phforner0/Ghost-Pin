@@ -23,6 +23,7 @@ import org.json.JSONObject
  */
 data class SimulationConfig(
     val profileName: String,
+    val profileLookupKey: String = profileName,
     val startLat: Double,
     val startLng: Double,
     val endLat: Double = DefaultCoordinates.END_LAT,

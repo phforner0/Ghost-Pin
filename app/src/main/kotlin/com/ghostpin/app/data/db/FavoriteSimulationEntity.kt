@@ -10,6 +10,7 @@ import com.ghostpin.engine.interpolation.RepeatPolicy
 data class FavoriteSimulationEntity(
     @PrimaryKey val id: String,
     val name: String,
+    val profileName: String,
     val profileIdOrName: String,
     val routeId: String?,
     val startLat: Double,
@@ -26,19 +27,21 @@ data class FavoriteSimulationEntity(
     val createdAtMs: Long,
     val updatedAtMs: Long
 ) {
-    fun toSimulationConfig(): SimulationConfig = SimulationConfig(
-        profileName = profileIdOrName,
-        startLat = startLat,
-        startLng = startLng,
-        endLat = endLat,
-        endLng = endLng,
-        routeId = routeId,
-        appMode = runCatching { AppMode.valueOf(appMode) }.getOrDefault(AppMode.CLASSIC),
-        waypoints = SimulationConfig.deserializeWaypoints(waypointsJson),
-        waypointPauseSec = waypointPauseSec,
-        speedRatio = speedRatio,
-        frequencyHz = frequencyHz,
-        repeatPolicy = runCatching { RepeatPolicy.valueOf(repeatPolicy) }.getOrDefault(RepeatPolicy.NONE),
-        repeatCount = repeatCount,
-    )
+    fun toSimulationConfig(): SimulationConfig =
+        SimulationConfig(
+            profileName = profileName,
+            profileLookupKey = profileIdOrName,
+            startLat = startLat,
+            startLng = startLng,
+            endLat = endLat,
+            endLng = endLng,
+            routeId = routeId,
+            appMode = runCatching { AppMode.valueOf(appMode) }.getOrDefault(AppMode.CLASSIC),
+            waypoints = SimulationConfig.deserializeWaypoints(waypointsJson),
+            waypointPauseSec = waypointPauseSec,
+            speedRatio = speedRatio,
+            frequencyHz = frequencyHz,
+            repeatPolicy = runCatching { RepeatPolicy.valueOf(repeatPolicy) }.getOrDefault(RepeatPolicy.NONE),
+            repeatCount = repeatCount,
+        )
 }

@@ -9,7 +9,9 @@ import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.model.Route
 import com.ghostpin.core.model.Waypoint
 import com.ghostpin.core.security.LogSanitizer
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 internal data class SimulationRouteRequest(
     val profile: MovementProfile,
@@ -26,9 +28,18 @@ internal data class SimulationRouteRequest(
 )
 
 internal sealed class SimulationRouteResult {
-    data class Success(val route: Route) : SimulationRouteResult()
-    data class Error(val message: String) : SimulationRouteResult()
-    data class Joystick(val startLat: Double, val startLng: Double) : SimulationRouteResult()
+    data class Success(
+        val route: Route
+    ) : SimulationRouteResult()
+
+    data class Error(
+        val message: String
+    ) : SimulationRouteResult()
+
+    data class Joystick(
+        val startLat: Double,
+        val startLng: Double
+    ) : SimulationRouteResult()
 }
 
 internal suspend fun resolveSimulationRoute(
@@ -52,22 +63,27 @@ internal suspend fun resolveSimulationRoute(
         }
 
         request.appMode == AppMode.GPX -> {
-            val preloaded = request.cachedRoute
-                ?: simulationRepository.route.first { it != null }
-                ?: request.cachedConfigWaypoints.takeIf { it.size >= 2 }?.let { savedWaypoints ->
-                    Route(
-                        id = request.persistedRouteId ?: "gpx-saved-route",
-                        name = "Saved GPX Route",
-                        waypoints = savedWaypoints,
-                    )
-                }
+            val preloaded =
+                request.cachedRoute
+                    ?: simulationRepository.route.value
+                    ?: withTimeoutOrNull(750) { simulationRepository.route.filterNotNull().first() }
+                    ?: request.cachedConfigWaypoints.takeIf { it.size >= 2 }?.let { savedWaypoints ->
+                        Route(
+                            id = request.persistedRouteId ?: "gpx-saved-route",
+                            name = "Saved GPX Route",
+                            waypoints = savedWaypoints,
+                        )
+                    }
 
             if (preloaded == null) {
                 SimulationRouteResult.Error("No GPX route loaded. Please select a .gpx file first.")
             } else {
-                Log.d(loggerTag, LogSanitizer.sanitizeString(
-                    "GPX mode — using pre-loaded route (${preloaded.waypoints.size} pts), skipping OSRM."
-                ))
+                Log.d(
+                    loggerTag,
+                    LogSanitizer.sanitizeString(
+                        "GPX mode — using pre-loaded route (${preloaded.waypoints.size} pts), skipping OSRM."
+                    )
+                )
                 SimulationRouteResult.Success(preloaded)
             }
         }
@@ -75,29 +91,43 @@ internal suspend fun resolveSimulationRoute(
         request.appMode == AppMode.JOYSTICK -> SimulationRouteResult.Joystick(request.startLat, request.startLng)
 
         request.appMode == AppMode.WAYPOINTS && request.waypoints.size >= 2 -> {
-            val newRoute = osrmRouteProvider.fetchMultiRoute(request.waypoints, request.profile).getOrElse { error ->
-                Log.w(loggerTag, LogSanitizer.sanitizeString(
-                    "OSRM multi-fetch failed — straight-line fallback: ${error.message}"
-                ))
-                osrmRouteProvider.fallbackMultiRoute(request.waypoints)
-            }
+            val newRoute =
+                osrmRouteProvider.fetchMultiRoute(request.waypoints, request.profile).getOrElse { error ->
+                    Log.w(
+                        loggerTag,
+                        LogSanitizer.sanitizeString(
+                            "OSRM multi-fetch failed — straight-line fallback: ${error.message}"
+                        )
+                    )
+                    osrmRouteProvider.fallbackMultiRoute(request.waypoints)
+                }
             simulationRepository.emitRoute(newRoute)
             SimulationRouteResult.Success(newRoute)
         }
 
         else -> {
-            val newRoute = osrmRouteProvider.fetchRoute(
-                request.startLat,
-                request.startLng,
-                request.endLat,
-                request.endLng,
-                request.profile,
-            ).getOrElse { error ->
-                Log.w(loggerTag, LogSanitizer.sanitizeString(
-                    "OSRM fetch failed — straight-line fallback: ${error.message}"
-                ))
-                osrmRouteProvider.fallbackRoute(request.startLat, request.startLng, request.endLat, request.endLng)
-            }
+            val newRoute =
+                osrmRouteProvider
+                    .fetchRoute(
+                        request.startLat,
+                        request.startLng,
+                        request.endLat,
+                        request.endLng,
+                        request.profile,
+                    ).getOrElse { error ->
+                        Log.w(
+                            loggerTag,
+                            LogSanitizer.sanitizeString(
+                                "OSRM fetch failed — straight-line fallback: ${error.message}"
+                            )
+                        )
+                        osrmRouteProvider.fallbackRoute(
+                            request.startLat,
+                            request.startLng,
+                            request.endLat,
+                            request.endLng
+                        )
+                    }
             simulationRepository.emitRoute(newRoute)
             SimulationRouteResult.Success(newRoute)
         }

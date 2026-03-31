@@ -119,8 +119,7 @@ fun AppNavHost(
                     navController.navigate(AppRoute.MAIN) {
                         popUpTo(AppRoute.HISTORY) { inclusive = true }
                     }
-                    val profile = MovementProfile.BUILT_IN[history.profileIdOrName] ?: viewModel.selectedProfile.value
-                    onStartSimulation(profile, 0.0)
+                    onStartSimulation(viewModel.selectedProfile.value, history.waypointPauseSec)
                 },
             )
         }

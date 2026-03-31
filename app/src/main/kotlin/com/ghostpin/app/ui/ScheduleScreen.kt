@@ -68,10 +68,11 @@ fun ScheduleScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             OutlinedTextField(
@@ -121,7 +122,11 @@ fun ScheduleScreen(
                     viewModel.createSchedule(
                         startDelayMinutes = startDelayMinutes.toIntOrNull() ?: 5,
                         durationMinutes = durationMinutes.toIntOrNull() ?: 15,
-                        config = defaultConfig.copy(profileName = selectedProfile),
+                        config =
+                            defaultConfig.copy(
+                                profileName = selectedProfile,
+                                profileLookupKey = selectedProfile,
+                            ),
                     )
                 },
                 modifier = Modifier.fillMaxWidth(),
