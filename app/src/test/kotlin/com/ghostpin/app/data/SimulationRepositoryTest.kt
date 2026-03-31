@@ -164,8 +164,7 @@ class SimulationRepositoryTest {
 
         override fun observeAll(): Flow<List<FavoriteSimulationEntity>> = flowOf(favorites.toList())
 
-        override suspend fun listRecent(): List<FavoriteSimulationEntity> =
-            favorites.sortedByDescending { it.updatedAtMs }
+        override suspend fun listRecent(): List<FavoriteSimulationEntity> = favorites.sortedByDescending { it.updatedAtMs }
 
         override suspend fun getById(id: String): FavoriteSimulationEntity? = favorites.firstOrNull { it.id == id }
 

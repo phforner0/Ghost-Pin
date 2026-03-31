@@ -9,7 +9,6 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class RouteImportValidatorTest {
-
     @Test
     fun `accepts content uri`() {
         val result = RouteImportValidator.validateUri(Uri.parse("content://com.test/routes/1"))

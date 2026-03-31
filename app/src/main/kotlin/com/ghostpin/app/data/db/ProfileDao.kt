@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface ProfileDao {
-
     // ── Reads ──────────────────────────────────────────────────────────────
 
     /** Observe all profiles ordered by built-in first, then alphabetically. */

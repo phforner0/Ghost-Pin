@@ -20,7 +20,6 @@ import javax.inject.Inject
  */
 @HiltAndroidApp
 class GhostPinApp : Application() {
-
     companion object {
         const val CHANNEL_SIMULATION = "simulation_channel"
     }
@@ -45,14 +44,15 @@ class GhostPinApp : Application() {
     }
 
     private fun createNotificationChannels() {
-        val channel = NotificationChannel(
-            CHANNEL_SIMULATION,
-            "Simulation Active",
-            NotificationManager.IMPORTANCE_LOW,
-        ).apply {
-            description = "Shows when a GPS simulation is running"
-            setShowBadge(false)
-        }
+        val channel =
+            NotificationChannel(
+                CHANNEL_SIMULATION,
+                "Simulation Active",
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                description = "Shows when a GPS simulation is running"
+                setShowBadge(false)
+            }
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
     }

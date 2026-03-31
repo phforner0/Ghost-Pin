@@ -3,11 +3,9 @@ package com.ghostpin.engine.interpolation
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import kotlin.math.abs
-import kotlin.math.sqrt
 
 class KalmanFilterTest {
-
-    private val dt = 0.2   // 5 Hz — same as simulation default
+    private val dt = 0.2 // 5 Hz — same as simulation default
 
     // ── Initialisation ────────────────────────────────────────────────────
 
@@ -22,12 +20,16 @@ class KalmanFilterTest {
 
     @Test
     fun `converges to constant signal within reasonable iterations`() {
-        val kf     = KalmanFilter1D()
+        val kf = KalmanFilter1D()
         val signal = -23.5505
         repeat(50) { kf.update(signal, dt) }
         val estimate = kf.update(signal, dt)
-        assertEquals(signal, estimate, 1e-4,
-            "Expected convergence to $signal but got $estimate")
+        assertEquals(
+            signal,
+            estimate,
+            1e-4,
+            "Expected convergence to $signal but got $estimate"
+        )
     }
 
     @Test
@@ -39,21 +41,25 @@ class KalmanFilterTest {
         // because the filter strongly smooths, trading responsiveness for stability.
         repeat(500) { kf.update(10.0, dt) }
         val estimate = kf.update(10.0, dt)
-        assertEquals(10.0, estimate, 0.5,
-            "Expected convergence to 10.0 but got $estimate")
+        assertEquals(
+            10.0,
+            estimate,
+            0.5,
+            "Expected convergence to 10.0 but got $estimate"
+        )
     }
 
     // ── Smoothing ─────────────────────────────────────────────────────────
 
     @Test
     fun `output variance is lower than input variance for noisy signal`() {
-        val kf     = KalmanFilter1D(processNoise = 1e-5, measurementNoise = 0.3)
+        val kf = KalmanFilter1D(processNoise = 1e-5, measurementNoise = 0.3)
         val random = java.util.Random(42L)
         val signal = -23.5505
-        val noise  = 0.0002  // ±20cm in degrees (~22m) — realistic GPS noise
+        val noise = 0.0002 // ±20cm in degrees (~22m) — realistic GPS noise
 
-        val inputs    = mutableListOf<Double>()
-        val outputs   = mutableListOf<Double>()
+        val inputs = mutableListOf<Double>()
+        val outputs = mutableListOf<Double>()
 
         // Warm up
         repeat(20) { kf.update(signal + random.nextGaussian() * noise, dt) }
@@ -65,18 +71,20 @@ class KalmanFilterTest {
             outputs.add(kf.update(measurement, dt))
         }
 
-        val inputVar  = variance(inputs)
+        val inputVar = variance(inputs)
         val outputVar = variance(outputs)
 
-        assertTrue(outputVar < inputVar,
-            "Expected Kalman to reduce variance: inputVar=$inputVar outputVar=$outputVar")
+        assertTrue(
+            outputVar < inputVar,
+            "Expected Kalman to reduce variance: inputVar=$inputVar outputVar=$outputVar"
+        )
     }
 
     // ── No NaN ────────────────────────────────────────────────────────────
 
     @Test
     fun `no NaN output for 1000 consecutive updates`() {
-        val kf     = KalmanFilter1D()
+        val kf = KalmanFilter1D()
         val random = java.util.Random(123L)
         repeat(1000) {
             val estimate = kf.update(random.nextGaussian() * 0.001 - 23.55, dt)
@@ -96,16 +104,20 @@ class KalmanFilterTest {
             kf.update(x, dt)
             x += 0.001
         }
-        assertTrue(abs(kf.currentVelocity()) > 0.0,
-            "Expected non-zero velocity for moving signal")
+        assertTrue(
+            abs(kf.currentVelocity()) > 0.0,
+            "Expected non-zero velocity for moving signal"
+        )
     }
 
     @Test
     fun `velocity estimate is near zero for constant signal`() {
         val kf = KalmanFilter1D()
         repeat(100) { kf.update(0.5, dt) }
-        assertTrue(abs(kf.currentVelocity()) < 0.01,
-            "Expected near-zero velocity for constant signal, got ${kf.currentVelocity()}")
+        assertTrue(
+            abs(kf.currentVelocity()) < 0.01,
+            "Expected near-zero velocity for constant signal, got ${kf.currentVelocity()}"
+        )
     }
 
     // ── reset ─────────────────────────────────────────────────────────────

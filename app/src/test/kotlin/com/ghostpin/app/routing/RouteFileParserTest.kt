@@ -10,14 +10,14 @@ import java.io.ByteArrayInputStream
  * Sprint 4 — Task 16.
  */
 class RouteFileParserTest {
-
     private val parser = RouteFileParser()
 
     // ── GPX ──────────────────────────────────────────────────────────────────
 
     @Test
     fun `parses valid GPX track points`() {
-        val gpx = """
+        val gpx =
+            """
             <?xml version="1.0" encoding="UTF-8"?>
             <gpx version="1.1" creator="Test">
               <trk><n>Test Track</n><trkseg>
@@ -26,7 +26,7 @@ class RouteFileParserTest {
                 <trkpt lat="-23.5540" lon="-46.6370"><ele>762.0</ele></trkpt>
               </trkseg></trk>
             </gpx>
-        """.trimIndent()
+            """.trimIndent()
 
         val result = parser.parse(gpx)
         assertTrue(result.isSuccess)
@@ -40,7 +40,8 @@ class RouteFileParserTest {
 
     @Test
     fun `parses GPX route points as fallback when no track points`() {
-        val gpx = """
+        val gpx =
+            """
             <?xml version="1.0"?>
             <gpx version="1.1">
               <rte>
@@ -48,7 +49,7 @@ class RouteFileParserTest {
                 <rtept lat="10.1" lon="20.1"/>
               </rte>
             </gpx>
-        """.trimIndent()
+            """.trimIndent()
 
         val result = parser.parse(gpx)
         assertTrue(result.isSuccess)
@@ -57,14 +58,15 @@ class RouteFileParserTest {
 
     @Test
     fun `GPX parse fails with fewer than 2 valid waypoints`() {
-        val gpx = """
+        val gpx =
+            """
             <?xml version="1.0"?>
             <gpx version="1.1">
               <trk><trkseg>
                 <trkpt lat="-23.55" lon="-46.63"/>
               </trkseg></trk>
             </gpx>
-        """.trimIndent()
+            """.trimIndent()
 
         val result = parser.parse(gpx)
         assertTrue(result.isFailure)
@@ -73,7 +75,8 @@ class RouteFileParserTest {
 
     @Test
     fun `GPX skips invalid coordinates`() {
-        val gpx = """
+        val gpx =
+            """
             <?xml version="1.0"?>
             <gpx version="1.1">
               <trk><trkseg>
@@ -82,7 +85,7 @@ class RouteFileParserTest {
                 <trkpt lat="-23.56" lon="-46.64"/>
               </trkseg></trk>
             </gpx>
-        """.trimIndent()
+            """.trimIndent()
 
         val result = parser.parse(gpx)
         assertTrue(result.isSuccess)
@@ -93,7 +96,8 @@ class RouteFileParserTest {
 
     @Test
     fun `parses valid KML coordinates`() {
-        val kml = """
+        val kml =
+            """
             <?xml version="1.0"?>
             <kml xmlns="http://www.opengis.net/kml/2.2">
               <Document>
@@ -109,7 +113,7 @@ class RouteFileParserTest {
                 </Placemark>
               </Document>
             </kml>
-        """.trimIndent()
+            """.trimIndent()
 
         val result = parser.parse(kml)
         assertTrue(result.isSuccess)
@@ -123,7 +127,8 @@ class RouteFileParserTest {
 
     @Test
     fun `KML parse fails on zero-length route`() {
-        val kml = """
+        val kml =
+            """
             <?xml version="1.0"?>
             <kml><Document><Placemark><LineString>
               <coordinates>
@@ -131,7 +136,7 @@ class RouteFileParserTest {
                 -46.6333,-23.5505,0
               </coordinates>
             </LineString></Placemark></Document></kml>
-        """.trimIndent()
+            """.trimIndent()
 
         val result = parser.parse(kml)
         assertTrue(result.isFailure)
@@ -142,7 +147,8 @@ class RouteFileParserTest {
 
     @Test
     fun `parses valid TCX trackpoints`() {
-        val tcx = """
+        val tcx =
+            """
             <?xml version="1.0"?>
             <TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2">
               <Activities>
@@ -168,7 +174,7 @@ class RouteFileParserTest {
                 </Activity>
               </Activities>
             </TrainingCenterDatabase>
-        """.trimIndent()
+            """.trimIndent()
 
         val result = parser.parse(tcx)
         assertTrue(result.isSuccess)
@@ -208,7 +214,8 @@ class RouteFileParserTest {
 
     @Test
     fun `name override takes precedence over file track name`() {
-        val gpx = """
+        val gpx =
+            """
             <?xml version="1.0"?>
             <gpx version="1.1">
               <trk><n>Original Name</n><trkseg>
@@ -216,7 +223,7 @@ class RouteFileParserTest {
                 <trkpt lat="-23.56" lon="-46.64"/>
               </trkseg></trk>
             </gpx>
-        """.trimIndent()
+            """.trimIndent()
 
         val result = parser.parse(gpx, name = "Custom Name")
         assertTrue(result.isSuccess)
@@ -225,7 +232,8 @@ class RouteFileParserTest {
 
     @Test
     fun `parses valid GPX from input stream`() {
-        val gpx = """
+        val gpx =
+            """
             <?xml version="1.0"?>
             <gpx version="1.1">
               <trk><trkseg>
@@ -233,7 +241,7 @@ class RouteFileParserTest {
                 <trkpt lat="-23.56" lon="-46.64"/>
               </trkseg></trk>
             </gpx>
-        """.trimIndent()
+            """.trimIndent()
 
         val result = parser.parse(ByteArrayInputStream(gpx.toByteArray()), "stream-route.gpx")
 

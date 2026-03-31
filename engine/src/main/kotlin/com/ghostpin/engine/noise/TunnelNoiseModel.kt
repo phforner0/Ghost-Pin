@@ -3,8 +3,6 @@ package com.ghostpin.engine.noise
 import com.ghostpin.core.model.MovementProfile
 import java.util.Random
 import kotlin.math.exp
-import kotlin.math.ln
-import kotlin.math.sqrt
 
 /**
  * Simulates temporary GPS signal loss events (e.g., tunnels, underpasses,
@@ -96,10 +94,11 @@ class TunnelNoiseModel(
 
         // Not in tunnel — maybe start one
         if (random.nextDouble() < profile.tunnelProbabilityPerSec * deltaTimeSec) {
-            remainingTunnelSec = sampleLogNormal(
-                mu = profile.tunnelDurationMeanSec,
-                sigma = profile.tunnelDurationSigmaSec,
-            )
+            remainingTunnelSec =
+                sampleLogNormal(
+                    mu = profile.tunnelDurationMeanSec,
+                    sigma = profile.tunnelDurationSigmaSec,
+                )
             return TunnelEvent(
                 isInTunnel = true,
                 isReAcquiring = false,
@@ -123,7 +122,10 @@ class TunnelNoiseModel(
      * Sample from LogNormal distribution.
      * If X ~ N(μ, σ²), then exp(X) ~ LogNormal(μ, σ²).
      */
-    private fun sampleLogNormal(mu: Double, sigma: Double): Double {
+    private fun sampleLogNormal(
+        mu: Double,
+        sigma: Double
+    ): Double {
         val normal = random.nextGaussian() * sigma + mu
         return exp(normal)
     }

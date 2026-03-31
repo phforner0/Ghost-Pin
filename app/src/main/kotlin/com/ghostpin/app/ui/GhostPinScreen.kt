@@ -8,18 +8,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Gamepad
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -41,25 +41,25 @@ import kotlinx.coroutines.launch
 @Composable
 fun GhostPinTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-            colorScheme =
-                    darkColorScheme(
-                            primary = GhostPinColors.Primary,
-                            onPrimary = GhostPinColors.OnPrimary,
-                            primaryContainer = GhostPinColors.PrimaryDark,
-                            onPrimaryContainer = GhostPinColors.Primary,
-                            secondary = GhostPinColors.TextSecondary,
-                            tertiary = GhostPinColors.Warning,
-                            surface = GhostPinColors.Background,
-                            surfaceVariant = GhostPinColors.SurfaceVariant,
-                            onSurface = GhostPinColors.TextPrimary,
-                            background = GhostPinColors.BackgroundDeep,
-                            onBackground = GhostPinColors.TextPrimary,
-                            error = GhostPinColors.Error,
-                            errorContainer = GhostPinColors.ErrorContainer,
-                            onErrorContainer = GhostPinColors.Error,
-                    ),
-            typography = GhostPinTypography,
-            content = content,
+        colorScheme =
+            darkColorScheme(
+                primary = GhostPinColors.Primary,
+                onPrimary = GhostPinColors.OnPrimary,
+                primaryContainer = GhostPinColors.PrimaryDark,
+                onPrimaryContainer = GhostPinColors.Primary,
+                secondary = GhostPinColors.TextSecondary,
+                tertiary = GhostPinColors.Warning,
+                surface = GhostPinColors.Background,
+                surfaceVariant = GhostPinColors.SurfaceVariant,
+                onSurface = GhostPinColors.TextPrimary,
+                background = GhostPinColors.BackgroundDeep,
+                onBackground = GhostPinColors.TextPrimary,
+                error = GhostPinColors.Error,
+                errorContainer = GhostPinColors.ErrorContainer,
+                onErrorContainer = GhostPinColors.Error,
+            ),
+        typography = GhostPinTypography,
+        content = content,
     )
 }
 
@@ -76,17 +76,17 @@ fun GhostPinTheme(content: @Composable () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GhostPinScreen(
-        viewModel: SimulationViewModel,
-        permissionMessage: String?,
-        lowMemorySignal: Int = 0,
-        onPermissionMessageDismissed: () -> Unit,
-        onStartSimulation: (MovementProfile, Double) -> Unit,
-        onStopSimulation: () -> Unit,
-        onPickGpxFile: () -> Unit = {},
-        onNavigateToRouteEditor: () -> Unit = {},
-        onNavigateToHistory: () -> Unit = {},
-        onNavigateToSchedule: () -> Unit = {},
-        onNavigateToProfiles: () -> Unit = {},
+    viewModel: SimulationViewModel,
+    permissionMessage: String?,
+    lowMemorySignal: Int = 0,
+    onPermissionMessageDismissed: () -> Unit,
+    onStartSimulation: (MovementProfile, Double) -> Unit,
+    onStopSimulation: () -> Unit,
+    onPickGpxFile: () -> Unit = {},
+    onNavigateToRouteEditor: () -> Unit = {},
+    onNavigateToHistory: () -> Unit = {},
+    onNavigateToSchedule: () -> Unit = {},
+    onNavigateToProfiles: () -> Unit = {},
 ) {
     val selectedProfile by viewModel.selectedProfile.collectAsState()
     val selectedMode by viewModel.selectedMode.collectAsState()
@@ -99,21 +99,22 @@ fun GhostPinScreen(
     val configuration = LocalConfiguration.current
 
     val sheetPeekHeight =
-            when {
-                configuration.screenWidthDp < 600 -> 156.dp // compacto
-                configuration.screenWidthDp < 840 -> 192.dp // normal
-                else -> 232.dp // tablet
-            }
+        when {
+            configuration.screenWidthDp < 600 -> 156.dp // compacto
+            configuration.screenWidthDp < 840 -> 192.dp // normal
+            else -> 232.dp // tablet
+        }
 
     // Show Snackbar when permissions are denied
     LaunchedEffect(permissionMessage) {
         if (permissionMessage != null) {
             coroutineScope.launch {
-                val result = snackbarHostState.showSnackbar(
+                val result =
+                    snackbarHostState.showSnackbar(
                         message = permissionMessage,
                         actionLabel = "Open settings",
                         duration = SnackbarDuration.Long,
-                )
+                    )
                 if (result == SnackbarResult.ActionPerformed) {
                     context.startActivity(
                         Intent(
@@ -133,139 +134,143 @@ fun GhostPinScreen(
         }
     }
 
-    val canStartFromFab = when (selectedMode) {
-        AppMode.WAYPOINTS -> false
-        else -> canStartCurrentMode
-    }
+    val canStartFromFab =
+        when (selectedMode) {
+            AppMode.WAYPOINTS -> false
+            else -> canStartCurrentMode
+        }
     val showGlobalFab = isBusy || selectedMode != AppMode.WAYPOINTS
 
     Scaffold(
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-            contentWindowInsets =
-                    WindowInsets.safeDrawing.only(
-                            WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        contentWindowInsets =
+            WindowInsets.safeDrawing.only(
+                WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+            ),
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text("GhostPin", fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                },
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0f),
+                        titleContentColor = MaterialTheme.colorScheme.primary,
                     ),
-            topBar = {
-                TopAppBar(
-                        title = {
-                            Text("GhostPin", fontWeight = FontWeight.Bold, fontSize = 22.sp)
-                        },
-                        colors =
-                                TopAppBarDefaults.topAppBarColors(
-                                        containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0f),
-                                        titleContentColor = MaterialTheme.colorScheme.primary,
-                                ),
-                        actions = {
-                            GhostPinTopBarActions(
-                                viewModel = viewModel,
-                                onNavigateToHistory = onNavigateToHistory,
-                                onNavigateToSchedule = onNavigateToSchedule,
-                                onNavigateToRouteEditor = onNavigateToRouteEditor,
-                                onNavigateToProfiles = onNavigateToProfiles,
-                            )
-                        },
-                )
-            },
-            floatingActionButton = {
-                if (showGlobalFab) {
-                    val fabEnabled = isBusy || canStartFromFab
-                    ExtendedFloatingActionButton(
-                        text = {
-                            Text(if (isBusy) "Stop" else "Start", fontWeight = FontWeight.Bold)
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = if (isBusy) Icons.Default.Stop else Icons.Default.PlayArrow,
-                                contentDescription = if (isBusy) "Stop simulation" else "Start simulation",
-                            )
-                        },
-                        onClick = {
-                            if (fabEnabled) {
-                                if (isBusy) onStopSimulation() else onStartSimulation(selectedProfile, 0.0)
-                            }
-                        },
-                        expanded = true,
-                        containerColor = if (fabEnabled) {
+                actions = {
+                    GhostPinTopBarActions(
+                        viewModel = viewModel,
+                        onNavigateToHistory = onNavigateToHistory,
+                        onNavigateToSchedule = onNavigateToSchedule,
+                        onNavigateToRouteEditor = onNavigateToRouteEditor,
+                        onNavigateToProfiles = onNavigateToProfiles,
+                    )
+                },
+            )
+        },
+        floatingActionButton = {
+            if (showGlobalFab) {
+                val fabEnabled = isBusy || canStartFromFab
+                ExtendedFloatingActionButton(
+                    text = {
+                        Text(if (isBusy) "Stop" else "Start", fontWeight = FontWeight.Bold)
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = if (isBusy) Icons.Default.Stop else Icons.Default.PlayArrow,
+                            contentDescription = if (isBusy) "Stop simulation" else "Start simulation",
+                        )
+                    },
+                    onClick = {
+                        if (fabEnabled) {
+                            if (isBusy) onStopSimulation() else onStartSimulation(selectedProfile, 0.0)
+                        }
+                    },
+                    expanded = true,
+                    containerColor =
+                        if (fabEnabled) {
                             if (isBusy) MaterialTheme.colorScheme.statusError else MaterialTheme.colorScheme.statusSuccess
                         } else {
                             MaterialTheme.colorScheme.surfaceVariant
                         },
-                        contentColor = if (fabEnabled) {
+                    contentColor =
+                        if (fabEnabled) {
                             MaterialTheme.colorScheme.onPrimary
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         },
+                )
+            }
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.panelBackground,
+                contentColor = MaterialTheme.colorScheme.primary
+            ) {
+                AppMode.entries.forEach { mode ->
+                    NavigationBarItem(
+                        selected = selectedMode == mode,
+                        onClick = { viewModel.setAppMode(mode) },
+                        icon = {
+                            when (mode) {
+                                AppMode.CLASSIC ->
+                                    Icon(
+                                        Icons.Default.LocationOn,
+                                        contentDescription = "Classic mode"
+                                    )
+                                AppMode.JOYSTICK ->
+                                    Icon(
+                                        Icons.Default.Gamepad,
+                                        contentDescription = "Joystick mode"
+                                    )
+                                AppMode.WAYPOINTS ->
+                                    Icon(Icons.Default.Map, contentDescription = "Waypoints mode")
+                                AppMode.GPX ->
+                                    Icon(
+                                        Icons.Default.Folder,
+                                        contentDescription = "GPX mode"
+                                    )
+                            }
+                        },
+                        label = { Text(mode.displayName, fontSize = 12.sp) },
+                        colors =
+                            NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                     )
                 }
-            },
-            bottomBar = {
-                NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.panelBackground,
-                        contentColor = MaterialTheme.colorScheme.primary
-                ) {
-                    AppMode.entries.forEach { mode ->
-                        NavigationBarItem(
-                                selected = selectedMode == mode,
-                                onClick = { viewModel.setAppMode(mode) },
-                                icon = {
-                                    when (mode) {
-                                        AppMode.CLASSIC ->
-                                                Icon(
-                                                        Icons.Default.LocationOn,
-                                                        contentDescription = "Classic mode"
-                                                )
-                                        AppMode.JOYSTICK ->
-                                                Icon(
-                                                        Icons.Default.Gamepad,
-                                                        contentDescription = "Joystick mode"
-                                                )
-                                        AppMode.WAYPOINTS ->
-                                                Icon(Icons.Default.Map, contentDescription = "Waypoints mode")
-                                        AppMode.GPX ->
-                                                Icon(
-                                                        Icons.Default.Folder,
-                                                        contentDescription = "GPX mode"
-                                                )
-                                    }
-                                },
-                                label = { Text(mode.displayName, fontSize = 12.sp) },
-                                colors =
-                                        NavigationBarItemDefaults.colors(
-                                                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-                                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                                indicatorColor = MaterialTheme.colorScheme.primary,
-                                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                        )
-                    }
-                }
-            },
-            containerColor = MaterialTheme.colorScheme.background,
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
         BottomSheetScaffold(
-                modifier = Modifier.fillMaxSize().padding(paddingValues),
-                sheetPeekHeight = sheetPeekHeight,
-                sheetDragHandle = { BottomSheetDefaults.DragHandle() },
-                sheetContainerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                sheetContent = {
-                    GhostPinSheetContent(
-                        viewModel = viewModel,
-                        selectedMode = selectedMode,
-                        enabled = !isBusy,
-                        onStartSimulation = onStartSimulation,
-                        onPickGpxFile = onPickGpxFile,
-                    )
-                },
+            modifier = Modifier.fillMaxSize().padding(paddingValues),
+            sheetPeekHeight = sheetPeekHeight,
+            sheetDragHandle = { BottomSheetDefaults.DragHandle() },
+            sheetContainerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            sheetContent = {
+                GhostPinSheetContent(
+                    viewModel = viewModel,
+                    selectedMode = selectedMode,
+                    enabled = !isBusy,
+                    onStartSimulation = onStartSimulation,
+                    onPickGpxFile = onPickGpxFile,
+                )
+            },
         ) { innerPadding ->
             GhostPinMapViewport(
                 viewModel = viewModel,
                 lowMemorySignal = lowMemorySignal,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }
     }
@@ -344,11 +349,13 @@ private fun GhostPinSheetContent(
     val gpxLoadState by viewModel.gpxLoadState.collectAsState()
 
     Column(
-        modifier = Modifier.fillMaxWidth()
-            .navigationBarsPadding()
-            .imePadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .padding(bottom = scaffoldInsets.calculateBottomPadding() + 88.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(bottom = scaffoldInsets.calculateBottomPadding() + 88.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         AnimatedContent(
@@ -360,44 +367,47 @@ private fun GhostPinSheetContent(
             label = "mode_panel",
         ) { mode ->
             when (mode) {
-                AppMode.CLASSIC -> ClassicModePanel(
-                    profiles = profiles,
-                    selectedProfile = selectedProfile,
-                    enabled = enabled,
-                    onSelect = viewModel::selectProfile,
-                    repeatPolicy = repeatPolicy,
-                    repeatCount = repeatCount,
-                    onRepeatPolicyChange = viewModel::setRepeatPolicy,
-                    onRepeatCountChange = viewModel::setRepeatCount,
-                )
+                AppMode.CLASSIC ->
+                    ClassicModePanel(
+                        profiles = profiles,
+                        selectedProfile = selectedProfile,
+                        enabled = enabled,
+                        onSelect = viewModel::selectProfile,
+                        repeatPolicy = repeatPolicy,
+                        repeatCount = repeatCount,
+                        onRepeatPolicyChange = viewModel::setRepeatPolicy,
+                        onRepeatCountChange = viewModel::setRepeatCount,
+                    )
 
                 AppMode.JOYSTICK -> JoystickModePanel()
 
-                AppMode.WAYPOINTS -> WaypointsModePanel(
-                    waypoints = waypoints,
-                    onRemoveWaypoint = viewModel::removeWaypoint,
-                    onClearWaypoints = viewModel::clearWaypoints,
-                    profiles = profiles,
-                    selectedProfile = selectedProfile,
-                    enabled = enabled,
-                    onSelectProfile = viewModel::selectProfile,
-                    geoSuggestions = geoSuggestions,
-                    isSearching = isSearching,
-                    onSearchAddress = viewModel::searchAddress,
-                    onSelectSuggestion = viewModel::addWaypointFromGeoResult,
-                    onClearSuggestions = viewModel::clearSuggestions,
-                    onStart = { pauseSec -> onStartSimulation(selectedProfile, pauseSec) },
-                    repeatPolicy = repeatPolicy,
-                    repeatCount = repeatCount,
-                    onRepeatPolicyChange = viewModel::setRepeatPolicy,
-                    onRepeatCountChange = viewModel::setRepeatCount,
-                )
+                AppMode.WAYPOINTS ->
+                    WaypointsModePanel(
+                        waypoints = waypoints,
+                        onRemoveWaypoint = viewModel::removeWaypoint,
+                        onClearWaypoints = viewModel::clearWaypoints,
+                        profiles = profiles,
+                        selectedProfile = selectedProfile,
+                        enabled = enabled,
+                        onSelectProfile = viewModel::selectProfile,
+                        geoSuggestions = geoSuggestions,
+                        isSearching = isSearching,
+                        onSearchAddress = viewModel::searchAddress,
+                        onSelectSuggestion = viewModel::addWaypointFromGeoResult,
+                        onClearSuggestions = viewModel::clearSuggestions,
+                        onStart = { pauseSec -> onStartSimulation(selectedProfile, pauseSec) },
+                        repeatPolicy = repeatPolicy,
+                        repeatCount = repeatCount,
+                        onRepeatPolicyChange = viewModel::setRepeatPolicy,
+                        onRepeatCountChange = viewModel::setRepeatCount,
+                    )
 
-                AppMode.GPX -> GpxModePanel(
-                    gpxLoadState = gpxLoadState,
-                    onPickFile = onPickGpxFile,
-                    onClearRoute = viewModel::clearGpxRoute,
-                )
+                AppMode.GPX ->
+                    GpxModePanel(
+                        gpxLoadState = gpxLoadState,
+                        onPickFile = onPickGpxFile,
+                        onClearRoute = viewModel::clearGpxRoute,
+                    )
             }
         }
 

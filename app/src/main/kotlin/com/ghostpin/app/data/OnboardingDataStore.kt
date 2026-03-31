@@ -25,28 +25,31 @@ private val Context.onboardingDataStore: DataStore<Preferences>
     by preferencesDataStore(name = "onboarding")
 
 @Singleton
-class OnboardingDataStore @Inject constructor(
-    @ApplicationContext private val context: Context,
-) {
-    companion object {
-        private val KEY_COMPLETE = booleanPreferencesKey("is_onboarding_complete")
-    }
+class OnboardingDataStore
+    @Inject
+    constructor(
+        @ApplicationContext private val context: Context,
+    ) {
+        companion object {
+            private val KEY_COMPLETE = booleanPreferencesKey("is_onboarding_complete")
+        }
 
-    /** Whether the onboarding flow has been completed. emits false if not set. */
-    val isComplete: Flow<Boolean> = context.onboardingDataStore.data
-        .map { prefs -> prefs[KEY_COMPLETE] == true }
+        /** Whether the onboarding flow has been completed. emits false if not set. */
+        val isComplete: Flow<Boolean> =
+            context.onboardingDataStore.data
+                .map { prefs -> prefs[KEY_COMPLETE] == true }
 
-    /** Mark the onboarding as completed. Persists across app restarts. */
-    suspend fun markComplete() {
-        context.onboardingDataStore.edit { prefs ->
-            prefs[KEY_COMPLETE] = true
+        /** Mark the onboarding as completed. Persists across app restarts. */
+        suspend fun markComplete() {
+            context.onboardingDataStore.edit { prefs ->
+                prefs[KEY_COMPLETE] = true
+            }
+        }
+
+        /** Reset onboarding state (for testing/debugging). */
+        suspend fun reset() {
+            context.onboardingDataStore.edit { prefs ->
+                prefs.remove(KEY_COMPLETE)
+            }
         }
     }
-
-    /** Reset onboarding state (for testing/debugging). */
-    suspend fun reset() {
-        context.onboardingDataStore.edit { prefs ->
-            prefs.remove(KEY_COMPLETE)
-        }
-    }
-}

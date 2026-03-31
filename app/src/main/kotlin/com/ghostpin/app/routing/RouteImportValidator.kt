@@ -22,8 +22,11 @@ internal object RouteImportValidator {
         return Result.success(uri)
     }
 
-    fun resolveDisplayName(contentResolver: ContentResolver, uri: Uri): String? {
-        return if (uri.scheme == ContentResolver.SCHEME_CONTENT) {
+    fun resolveDisplayName(
+        contentResolver: ContentResolver,
+        uri: Uri
+    ): String? =
+        if (uri.scheme == ContentResolver.SCHEME_CONTENT) {
             contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
                 val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                 if (nameIndex >= 0 && cursor.moveToFirst()) cursor.getString(nameIndex) else null
@@ -31,5 +34,4 @@ internal object RouteImportValidator {
         } else {
             uri.lastPathSegment?.substringAfterLast('/')
         }
-    }
 }

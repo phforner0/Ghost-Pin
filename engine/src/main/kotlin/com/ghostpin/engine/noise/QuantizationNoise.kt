@@ -21,7 +21,5 @@ class QuantizationNoise(
     /**
      * Quantize a coordinate value to the configured decimal precision.
      */
-    fun quantize(value: Double): Double {
-        return round(value * factor) / factor
-    }
+    fun quantize(value: Double): Double = round(value * factor) / factor
 }

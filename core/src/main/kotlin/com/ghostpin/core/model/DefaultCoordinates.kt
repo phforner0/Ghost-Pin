@@ -10,6 +10,6 @@ package com.ghostpin.core.model
 object DefaultCoordinates {
     const val START_LAT = -23.5505
     const val START_LNG = -46.6333
-    const val END_LAT   = -23.5510
-    const val END_LNG   = -46.6340
+    const val END_LAT = -23.5510
+    const val END_LNG = -46.6340
 }

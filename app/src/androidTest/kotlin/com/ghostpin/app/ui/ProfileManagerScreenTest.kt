@@ -3,10 +3,9 @@ package com.ghostpin.app.ui
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
@@ -23,22 +22,22 @@ import org.junit.Rule
 import org.junit.Test
 
 class ProfileManagerScreenTest {
-
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
     fun existingProfile_canBeUsedFromManagementScreen() {
-        val dao = FakeProfileDao(
-            listOf(
-                ProfileEntity.fromDomain(
-                    profile = MovementProfile.CAR.copy(name = "Scout"),
-                    id = "custom-scout",
-                    isBuiltIn = false,
-                    isCustom = true,
+        val dao =
+            FakeProfileDao(
+                listOf(
+                    ProfileEntity.fromDomain(
+                        profile = MovementProfile.CAR.copy(name = "Scout"),
+                        id = "custom-scout",
+                        isBuiltIn = false,
+                        isCustom = true,
+                    )
                 )
             )
-        )
         val viewModel = ProfileManagerViewModel(ProfileManager(dao))
         var usedProfileName: String? = null
 
@@ -94,7 +93,9 @@ class ProfileManagerScreenTest {
         assertTrue(composeRule.onAllNodesWithText("Runner X").fetchSemanticsNodes().isNotEmpty())
     }
 
-    private class FakeProfileDao(initialProfiles: List<ProfileEntity>) : ProfileDao {
+    private class FakeProfileDao(
+        initialProfiles: List<ProfileEntity>
+    ) : ProfileDao {
         val currentProfiles = MutableStateFlow(initialProfiles)
 
         override fun observeAll(): Flow<List<ProfileEntity>> =
@@ -106,7 +107,11 @@ class ProfileManagerScreenTest {
 
         override suspend fun getById(id: String): ProfileEntity? = currentProfiles.value.firstOrNull { it.id == id }
 
-        override suspend fun getByName(name: String): ProfileEntity? = currentProfiles.value.firstOrNull { it.name == name }
+        override suspend fun getByName(name: String): ProfileEntity? =
+            currentProfiles.value.firstOrNull {
+                it.name ==
+                    name
+            }
 
         override suspend fun countCustom(): Int = currentProfiles.value.count { !it.isBuiltIn }
 

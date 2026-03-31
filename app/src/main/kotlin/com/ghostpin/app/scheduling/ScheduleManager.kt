@@ -13,9 +13,10 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
-internal fun shouldUseExactAlarms(apiLevel: Int, canScheduleExactAlarms: Boolean): Boolean {
-    return apiLevel < Build.VERSION_CODES.S || canScheduleExactAlarms
-}
+internal fun shouldUseExactAlarms(
+    apiLevel: Int,
+    canScheduleExactAlarms: Boolean
+): Boolean = apiLevel < Build.VERSION_CODES.S || canScheduleExactAlarms
 
 @Singleton
 class ScheduleManager
@@ -133,23 +134,26 @@ class ScheduleManager
             if (exactAlarmGranted) {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent)
             } else {
-                Log.w(TAG, LogSanitizer.sanitizeString(
-                    "Exact alarms unavailable; falling back to inexact scheduling."
-                ))
+                Log.w(
+                    TAG,
+                    LogSanitizer.sanitizeString(
+                        "Exact alarms unavailable; falling back to inexact scheduling."
+                    )
+                )
                 alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent)
             }
         }
 
-        private fun canUseExactAlarms(): Boolean {
-            return shouldUseExactAlarms(
+        private fun canUseExactAlarms(): Boolean =
+            shouldUseExactAlarms(
                 apiLevel = Build.VERSION.SDK_INT,
-                canScheduleExactAlarms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    alarmManager.canScheduleExactAlarms()
-                } else {
-                    true
-                }
+                canScheduleExactAlarms =
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        alarmManager.canScheduleExactAlarms()
+                    } else {
+                        true
+                    }
             )
-        }
 
         private fun cancelAlarms(scheduleId: String) {
             alarmManager.cancel(buildPendingIntent(scheduleId, ScheduleReceiver.EVENT_START))

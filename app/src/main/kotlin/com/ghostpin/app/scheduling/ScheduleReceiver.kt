@@ -9,20 +9,24 @@ import com.ghostpin.app.service.SimulationService
 import com.ghostpin.app.service.SimulationState
 import com.ghostpin.core.security.LogSanitizer
 import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class ScheduleReceiver : BroadcastReceiver() {
-
     @Inject lateinit var scheduleDao: ScheduleDao
+
     @Inject lateinit var scheduleManager: ScheduleManager
+
     @Inject lateinit var simulationRepository: SimulationRepository
 
-    override fun onReceive(context: Context, intent: Intent) {
+    override fun onReceive(
+        context: Context,
+        intent: Intent
+    ) {
         val pendingResult = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
@@ -35,7 +39,10 @@ class ScheduleReceiver : BroadcastReceiver() {
         }
     }
 
-    private suspend fun handleScheduleEvent(context: Context, intent: Intent) {
+    private suspend fun handleScheduleEvent(
+        context: Context,
+        intent: Intent
+    ) {
         val scheduleId = intent.getStringExtra(EXTRA_SCHEDULE_ID) ?: return
         val event = intent.getStringExtra(EXTRA_EVENT) ?: return
         val schedule = scheduleDao.getById(scheduleId) ?: return
@@ -43,8 +50,9 @@ class ScheduleReceiver : BroadcastReceiver() {
 
         when (event) {
             EVENT_START -> {
-                val busy = simulationRepository.state.value is SimulationState.Running ||
-                    simulationRepository.state.value is SimulationState.FetchingRoute
+                val busy =
+                    simulationRepository.state.value is SimulationState.Running ||
+                        simulationRepository.state.value is SimulationState.FetchingRoute
                 if (busy) {
                     Log.i(TAG, LogSanitizer.sanitizeString("START ignored; simulation already running."))
                     return
@@ -55,9 +63,10 @@ class ScheduleReceiver : BroadcastReceiver() {
             }
 
             EVENT_STOP -> {
-                val hasActiveSession = simulationRepository.state.value is SimulationState.Running ||
-                    simulationRepository.state.value is SimulationState.Paused ||
-                    simulationRepository.state.value is SimulationState.FetchingRoute
+                val hasActiveSession =
+                    simulationRepository.state.value is SimulationState.Running ||
+                        simulationRepository.state.value is SimulationState.Paused ||
+                        simulationRepository.state.value is SimulationState.FetchingRoute
                 if (!hasActiveSession) {
                     Log.i(TAG, LogSanitizer.sanitizeString("STOP ignored; no active session."))
                     return

@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Test
  * Tests for the sensor coherence filter — validates Gap 3 mitigation.
  */
 class SensorCoherenceTest {
-
     private val profile = MovementProfile.CAR
 
     @Test
@@ -60,8 +59,9 @@ class SensorCoherenceTest {
 
         // The effective max turn rate at high speed should prevent this
         val bearingDelta = kotlin.math.abs(result.bearing - 0f)
-        val effectiveMaxTurn = profile.maxTurnRateDegPerSec *
-            (1.0 - (30.0 / profile.maxSpeedMs) * 0.7)
+        val effectiveMaxTurn =
+            profile.maxTurnRateDegPerSec *
+                (1.0 - (30.0 / profile.maxSpeedMs) * 0.7)
         val maxBearing = effectiveMaxTurn * dt
 
         assertTrue(

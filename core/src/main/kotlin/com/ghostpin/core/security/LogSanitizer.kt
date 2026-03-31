@@ -1,7 +1,5 @@
 package com.ghostpin.core.security
 
-import kotlin.math.abs
-
 /**
  * Sanitizes coordinates and sensitive location data from logs and exports.
  *
@@ -11,13 +9,11 @@ import kotlin.math.abs
  * - Export traces: coordinates can be offset by random amount
  */
 object LogSanitizer {
-
     /**
      * Truncate coordinate to 2 decimal places (~1.1 km resolution).
      * Sufficiently anonymized for area-level debugging without revealing exact location.
      */
-    fun sanitizeCoord(coord: Double): String =
-        java.lang.String.format(java.util.Locale.US, "%.2f", coord) + "°"
+    fun sanitizeCoord(coord: Double): String = java.lang.String.format(java.util.Locale.US, "%.2f", coord) + "°"
 
     /**
      * Remove high-precision coordinates from any string.
@@ -26,8 +22,7 @@ object LogSanitizer {
      */
     private val COORD_REGEX = Regex("""-?\d{1,3}\.\d{4,}""")
 
-    fun sanitizeString(s: String): String =
-        COORD_REGEX.replace(s, "[COORD_REDACTED]")
+    fun sanitizeString(s: String): String = COORD_REGEX.replace(s, "[COORD_REDACTED]")
 
     /**
      * Apply a random offset to coordinates for export anonymization.
@@ -37,6 +32,8 @@ object LogSanitizer {
      * @param offsetDegrees Random offset in degrees (applied additively).
      * @return Offset coordinate.
      */
-    fun offsetCoord(coord: Double, offsetDegrees: Double): Double =
-        coord + offsetDegrees
+    fun offsetCoord(
+        coord: Double,
+        offsetDegrees: Double
+    ): Double = coord + offsetDegrees
 }

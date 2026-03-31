@@ -24,7 +24,6 @@ import com.ghostpin.app.service.SimulationState
  * excessive system resource usage.
  */
 class GhostPinWidget : AppWidgetProvider() {
-
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -40,16 +39,19 @@ class GhostPinWidget : AppWidgetProvider() {
          * Update all widget instances with the current [SimulationState].
          * Called from SimulationService whenever state changes.
          */
-        fun updateAll(context: Context, state: SimulationState) {
+        fun updateAll(
+            context: Context,
+            state: SimulationState
+        ) {
             val manager = AppWidgetManager.getInstance(context)
-            val ids = manager.getAppWidgetIds(
-                ComponentName(context, GhostPinWidget::class.java)
-            )
+            val ids =
+                manager.getAppWidgetIds(
+                    ComponentName(context, GhostPinWidget::class.java)
+                )
             for (id in ids) {
                 updateWidget(context, manager, id, state)
             }
         }
-
 
         private fun updateWidget(
             context: Context,
@@ -60,57 +62,64 @@ class GhostPinWidget : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.ghost_pin_widget_layout)
 
             // ── Status label ─────────────────────────────────────────────────
-            val statusText = when (state) {
-                is SimulationState.Running       -> "Simulating"
-                is SimulationState.Paused        -> "Paused"
-                is SimulationState.FetchingRoute -> "Fetching route…"
-                is SimulationState.Error         -> "Error"
-                is SimulationState.Idle          -> "Stopped"
-            }
+            val statusText =
+                when (state) {
+                    is SimulationState.Running -> "Simulating"
+                    is SimulationState.Paused -> "Paused"
+                    is SimulationState.FetchingRoute -> "Fetching route…"
+                    is SimulationState.Error -> "Error"
+                    is SimulationState.Idle -> "Stopped"
+                }
             views.setTextViewText(R.id.widget_status, statusText)
 
             // ── Profile + progress ────────────────────────────────────────────
-            val secondaryText: String = when (state) {
-                is SimulationState.Running ->
-                    "${state.profileName} · ${(state.progressPercent * 100).toInt()}%"
-                is SimulationState.Paused ->
-                    "${state.profileName} · ${(state.progressPercent * 100).toInt()}% (paused)"
-                is SimulationState.FetchingRoute ->
-                    state.profileName
-                else -> "—"
-            }
+            val secondaryText: String =
+                when (state) {
+                    is SimulationState.Running ->
+                        "${state.profileName} · ${(state.progressPercent * 100).toInt()}%"
+                    is SimulationState.Paused ->
+                        "${state.profileName} · ${(state.progressPercent * 100).toInt()}% (paused)"
+                    is SimulationState.FetchingRoute ->
+                        state.profileName
+                    else -> "—"
+                }
             views.setTextViewText(R.id.widget_profile, secondaryText)
 
             // ── Toggle button ─────────────────────────────────────────────────────
             val isActive = state is SimulationState.Running || state is SimulationState.Paused
             views.setTextViewText(R.id.widget_button, if (isActive) "Stop" else "Start")
 
-            val toggleAction = if (isActive) {
-                SimulationService.ACTION_STOP
-            } else {
-                SimulationService.ACTION_START_LAST_CONFIG
-            }
+            val toggleAction =
+                if (isActive) {
+                    SimulationService.ACTION_STOP
+                } else {
+                    SimulationService.ACTION_START_LAST_CONFIG
+                }
 
-            val toggleIntent = Intent(context, SimulationService::class.java).apply {
-                action = toggleAction
-            }
-            val pendingIntent = PendingIntent.getForegroundService(
-                context,
-                0,
-                toggleIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
+            val toggleIntent =
+                Intent(context, SimulationService::class.java).apply {
+                    action = toggleAction
+                }
+            val pendingIntent =
+                PendingIntent.getForegroundService(
+                    context,
+                    0,
+                    toggleIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
             views.setOnClickPendingIntent(R.id.widget_button, pendingIntent)
 
-            val favoriteIntent = Intent(context, SimulationService::class.java).apply {
-                action = SimulationService.ACTION_START_LAST_FAVORITE
-            }
-            val favoritePendingIntent = PendingIntent.getForegroundService(
-                context,
-                1,
-                favoriteIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
+            val favoriteIntent =
+                Intent(context, SimulationService::class.java).apply {
+                    action = SimulationService.ACTION_START_LAST_FAVORITE
+                }
+            val favoritePendingIntent =
+                PendingIntent.getForegroundService(
+                    context,
+                    1,
+                    favoriteIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
             views.setOnClickPendingIntent(R.id.widget_button_favorite, favoritePendingIntent)
 
             manager.updateAppWidget(widgetId, views)

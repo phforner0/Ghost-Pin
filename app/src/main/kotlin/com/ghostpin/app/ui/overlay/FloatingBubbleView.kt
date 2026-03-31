@@ -22,7 +22,6 @@ class FloatingBubbleView(
     private val onNextWaypoint: () -> Unit,
     private val onPreviousWaypoint: () -> Unit,
 ) : View(context) {
-
     enum class BubbleState { IDLE, RUNNING, PAUSED }
 
     var bubbleState: BubbleState = BubbleState.IDLE
@@ -32,36 +31,42 @@ class FloatingBubbleView(
         }
 
     val windowParams: WindowManager.LayoutParams
-        get() = WindowManager.LayoutParams(
-            BUBBLE_SIZE,
-            BUBBLE_SIZE,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else
-                @Suppress("DEPRECATION")
-                WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT,
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            x = 0
-            y = 400
-        }
+        get() =
+            WindowManager
+                .LayoutParams(
+                    BUBBLE_SIZE,
+                    BUBBLE_SIZE,
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                    } else {
+                        @Suppress("DEPRECATION")
+                        WindowManager.LayoutParams.TYPE_PHONE
+                    },
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    PixelFormat.TRANSLUCENT,
+                ).apply {
+                    gravity = Gravity.TOP or Gravity.START
+                    x = 0
+                    y = 400
+                }
 
-    private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xE01A1A2E.toInt()
-        style = Paint.Style.FILL
-    }
-    private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFF80CBC4.toInt()
-        style = Paint.Style.STROKE
-        strokeWidth = 4f
-    }
-    private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFFE0E0E0.toInt()
-        style = Paint.Style.FILL
-    }
+    private val bgPaint =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xE01A1A2E.toInt()
+            style = Paint.Style.FILL
+        }
+    private val borderPaint =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF80CBC4.toInt()
+            style = Paint.Style.STROKE
+            strokeWidth = 4f
+        }
+    private val iconPaint =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFE0E0E0.toInt()
+            style = Paint.Style.FILL
+        }
     private val statusPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val rect = RectF()
 
@@ -127,7 +132,10 @@ class FloatingBubbleView(
         }
     }
 
-    private fun snapToEdge(wm: WindowManager, params: WindowManager.LayoutParams) {
+    private fun snapToEdge(
+        wm: WindowManager,
+        params: WindowManager.LayoutParams
+    ) {
         val screenWidth = resources.displayMetrics.widthPixels
         val center = params.x + BUBBLE_SIZE / 2
         params.x = if (center < screenWidth / 2) 0 else screenWidth - BUBBLE_SIZE
@@ -149,11 +157,12 @@ class FloatingBubbleView(
 
         canvas.drawRoundRect(rect, cornerRadius, cornerRadius, borderPaint)
 
-        statusPaint.color = when (bubbleState) {
-            BubbleState.RUNNING -> 0xFF00E676.toInt()
-            BubbleState.PAUSED -> 0xFFFFEA00.toInt()
-            BubbleState.IDLE -> 0xFF757575.toInt()
-        }
+        statusPaint.color =
+            when (bubbleState) {
+                BubbleState.RUNNING -> 0xFF00E676.toInt()
+                BubbleState.PAUSED -> 0xFFFFEA00.toInt()
+                BubbleState.IDLE -> 0xFF757575.toInt()
+            }
         statusPaint.setShadowLayer(6f, 0f, 0f, statusPaint.color)
         canvas.drawCircle(width - padding - 16f, padding + 16f, 10f, statusPaint)
         statusPaint.clearShadowLayer()
@@ -169,18 +178,29 @@ class FloatingBubbleView(
         canvas.drawText("›", width * 0.77f, cy + (r * 0.12f), iconPaint)
     }
 
-    private fun drawPlayIcon(canvas: Canvas, cx: Float, cy: Float, r: Float) {
+    private fun drawPlayIcon(
+        canvas: Canvas,
+        cx: Float,
+        cy: Float,
+        r: Float
+    ) {
         val size = r * 0.40f
-        val path = android.graphics.Path().apply {
-            moveTo(cx - size * 0.3f, cy - size)
-            lineTo(cx + size * 0.8f, cy)
-            lineTo(cx - size * 0.3f, cy + size)
-            close()
-        }
+        val path =
+            android.graphics.Path().apply {
+                moveTo(cx - size * 0.3f, cy - size)
+                lineTo(cx + size * 0.8f, cy)
+                lineTo(cx - size * 0.3f, cy + size)
+                close()
+            }
         canvas.drawPath(path, iconPaint)
     }
 
-    private fun drawPauseIcon(canvas: Canvas, cx: Float, cy: Float, r: Float) {
+    private fun drawPauseIcon(
+        canvas: Canvas,
+        cx: Float,
+        cy: Float,
+        r: Float
+    ) {
         val barW = r * 0.12f
         val barH = r * 0.45f
         val gap = r * 0.15f

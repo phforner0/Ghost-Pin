@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface RouteDao {
-
     @Query("SELECT * FROM routes ORDER BY updatedAtMs DESC")
     fun observeAll(): Flow<List<RouteEntity>>
 

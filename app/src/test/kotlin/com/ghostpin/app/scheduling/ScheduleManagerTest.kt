@@ -6,7 +6,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ScheduleManagerTest {
-
     @Test
     fun `uses exact alarms below android s`() {
         assertTrue(shouldUseExactAlarms(Build.VERSION_CODES.R, canScheduleExactAlarms = false))

@@ -51,7 +51,9 @@ class SpeedController(
      * Setting this to 0.0 causes the controller to brake to a stop.
      */
     var targetRatio: Double = initialRatio.coerceIn(0.0, 1.0)
-        set(value) { field = value.coerceIn(0.0, 1.0) }
+        set(value) {
+            field = value.coerceIn(0.0, 1.0)
+        }
 
     /** Computed target speed (m/s) from the current ratio. */
     private val targetSpeedMs: Double
@@ -72,14 +74,15 @@ class SpeedController(
     ): Double {
         require(deltaTimeSec > 0.0) { "deltaTimeSec must be positive" }
 
-        val desired  = desiredSpeed(distToNextWaypoint)
+        val desired = desiredSpeed(distToNextWaypoint)
         val maxDelta = profile.maxAccelMs2 * deltaTimeSec
 
-        currentSpeedMs = when {
-            desired > currentSpeedMs -> min(currentSpeedMs + maxDelta, desired)
-            desired < currentSpeedMs -> max(currentSpeedMs - maxDelta, desired)
-            else                     -> desired
-        }.coerceIn(0.0, profile.maxSpeedMs)
+        currentSpeedMs =
+            when {
+                desired > currentSpeedMs -> min(currentSpeedMs + maxDelta, desired)
+                desired < currentSpeedMs -> max(currentSpeedMs - maxDelta, desired)
+                else -> desired
+            }.coerceIn(0.0, profile.maxSpeedMs)
 
         return currentSpeedMs * deltaTimeSec
     }
@@ -93,7 +96,7 @@ class SpeedController(
 
         // Linear interpolation from minRatio at dist=0 to targetRatio at dist=slowdownRadius
         val fraction = (distToNextWaypoint / WAYPOINT_SLOWDOWN_RADIUS).coerceIn(0.0, 1.0)
-        val ratio    = WAYPOINT_MIN_RATIO + (targetRatio - WAYPOINT_MIN_RATIO) * fraction
+        val ratio = WAYPOINT_MIN_RATIO + (targetRatio - WAYPOINT_MIN_RATIO) * fraction
         return profile.maxSpeedMs * ratio
     }
 

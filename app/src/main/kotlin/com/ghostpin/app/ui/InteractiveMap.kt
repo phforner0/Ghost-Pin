@@ -153,19 +153,19 @@ fun InteractiveMap(
             AndroidView(
                 factory = {
                     mapView.apply {
-                            getMapAsync { mapLibreMap ->
-                                mapController =
-                                    MapController(
-                                        mapView = mapView,
-                                        map = mapLibreMap,
-                                        onMapLongClick = { latLng ->
-                                            onMapLongPress(latLng.latitude, latLng.longitude)
-                                        },
-                                        onMapWarning = { warning -> mapWarning = warning },
-                                    )
-                            }
+                        getMapAsync { mapLibreMap ->
+                            mapController =
+                                MapController(
+                                    mapView = mapView,
+                                    map = mapLibreMap,
+                                    onMapLongClick = { latLng ->
+                                        onMapLongPress(latLng.latitude, latLng.longitude)
+                                    },
+                                    onMapWarning = { warning -> mapWarning = warning },
+                                )
                         }
-                    },
+                    }
+                },
                 modifier = Modifier.fillMaxSize(),
             )
 

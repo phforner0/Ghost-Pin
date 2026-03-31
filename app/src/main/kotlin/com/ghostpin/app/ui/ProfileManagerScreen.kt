@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -85,7 +84,8 @@ fun ProfileManagerScreen(
                 actions = {
                     IconButton(
                         onClick = {
-                            editorState = ProfileEditorState.create(MovementProfile.PEDESTRIAN.copy(name = "Custom Profile"))
+                            editorState =
+                                ProfileEditorState.create(MovementProfile.PEDESTRIAN.copy(name = "Custom Profile"))
                         },
                         modifier = Modifier.testTag("add_profile_button"),
                     ) {
@@ -97,10 +97,11 @@ fun ProfileManagerScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(profiles, key = { it.id }) { profile ->
@@ -126,10 +127,11 @@ fun ProfileManagerScreen(
             initialState = state,
             onDismiss = { editorState = null },
             onSave = { updatedState ->
-                val profile = updatedState.toMovementProfile() ?: run {
-                    pendingMessage = "Revise os campos numéricos do perfil."
-                    return@ProfileEditorDialog
-                }
+                val profile =
+                    updatedState.toMovementProfile() ?: run {
+                        pendingMessage = "Revise os campos numéricos do perfil."
+                        return@ProfileEditorDialog
+                    }
                 if (updatedState.profileId == null) {
                     viewModel.create(
                         profile = profile,
@@ -250,10 +252,11 @@ private fun ProfileEditorDialog(
         title = { Text(if (state.profileId == null) "Novo perfil" else "Editar perfil") },
         text = {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 460.dp)
-                    .verticalScroll(rememberScrollState()),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 460.dp)
+                        .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 SectionHeader("Identidade", "Nome e assinatura visual do perfil")
@@ -267,23 +270,84 @@ private fun ProfileEditorDialog(
                 ) { state = state.copy(name = it) }
 
                 SectionHeader("Ruído e multipath", "Parâmetros de oscilação e reflexões do sinal")
-                ProfileField("Theta", state.theta, supportingText = "Taxa de retorno ao centro do processo OU.") { state = state.copy(theta = it) }
-                ProfileField("Sigma", state.sigma, supportingText = "Intensidade base do ruído do sinal.") { state = state.copy(sigma = it) }
-                ProfileField("pMultipath", state.pMultipath, supportingText = "Probabilidade de reflexões por frame.") { state = state.copy(pMultipath = it) }
-                ProfileField("Laplace scale", state.laplaceScale, supportingText = "Amplitude dos desvios de multipath.") { state = state.copy(laplaceScale = it) }
+                ProfileField("Theta", state.theta, supportingText = "Taxa de retorno ao centro do processo OU.") {
+                    state =
+                        state.copy(theta = it)
+                }
+                ProfileField("Sigma", state.sigma, supportingText = "Intensidade base do ruído do sinal.") {
+                    state =
+                        state.copy(sigma = it)
+                }
+                ProfileField("pMultipath", state.pMultipath, supportingText = "Probabilidade de reflexões por frame.") {
+                    state =
+                        state.copy(pMultipath = it)
+                }
+                ProfileField(
+                    "Laplace scale",
+                    state.laplaceScale,
+                    supportingText = "Amplitude dos desvios de multipath."
+                ) {
+                    state =
+                        state.copy(laplaceScale = it)
+                }
 
                 SectionHeader("Cinética", "Limites físicos de velocidade, aceleração e curva")
-                ProfileField("Velocidade máx (m/s)", state.maxSpeedMs, supportingText = "Use valores condizentes com o tipo de veículo.") { state = state.copy(maxSpeedMs = it) }
-                ProfileField("Aceleração máx (m/s²)", state.maxAccelMs2, supportingText = "Controla suavidade e responsividade.") { state = state.copy(maxAccelMs2 = it) }
-                ProfileField("Turn rate máx (deg/s)", state.maxTurnRateDegPerSec, supportingText = "Limite de curva por segundo.") { state = state.copy(maxTurnRateDegPerSec = it) }
+                ProfileField(
+                    "Velocidade máx (m/s)",
+                    state.maxSpeedMs,
+                    supportingText = "Use valores condizentes com o tipo de veículo."
+                ) {
+                    state =
+                        state.copy(maxSpeedMs = it)
+                }
+                ProfileField(
+                    "Aceleração máx (m/s²)",
+                    state.maxAccelMs2,
+                    supportingText = "Controla suavidade e responsividade."
+                ) {
+                    state =
+                        state.copy(maxAccelMs2 = it)
+                }
+                ProfileField(
+                    "Turn rate máx (deg/s)",
+                    state.maxTurnRateDegPerSec,
+                    supportingText = "Limite de curva por segundo."
+                ) {
+                    state =
+                        state.copy(maxTurnRateDegPerSec = it)
+                }
 
                 SectionHeader("Perda de sinal", "Comportamento de túnel e recuperação")
-                ProfileField("Prob. túnel/s", state.tunnelProbabilityPerSec, supportingText = "Chance de entrar em perda de sinal.") { state = state.copy(tunnelProbabilityPerSec = it) }
-                ProfileField("Duração túnel média", state.tunnelDurationMeanSec, supportingText = "Duração esperada do bloqueio.") { state = state.copy(tunnelDurationMeanSec = it) }
-                ProfileField("Sigma túnel", state.tunnelDurationSigmaSec, supportingText = "Variação da duração do bloqueio.") { state = state.copy(tunnelDurationSigmaSec = it) }
+                ProfileField(
+                    "Prob. túnel/s",
+                    state.tunnelProbabilityPerSec,
+                    supportingText = "Chance de entrar em perda de sinal."
+                ) {
+                    state =
+                        state.copy(tunnelProbabilityPerSec = it)
+                }
+                ProfileField(
+                    "Duração túnel média",
+                    state.tunnelDurationMeanSec,
+                    supportingText = "Duração esperada do bloqueio."
+                ) {
+                    state =
+                        state.copy(tunnelDurationMeanSec = it)
+                }
+                ProfileField(
+                    "Sigma túnel",
+                    state.tunnelDurationSigmaSec,
+                    supportingText = "Variação da duração do bloqueio."
+                ) {
+                    state =
+                        state.copy(tunnelDurationSigmaSec = it)
+                }
 
                 SectionHeader("Saída", "Altitude e quantização final do sinal")
-                ProfileField("Sigma altitude", state.altitudeSigma, supportingText = "Ruído aplicado à altitude.") { state = state.copy(altitudeSigma = it) }
+                ProfileField("Sigma altitude", state.altitudeSigma, supportingText = "Ruído aplicado à altitude.") {
+                    state =
+                        state.copy(altitudeSigma = it)
+                }
                 ProfileField(
                     "Quantização decimal",
                     state.quantizationDecimals,
@@ -334,9 +398,10 @@ private fun ProfileField(
         singleLine = true,
         modifier = Modifier.fillMaxWidth().then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
         isError = isError,
-        keyboardOptions = KeyboardOptions(
-            keyboardType = if (integer) KeyboardType.Number else KeyboardType.Decimal,
-        ),
+        keyboardOptions =
+            KeyboardOptions(
+                keyboardType = if (integer) KeyboardType.Number else KeyboardType.Decimal,
+            ),
         supportingText = {
             when {
                 errorText != null -> Text(errorText, color = MaterialTheme.colorScheme.error)
@@ -347,7 +412,10 @@ private fun ProfileField(
 }
 
 @Composable
-private fun SectionHeader(title: String, subtitle: String) {
+private fun SectionHeader(
+    title: String,
+    subtitle: String
+) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(title, fontWeight = FontWeight.SemiBold)
         Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -366,19 +434,20 @@ private data class ProfileValidation(
                 return ProfileValidation(false, "Informe um nome para o perfil.", nameError = "Nome obrigatório")
             }
 
-            val numericValues = listOf(
-                state.theta to "Theta",
-                state.sigma to "Sigma",
-                state.pMultipath to "pMultipath",
-                state.laplaceScale to "Laplace scale",
-                state.maxSpeedMs to "Velocidade máxima",
-                state.maxAccelMs2 to "Aceleração máxima",
-                state.maxTurnRateDegPerSec to "Turn rate máxima",
-                state.tunnelProbabilityPerSec to "Probabilidade de túnel",
-                state.tunnelDurationMeanSec to "Duração média de túnel",
-                state.tunnelDurationSigmaSec to "Sigma de túnel",
-                state.altitudeSigma to "Sigma de altitude",
-            )
+            val numericValues =
+                listOf(
+                    state.theta to "Theta",
+                    state.sigma to "Sigma",
+                    state.pMultipath to "pMultipath",
+                    state.laplaceScale to "Laplace scale",
+                    state.maxSpeedMs to "Velocidade máxima",
+                    state.maxAccelMs2 to "Aceleração máxima",
+                    state.maxTurnRateDegPerSec to "Turn rate máxima",
+                    state.tunnelProbabilityPerSec to "Probabilidade de túnel",
+                    state.tunnelDurationMeanSec to "Duração média de túnel",
+                    state.tunnelDurationSigmaSec to "Sigma de túnel",
+                    state.altitudeSigma to "Sigma de altitude",
+                )
             val invalidNumeric = numericValues.firstOrNull { it.first.toDoubleOrNull() == null }
             if (invalidNumeric != null) {
                 return ProfileValidation(false, "Revise o campo '${invalidNumeric.second}'.")
@@ -455,62 +524,70 @@ private data class ProfileEditorState(
     companion object {
         fun create(profile: MovementProfile): ProfileEditorState = fromProfile(null, profile)
 
-        fun edit(profileId: String, profile: MovementProfile): ProfileEditorState = fromProfile(profileId, profile)
+        fun edit(
+            profileId: String,
+            profile: MovementProfile
+        ): ProfileEditorState = fromProfile(profileId, profile)
 
-        private fun fromProfile(profileId: String?, profile: MovementProfile): ProfileEditorState = ProfileEditorState(
-            profileId = profileId,
-            name = profile.name,
-            theta = profile.theta.toString(),
-            sigma = profile.sigma.toString(),
-            pMultipath = profile.pMultipath.toString(),
-            laplaceScale = profile.laplaceScale.toString(),
-            maxSpeedMs = profile.maxSpeedMs.toString(),
-            maxAccelMs2 = profile.maxAccelMs2.toString(),
-            maxTurnRateDegPerSec = profile.maxTurnRateDegPerSec.toString(),
-            tunnelProbabilityPerSec = profile.tunnelProbabilityPerSec.toString(),
-            tunnelDurationMeanSec = profile.tunnelDurationMeanSec.toString(),
-            tunnelDurationSigmaSec = profile.tunnelDurationSigmaSec.toString(),
-            altitudeSigma = profile.altitudeSigma.toString(),
-            quantizationDecimals = profile.quantizationDecimals.toString(),
-        )
+        private fun fromProfile(
+            profileId: String?,
+            profile: MovementProfile
+        ): ProfileEditorState =
+            ProfileEditorState(
+                profileId = profileId,
+                name = profile.name,
+                theta = profile.theta.toString(),
+                sigma = profile.sigma.toString(),
+                pMultipath = profile.pMultipath.toString(),
+                laplaceScale = profile.laplaceScale.toString(),
+                maxSpeedMs = profile.maxSpeedMs.toString(),
+                maxAccelMs2 = profile.maxAccelMs2.toString(),
+                maxTurnRateDegPerSec = profile.maxTurnRateDegPerSec.toString(),
+                tunnelProbabilityPerSec = profile.tunnelProbabilityPerSec.toString(),
+                tunnelDurationMeanSec = profile.tunnelDurationMeanSec.toString(),
+                tunnelDurationSigmaSec = profile.tunnelDurationSigmaSec.toString(),
+                altitudeSigma = profile.altitudeSigma.toString(),
+                quantizationDecimals = profile.quantizationDecimals.toString(),
+            )
 
-        val Saver = androidx.compose.runtime.saveable.listSaver<ProfileEditorState, String>(
-            save = {
-                listOf(
-                    it.profileId.orEmpty(),
-                    it.name,
-                    it.theta,
-                    it.sigma,
-                    it.pMultipath,
-                    it.laplaceScale,
-                    it.maxSpeedMs,
-                    it.maxAccelMs2,
-                    it.maxTurnRateDegPerSec,
-                    it.tunnelProbabilityPerSec,
-                    it.tunnelDurationMeanSec,
-                    it.tunnelDurationSigmaSec,
-                    it.altitudeSigma,
-                    it.quantizationDecimals,
-                )
-            },
-            restore = {
-                ProfileEditorState(
-                    profileId = it[0].ifBlank { null },
-                    name = it[1],
-                    theta = it[2],
-                    sigma = it[3],
-                    pMultipath = it[4],
-                    laplaceScale = it[5],
-                    maxSpeedMs = it[6],
-                    maxAccelMs2 = it[7],
-                    maxTurnRateDegPerSec = it[8],
-                    tunnelProbabilityPerSec = it[9],
-                    tunnelDurationMeanSec = it[10],
-                    tunnelDurationSigmaSec = it[11],
-                    altitudeSigma = it[12],
-                    quantizationDecimals = it[13],
-                )
-            },
-        )
+        val Saver =
+            androidx.compose.runtime.saveable.listSaver<ProfileEditorState, String>(
+                save = {
+                    listOf(
+                        it.profileId.orEmpty(),
+                        it.name,
+                        it.theta,
+                        it.sigma,
+                        it.pMultipath,
+                        it.laplaceScale,
+                        it.maxSpeedMs,
+                        it.maxAccelMs2,
+                        it.maxTurnRateDegPerSec,
+                        it.tunnelProbabilityPerSec,
+                        it.tunnelDurationMeanSec,
+                        it.tunnelDurationSigmaSec,
+                        it.altitudeSigma,
+                        it.quantizationDecimals,
+                    )
+                },
+                restore = {
+                    ProfileEditorState(
+                        profileId = it[0].ifBlank { null },
+                        name = it[1],
+                        theta = it[2],
+                        sigma = it[3],
+                        pMultipath = it[4],
+                        laplaceScale = it[5],
+                        maxSpeedMs = it[6],
+                        maxAccelMs2 = it[7],
+                        maxTurnRateDegPerSec = it[8],
+                        tunnelProbabilityPerSec = it[9],
+                        tunnelDurationMeanSec = it[10],
+                        tunnelDurationSigmaSec = it[11],
+                        altitudeSigma = it[12],
+                        quantizationDecimals = it[13],
+                    )
+                },
+            )
     }
 }

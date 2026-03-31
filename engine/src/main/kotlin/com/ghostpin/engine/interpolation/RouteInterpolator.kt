@@ -1,8 +1,8 @@
 package com.ghostpin.engine.interpolation
 
+import com.ghostpin.core.math.GeoMath
 import com.ghostpin.core.model.Route
 import com.ghostpin.core.model.Waypoint
-import com.ghostpin.core.math.GeoMath
 import kotlin.math.*
 
 /**
@@ -17,8 +17,9 @@ import kotlin.math.*
  *   val interp = RouteInterpolator(route)
  *   val frame  = interp.positionAt(distanceTravelledMeters)
  */
-class RouteInterpolator(val route: Route) {
-
+class RouteInterpolator(
+    val route: Route
+) {
     /** Cumulative distances in metres: cumulativeDistances[i] = metres from waypoint[0] to waypoint[i]. */
     val cumulativeDistances: DoubleArray
 
@@ -46,27 +47,28 @@ class RouteInterpolator(val route: Route) {
      * @return [InterpolatedFrame] with lat, lng, bearing and normalised progress [0,1].
      */
     fun positionAt(distanceMeters: Double): InterpolatedFrame {
-        val clamped  = distanceMeters.coerceIn(0.0, totalDistanceMeters)
+        val clamped = distanceMeters.coerceIn(0.0, totalDistanceMeters)
         val progress = if (totalDistanceMeters > 0.0) clamped / totalDistanceMeters else 1.0
-        val wps      = route.waypoints
+        val wps = route.waypoints
 
         // Edge cases
         if (wps.size == 1) return InterpolatedFrame(wps[0].lat, wps[0].lng, 0f, 1.0)
         if (clamped >= totalDistanceMeters) {
-            val last   = wps.last()
-            val prev   = wps[wps.size - 2]
+            val last = wps.last()
+            val prev = wps[wps.size - 2]
             val bearing = bearingBetween(prev.lat, prev.lng, last.lat, last.lng)
             return InterpolatedFrame(last.lat, last.lng, bearing, 1.0)
         }
 
         // Find segment index via binary search on cumulative distances
-        val segIndex = upperBound(cumulativeDistances, clamped)
-            .coerceIn(1, wps.size - 1) - 1
+        val segIndex =
+            upperBound(cumulativeDistances, clamped)
+                .coerceIn(1, wps.size - 1) - 1
 
-        val segStart  = cumulativeDistances[segIndex]
-        val segEnd    = cumulativeDistances[segIndex + 1]
+        val segStart = cumulativeDistances[segIndex]
+        val segEnd = cumulativeDistances[segIndex + 1]
         val segLength = segEnd - segStart
-        val t         = if (segLength > 0.0) (clamped - segStart) / segLength else 0.0
+        val t = if (segLength > 0.0) (clamped - segStart) / segLength else 0.0
 
         return if (wps.size >= 4) {
             catmullRomFrame(wps, segIndex, t, progress)
@@ -78,8 +80,7 @@ class RouteInterpolator(val route: Route) {
     /**
      * Returns the distance in metres from the start to the waypoint at [index].
      */
-    fun distanceToWaypoint(index: Int): Double =
-        cumulativeDistances[index.coerceIn(0, cumulativeDistances.size - 1)]
+    fun distanceToWaypoint(index: Int): Double = cumulativeDistances[index.coerceIn(0, cumulativeDistances.size - 1)]
 
     // ── Catmull-Rom ───────────────────────────────────────────────────────────
 
@@ -90,26 +91,35 @@ class RouteInterpolator(val route: Route) {
         progress: Double,
     ): InterpolatedFrame {
         // Phantom ghost points for smooth tangents at start / end
-        val p0 = if (segIndex > 0) wps[segIndex - 1] else {
-            val a = wps[0]; val b = wps[1]
-            Waypoint(lat = 2.0 * a.lat - b.lat, lng = 2.0 * a.lng - b.lng)
-        }
+        val p0 =
+            if (segIndex > 0) {
+                wps[segIndex - 1]
+            } else {
+                val a = wps[0]
+                val b = wps[1]
+                Waypoint(lat = 2.0 * a.lat - b.lat, lng = 2.0 * a.lng - b.lng)
+            }
         val p1 = wps[segIndex]
         val p2 = wps[segIndex + 1]
-        val p3 = if (segIndex + 2 < wps.size) wps[segIndex + 2] else {
-            val a = wps[wps.size - 2]; val b = wps[wps.size - 1]
-            Waypoint(lat = 2.0 * b.lat - a.lat, lng = 2.0 * b.lng - a.lng)
-        }
+        val p3 =
+            if (segIndex + 2 < wps.size) {
+                wps[segIndex + 2]
+            } else {
+                val a = wps[wps.size - 2]
+                val b = wps[wps.size - 1]
+                Waypoint(lat = 2.0 * b.lat - a.lat, lng = 2.0 * b.lng - a.lng)
+            }
 
-        val lat     = catmullRom(p0.lat, p1.lat, p2.lat, p3.lat, t)
-        val lng     = catmullRom(p0.lng, p1.lng, p2.lng, p3.lng, t)
+        val lat = catmullRom(p0.lat, p1.lat, p2.lat, p3.lat, t)
+        val lng = catmullRom(p0.lng, p1.lng, p2.lng, p3.lng, t)
         // Derive bearing from the spline tangent at t (more accurate than p1→p2)
-        val dt      = 0.01.coerceAtMost(1.0 - t)
+        val dt = 0.01.coerceAtMost(1.0 - t)
         val latAhead = catmullRom(p0.lat, p1.lat, p2.lat, p3.lat, t + dt)
         val lngAhead = catmullRom(p0.lng, p1.lng, p2.lng, p3.lng, t + dt)
-        val bearing = bearingBetween(lat, lng, latAhead, lngAhead)
-            .takeIf { it.isFinite() }
-            ?: bearingBetween(p1.lat, p1.lng, p2.lat, p2.lng)
+        val bearing =
+            bearingBetween(lat, lng, latAhead, lngAhead)
+                .takeIf { it.isFinite() }
+                ?: bearingBetween(p1.lat, p1.lng, p2.lat, p2.lng)
 
         return InterpolatedFrame(lat, lng, bearing, progress)
     }
@@ -119,15 +129,19 @@ class RouteInterpolator(val route: Route) {
      * α = 0.5 (centripetal parameterisation recommended but uniform is fine here).
      */
     private fun catmullRom(
-        p0: Double, p1: Double, p2: Double, p3: Double, t: Double,
+        p0: Double,
+        p1: Double,
+        p2: Double,
+        p3: Double,
+        t: Double,
     ): Double {
         val t2 = t * t
         val t3 = t2 * t
         return 0.5 * (
             (2.0 * p1) +
-            (-p0 + p2) * t +
-            (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 +
-            (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3
+                (-p0 + p2) * t +
+                (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 +
+                (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3
         )
     }
 
@@ -150,8 +164,12 @@ class RouteInterpolator(val route: Route) {
     // ── Geometry helpers ─────────────────────────────────────────────────────
 
     /** Finds the first index i where arr[i] > value (similar to std::upper_bound). */
-    private fun upperBound(arr: DoubleArray, value: Double): Int {
-        var lo = 0; var hi = arr.size
+    private fun upperBound(
+        arr: DoubleArray,
+        value: Double
+    ): Int {
+        var lo = 0
+        var hi = arr.size
         while (lo < hi) {
             val mid = (lo + hi) ushr 1
             if (arr[mid] <= value) lo = mid + 1 else hi = mid
@@ -160,20 +178,27 @@ class RouteInterpolator(val route: Route) {
     }
 
     companion object {
-
         /**
          * Haversine distance between two WGS-84 points, in metres.
          * Delegates to [GeoMath.haversineMeters].
          */
-        fun haversineMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double =
-            GeoMath.haversineMeters(lat1, lng1, lat2, lng2)
+        fun haversineMeters(
+            lat1: Double,
+            lng1: Double,
+            lat2: Double,
+            lng2: Double
+        ): Double = GeoMath.haversineMeters(lat1, lng1, lat2, lng2)
 
         /**
          * Initial bearing from (lat1,lng1) to (lat2,lng2) in degrees [0, 360).
          * Delegates to [GeoMath.bearingBetween].
          */
-        fun bearingBetween(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Float =
-            GeoMath.bearingBetween(lat1, lng1, lat2, lng2)
+        fun bearingBetween(
+            lat1: Double,
+            lng1: Double,
+            lat2: Double,
+            lng2: Double
+        ): Float = GeoMath.bearingBetween(lat1, lng1, lat2, lng2)
     }
 }
 
@@ -217,13 +242,17 @@ class RepeatTraversalController(
         }
     }
 
-    fun totalLapsLabel(): String = when (policy) {
-        RepeatPolicy.NONE -> "1"
-        RepeatPolicy.LOOP_N, RepeatPolicy.PING_PONG_N -> repeatCount.toString()
-        RepeatPolicy.LOOP_INFINITE, RepeatPolicy.PING_PONG_INFINITE -> "∞"
-    }
+    fun totalLapsLabel(): String =
+        when (policy) {
+            RepeatPolicy.NONE -> "1"
+            RepeatPolicy.LOOP_N, RepeatPolicy.PING_PONG_N -> repeatCount.toString()
+            RepeatPolicy.LOOP_INFINITE, RepeatPolicy.PING_PONG_INFINITE -> "∞"
+        }
 
-    fun advance(state: RepeatTraversalState, deltaProgress: Double): RepeatTraversalState {
+    fun advance(
+        state: RepeatTraversalState,
+        deltaProgress: Double
+    ): RepeatTraversalState {
         if (state.completed) return state
 
         var progress = state.progress + deltaProgress * state.direction

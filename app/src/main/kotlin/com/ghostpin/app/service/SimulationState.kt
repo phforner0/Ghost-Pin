@@ -6,7 +6,6 @@ import com.ghostpin.core.model.MockLocation
  * Represents the current state of the [SimulationService].
  */
 sealed class SimulationState {
-
     /** Service is idle — no simulation running. */
     data object Idle : SimulationState()
 
@@ -44,5 +43,7 @@ sealed class SimulationState {
     ) : SimulationState()
 
     /** Simulation encountered an error. */
-    data class Error(val message: String) : SimulationState()
+    data class Error(
+        val message: String
+    ) : SimulationState()
 }

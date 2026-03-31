@@ -10,8 +10,12 @@ import kotlin.test.assertTrue
  * Sprint 9 — Task 33.
  */
 class GeoMathTest {
-
-    private fun assertApprox(expected: Double, actual: Double, tolerance: Double, msg: String = "") {
+    private fun assertApprox(
+        expected: Double,
+        actual: Double,
+        tolerance: Double,
+        msg: String = ""
+    ) {
         assertTrue(abs(expected - actual) <= tolerance, "$msg Expected ~$expected, got $actual (tol=$tolerance)")
     }
 

@@ -29,7 +29,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object SimulationModule {
-
     /**
      * Provides the trajectory validator used to pre-validate routes against
      * profile constraints before simulation starts.
@@ -48,6 +47,5 @@ object SimulationModule {
      * so any injection point that wants a default always receives a valid instance.
      */
     @Provides
-    fun provideLayeredNoiseModel(): LayeredNoiseModel =
-        LayeredNoiseModel.fromProfile(MovementProfile.PEDESTRIAN)
+    fun provideLayeredNoiseModel(): LayeredNoiseModel = LayeredNoiseModel.fromProfile(MovementProfile.PEDESTRIAN)
 }

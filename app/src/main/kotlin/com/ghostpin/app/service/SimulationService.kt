@@ -18,8 +18,8 @@ import com.ghostpin.app.data.SimulationRepository
 import com.ghostpin.app.data.db.ProfileDao
 import com.ghostpin.app.location.MockLocationInjector
 import com.ghostpin.app.routing.OsrmRouteProvider
-import com.ghostpin.app.routing.RouteImportValidator
 import com.ghostpin.app.routing.RouteFileParser
+import com.ghostpin.app.routing.RouteImportValidator
 import com.ghostpin.app.ui.MainActivity
 import com.ghostpin.app.widget.GhostPinWidget
 import com.ghostpin.core.math.GeoMath
@@ -201,10 +201,11 @@ class SimulationService : LifecycleService() {
         }
 
         if (intent.action == ACTION_SET_ROUTE) {
-            val uri = RouteImportValidator.validateUri(intent.data).getOrElse {
-                emitStateAndRefresh(SimulationState.Error(it.message ?: "Missing route URI for ACTION_SET_ROUTE"))
-                return START_NOT_STICKY
-            }
+            val uri =
+                RouteImportValidator.validateUri(intent.data).getOrElse {
+                    emitStateAndRefresh(SimulationState.Error(it.message ?: "Missing route URI for ACTION_SET_ROUTE"))
+                    return START_NOT_STICKY
+                }
 
             lifecycleScope.launch {
                 runCatching {

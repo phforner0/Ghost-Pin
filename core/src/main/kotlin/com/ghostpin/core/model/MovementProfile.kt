@@ -37,88 +37,98 @@ data class MovementProfile(
 ) {
     companion object {
         /** Walking on sidewalks — slow, correlated, moderate multipath near buildings. */
-        val PEDESTRIAN = MovementProfile(
-            name = "Pedestrian",
-            theta = 0.35,
-            sigma = 2.5,
-            pMultipath = 0.04,
-            laplaceScale = 8.0,
-            maxSpeedMs = 2.0,         // ~7.2 km/h
-            maxAccelMs2 = 1.5,
-            maxTurnRateDegPerSec = 90.0,
-            tunnelProbabilityPerSec = 0.0005,
-            tunnelDurationMeanSec = 2.0,
-            tunnelDurationSigmaSec = 0.8,
-            altitudeSigma = 3.0,
-        )
+        val PEDESTRIAN =
+            MovementProfile(
+                name = "Pedestrian",
+                theta = 0.35,
+                sigma = 2.5,
+                pMultipath = 0.04,
+                laplaceScale = 8.0,
+                maxSpeedMs = 2.0, // ~7.2 km/h
+                maxAccelMs2 = 1.5,
+                maxTurnRateDegPerSec = 90.0,
+                tunnelProbabilityPerSec = 0.0005,
+                tunnelDurationMeanSec = 2.0,
+                tunnelDurationSigmaSec = 0.8,
+                altitudeSigma = 3.0,
+            )
 
         /** Urban cycling — moderate speed, slight lateral oscillation. */
-        val BICYCLE = MovementProfile(
-            name = "Bicycle",
-            theta = 0.45,
-            sigma = 3.0,
-            pMultipath = 0.03,
-            laplaceScale = 10.0,
-            maxSpeedMs = 8.3,         // ~30 km/h
-            maxAccelMs2 = 2.5,
-            maxTurnRateDegPerSec = 60.0,
-            tunnelProbabilityPerSec = 0.0008,
-            tunnelDurationMeanSec = 2.5,
-            tunnelDurationSigmaSec = 1.0,
-            altitudeSigma = 2.5,
-        )
+        val BICYCLE =
+            MovementProfile(
+                name = "Bicycle",
+                theta = 0.45,
+                sigma = 3.0,
+                pMultipath = 0.03,
+                laplaceScale = 10.0,
+                maxSpeedMs = 8.3, // ~30 km/h
+                maxAccelMs2 = 2.5,
+                maxTurnRateDegPerSec = 60.0,
+                tunnelProbabilityPerSec = 0.0008,
+                tunnelDurationMeanSec = 2.5,
+                tunnelDurationSigmaSec = 1.0,
+                altitudeSigma = 2.5,
+            )
 
         /** Highway/suburban driving — faster decorrelation, larger errors. */
-        val CAR = MovementProfile(
-            name = "Car",
-            theta = 0.55,
-            sigma = 4.0,
-            pMultipath = 0.03,
-            laplaceScale = 15.0,
-            maxSpeedMs = 33.3,        // ~120 km/h
-            maxAccelMs2 = 4.0,
-            maxTurnRateDegPerSec = 45.0,
-            tunnelProbabilityPerSec = 0.001,
-            tunnelDurationMeanSec = 3.0,
-            tunnelDurationSigmaSec = 1.0,
-            altitudeSigma = 2.0,
-        )
+        val CAR =
+            MovementProfile(
+                name = "Car",
+                theta = 0.55,
+                sigma = 4.0,
+                pMultipath = 0.03,
+                laplaceScale = 15.0,
+                maxSpeedMs = 33.3, // ~120 km/h
+                maxAccelMs2 = 4.0,
+                maxTurnRateDegPerSec = 45.0,
+                tunnelProbabilityPerSec = 0.001,
+                tunnelDurationMeanSec = 3.0,
+                tunnelDurationSigmaSec = 1.0,
+                altitudeSigma = 2.0,
+            )
 
         /** Dense urban: buses, taxis in city center — worst signal conditions. */
-        val URBAN_VEHICLE = MovementProfile(
-            name = "Urban Vehicle",
-            theta = 0.60,
-            sigma = 5.5,
-            pMultipath = 0.06,
-            laplaceScale = 18.0,
-            maxSpeedMs = 16.7,        // ~60 km/h
-            maxAccelMs2 = 3.5,
-            maxTurnRateDegPerSec = 50.0,
-            tunnelProbabilityPerSec = 0.002,
-            tunnelDurationMeanSec = 3.0,
-            tunnelDurationSigmaSec = 1.0,
-            altitudeSigma = 2.0,
-        )
+        val URBAN_VEHICLE =
+            MovementProfile(
+                name = "Urban Vehicle",
+                theta = 0.60,
+                sigma = 5.5,
+                pMultipath = 0.06,
+                laplaceScale = 18.0,
+                maxSpeedMs = 16.7, // ~60 km/h
+                maxAccelMs2 = 3.5,
+                maxTurnRateDegPerSec = 50.0,
+                tunnelProbabilityPerSec = 0.002,
+                tunnelDurationMeanSec = 3.0,
+                tunnelDurationSigmaSec = 1.0,
+                altitudeSigma = 2.0,
+            )
 
         /** Aerial drone — high altitude, minimal obstructions, low noise. */
-        val DRONE = MovementProfile(
-            name = "Drone",
-            theta = 0.25,
-            sigma = 1.8,
-            pMultipath = 0.01,
-            laplaceScale = 5.0,
-            maxSpeedMs = 20.0,        // ~72 km/h
-            maxAccelMs2 = 5.0,
-            maxTurnRateDegPerSec = 120.0,
-            tunnelProbabilityPerSec = 0.0001,
-            tunnelDurationMeanSec = 1.0,
-            tunnelDurationSigmaSec = 0.5,
-            altitudeSigma = 1.5,
-        )
+        val DRONE =
+            MovementProfile(
+                name = "Drone",
+                theta = 0.25,
+                sigma = 1.8,
+                pMultipath = 0.01,
+                laplaceScale = 5.0,
+                maxSpeedMs = 20.0, // ~72 km/h
+                maxAccelMs2 = 5.0,
+                maxTurnRateDegPerSec = 120.0,
+                tunnelProbabilityPerSec = 0.0001,
+                tunnelDurationMeanSec = 1.0,
+                tunnelDurationSigmaSec = 0.5,
+                altitudeSigma = 1.5,
+            )
 
         /** All built-in profiles indexed by name. */
-        val BUILT_IN: Map<String, MovementProfile> = listOf(
-            PEDESTRIAN, BICYCLE, CAR, URBAN_VEHICLE, DRONE
-        ).associateBy { it.name }
+        val BUILT_IN: Map<String, MovementProfile> =
+            listOf(
+                PEDESTRIAN,
+                BICYCLE,
+                CAR,
+                URBAN_VEHICLE,
+                DRONE
+            ).associateBy { it.name }
     }
 }

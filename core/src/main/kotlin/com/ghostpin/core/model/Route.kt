@@ -32,7 +32,7 @@ data class Segment(
     val id: String,
     val fromIndex: Int,
     val toIndex: Int,
-    val distance: Double,          // meters
+    val distance: Double, // meters
     val overrides: SegmentOverrides? = null,
 )
 
@@ -56,14 +56,15 @@ val Route.distanceMeters: Double
         for (i in 0 until waypoints.size - 1) {
             val a = waypoints[i]
             val b = waypoints[i + 1]
-            val R = 6378137.0 // Earth radius in meters
+            val earthRadiusMeters = 6378137.0
             val dLat = Math.toRadians(b.lat - a.lat)
             val dLon = Math.toRadians(b.lng - a.lng)
-            val aVal = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            val aVal =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
                     Math.cos(Math.toRadians(a.lat)) * Math.cos(Math.toRadians(b.lat)) *
                     Math.sin(dLon / 2) * Math.sin(dLon / 2)
             val c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal))
-            dist += R * c
+            dist += earthRadiusMeters * c
         }
         return dist
     }
@@ -82,7 +83,7 @@ val Route.distanceMeters: Double
  * @return Estimated travel time in seconds (excludes waypoint pause durations).
  */
 fun Route.estimateDuration(profile: MovementProfile): Double {
-    val cruiseSpeed = profile.maxSpeedMs * 0.80  // realistic cruise at 80% of peak
+    val cruiseSpeed = profile.maxSpeedMs * 0.80 // realistic cruise at 80% of peak
 
     if (segments.isNotEmpty()) {
         return segments.sumOf { segment ->
@@ -113,9 +114,9 @@ fun formatDuration(seconds: Double): String {
     val s = totalSec % 60
     return when {
         h > 0 && m > 0 -> "${h}h ${m}m"
-        h > 0          -> "${h}h"
+        h > 0 -> "${h}h"
         m > 0 && s > 0 -> "${m}m ${s}s"
-        m > 0          -> "${m}m"
-        else           -> "${s}s"
+        m > 0 -> "${m}m"
+        else -> "${s}s"
     }
 }

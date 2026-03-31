@@ -52,22 +52,24 @@ class LayeredNoiseModel(
         ): LayeredNoiseModel {
             val random = if (seed != null) java.util.Random(seed) else java.util.Random()
 
-            val ou = OrnsteinUhlenbeckNoiseGenerator(
-                theta  = profile.theta,
-                sigma  = profile.sigma,
-                random = random,
-            )
+            val ou =
+                OrnsteinUhlenbeckNoiseGenerator(
+                    theta = profile.theta,
+                    sigma = profile.sigma,
+                    random = random,
+                )
 
-            val multipath = MultipathNoiseModel(
-                ouGenerator  = ou,
-                pMultipath   = profile.pMultipath,
-                laplaceScale = profile.laplaceScale,
-                random       = random,
-            )
+            val multipath =
+                MultipathNoiseModel(
+                    ouGenerator = ou,
+                    pMultipath = profile.pMultipath,
+                    laplaceScale = profile.laplaceScale,
+                    random = random,
+                )
 
-            val tunnel       = TunnelNoiseModel(profile, random)
+            val tunnel = TunnelNoiseModel(profile, random)
             val quantization = QuantizationNoise(profile.quantizationDecimals)
-            val coherence    = SensorCoherenceFilter(profile)
+            val coherence = SensorCoherenceFilter(profile)
 
             return LayeredNoiseModel(profile, multipath, tunnel, quantization, coherence)
         }
@@ -80,8 +82,10 @@ class LayeredNoiseModel(
      * @param deltaTimeSec  Time since last frame (seconds).
      * @return Noisy, coherent [MockLocation] ready for injection.
      */
-    fun applyToLocation(raw: MockLocation, deltaTimeSec: Double): MockLocation {
-
+    fun applyToLocation(
+        raw: MockLocation,
+        deltaTimeSec: Double
+    ): MockLocation {
         // ── 1. Evaluate tunnel state ─────────────────────────────────────────
         val tunnelEvent = tunnel.update(deltaTimeSec)
 
@@ -95,9 +99,9 @@ class LayeredNoiseModel(
             // the last received fix is retained with degraded accuracy.
             val frozen = lastKnownLocation ?: raw
             return frozen.copy(
-                accuracy             = tunnelEvent.accuracyOverride,
+                accuracy = tunnelEvent.accuracyOverride,
                 // Update timing fields so the Location object stays monotonically increasing
-                timestampMs          = raw.timestampMs,
+                timestampMs = raw.timestampMs,
                 elapsedRealtimeNanos = raw.elapsedRealtimeNanos,
             )
         }
@@ -123,19 +127,21 @@ class LayeredNoiseModel(
         val qLng = quantization.quantize(noisyLng)
 
         // ── 4. Dynamic accuracy ──────────────────────────────────────────────
-        val baseAccuracy  = raw.accuracy
-        val jumpPenalty   = if (noise.isJump) baseAccuracy * 0.5f else 0f
-        val speedPenalty  = (raw.speed / profile.maxSpeedMs.toFloat()) * 2f
+        val baseAccuracy = raw.accuracy
+        val jumpPenalty = if (noise.isJump) baseAccuracy * 0.5f else 0f
+        val speedPenalty = (raw.speed / profile.maxSpeedMs.toFloat()) * 2f
         val tunnelPenalty = tunnelEvent?.accuracyOverride ?: 0f
 
-        val dynamicAccuracy = (baseAccuracy + jumpPenalty + speedPenalty + tunnelPenalty)
-            .coerceIn(2f, 50f)
+        val dynamicAccuracy =
+            (baseAccuracy + jumpPenalty + speedPenalty + tunnelPenalty)
+                .coerceIn(2f, 50f)
 
-        val noisyLocation = raw.copy(
-            lat      = qLat,
-            lng      = qLng,
-            accuracy = dynamicAccuracy,
-        )
+        val noisyLocation =
+            raw.copy(
+                lat = qLat,
+                lng = qLng,
+                accuracy = dynamicAccuracy,
+            )
 
         // ── 5. Sensor coherence filter ───────────────────────────────────────
         val result = coherence.apply(noisyLocation, deltaTimeSec, noise.isJump)

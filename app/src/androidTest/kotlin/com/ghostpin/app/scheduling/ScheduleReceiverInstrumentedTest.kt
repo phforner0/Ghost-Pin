@@ -149,8 +149,7 @@ class ScheduleReceiverInstrumentedTest {
                 null
             }
 
-        override suspend fun getAllEnabled(): List<ScheduleEntity> =
-            if (schedule.enabled) listOf(schedule) else emptyList()
+        override suspend fun getAllEnabled(): List<ScheduleEntity> = if (schedule.enabled) listOf(schedule) else emptyList()
 
         override suspend fun findEnabledByStartAt(startAtMs: Long): List<ScheduleEntity> =
             if (schedule.enabled && schedule.startAtMs == startAtMs) listOf(schedule) else emptyList()
