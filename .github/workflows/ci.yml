@@ -32,7 +32,7 @@ jobs:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Build (compile only)
-        run: ./gradlew :app:compileNonplayDebugKotlin --no-daemon
+        run: ./gradlew :app:compileNonplayDebugKotlin :app:compilePlaystoreDebugKotlin :app:compileNonplayDebugAndroidTestKotlin --no-daemon
 
       - name: Unit Tests — core
         run: ./gradlew :core:test --no-daemon
@@ -40,9 +40,11 @@ jobs:
       - name: Unit Tests — engine
         run: ./gradlew :engine:test --no-daemon
 
+      - name: Unit Tests — realism-lab
+        run: ./gradlew :realism-lab:test --no-daemon
+
       - name: Unit Tests — app
         run: ./gradlew :app:testNonplayDebugUnitTest --no-daemon
-        continue-on-error: true  # app tests may need Android stubs
 
       - name: Upload test reports
         if: always()
@@ -52,6 +54,7 @@ jobs:
           path: |
             core/build/reports/tests/
             engine/build/reports/tests/
+            realism-lab/build/reports/tests/
             app/build/reports/tests/
           retention-days: 14
 
@@ -74,4 +77,4 @@ jobs:
         run: |
           curl -sSLO https://github.com/pinterest/ktlint/releases/download/1.5.0/ktlint
           chmod a+x ktlint
-          ./ktlint --reporter=plain "core/src/**/*.kt" "engine/src/**/*.kt" "app/src/**/*.kt" || true
+          ./ktlint --reporter=plain "core/src/**/*.kt" "engine/src/**/*.kt" "app/src/**/*.kt"
