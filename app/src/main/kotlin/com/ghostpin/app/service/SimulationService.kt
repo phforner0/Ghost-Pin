@@ -142,7 +142,7 @@ class SimulationService : LifecycleService() {
         super.onStartCommand(intent, flags, startId)
 
         if (intent == null) {
-            Log.w(TAG, "Received null intent — stopping without starting simulation.")
+            Log.w(TAG, LogSanitizer.sanitizeString("Received null intent — stopping without starting simulation."))
             stopSelf()
             return START_NOT_STICKY
         }
@@ -264,40 +264,24 @@ class SimulationService : LifecycleService() {
             return START_NOT_STICKY
         }
 
-        // ── Parse operating mode ─────────────────────────────────────────────
-        val modeName  = intent.getStringExtra(EXTRA_MODE) ?: AppMode.CLASSIC.name
-        val requestedMode = runCatching { AppMode.valueOf(modeName) }.getOrDefault(AppMode.CLASSIC)
-
-        // ── Resume detection ──────────────────────────────────────────────────
-        val startLatRaw = intent.getDoubleExtra(EXTRA_START_LAT, Double.NaN)
-        val isResume    = repository.state.value is SimulationState.Paused && startLatRaw.isNaN()
-        val appMode = if (isResume && repository.isManualMode.value) AppMode.JOYSTICK else requestedMode
-
-        val frequencyHz = intent.getIntExtra(EXTRA_FREQUENCY_HZ, DEFAULT_FREQUENCY)
-            .coerceIn(MIN_FREQUENCY, MAX_FREQUENCY)
-        val speedRatio = intent.getDoubleExtra(EXTRA_SPEED_RATIO, 1.0).coerceIn(0.0, 1.0)
-        if (speedRatio <= 0.0) {
-            emitStateAndRefresh(SimulationState.Error("Speed ratio must be greater than 0 to start simulation."))
+        val startRequest = parseSimulationStartRequest(
+            intent = intent,
+            repository = repository,
+            resolveProfile = ::resolveProfile,
+            defaultFrequency = DEFAULT_FREQUENCY,
+            minFrequency = MIN_FREQUENCY,
+            maxFrequency = MAX_FREQUENCY,
+        ).getOrElse { error ->
+            emitStateAndRefresh(SimulationState.Error(error.message ?: "Invalid simulation request."))
             stopSelf()
             return START_NOT_STICKY
         }
-        val waypointPauseSec = intent.getDoubleExtra(EXTRA_WAYPOINT_PAUSE_SEC, 0.0).coerceIn(0.0, 30.0)
-        val repeatPolicy = runCatching {
-            val raw = intent.getStringExtra(EXTRA_REPEAT_POLICY)
-                ?: repository.lastUsedConfig.value?.repeatPolicy?.name
-                ?: RepeatPolicy.NONE.name
-            RepeatPolicy.valueOf(raw)
-        }.getOrDefault(RepeatPolicy.NONE)
-        val repeatCount = intent.getIntExtra(
-            EXTRA_REPEAT_COUNT,
-            repository.lastUsedConfig.value?.repeatCount ?: 1,
-        ).coerceAtLeast(1)
 
         // ── Start overlay bubble ──────────────────────────────────────────────
         if (android.provider.Settings.canDrawOverlays(this)) {
             // For JOYSTICK mode pass the auto-open flag so the overlay
             // shows the joystick immediately without a manual toggle.
-            val bubbleIntent = if (appMode == AppMode.JOYSTICK) {
+            val bubbleIntent = if (startRequest.appMode == AppMode.JOYSTICK) {
                 FloatingBubbleService.showJoystickIntent(this)
             } else {
                 FloatingBubbleService.showIntent(this)
@@ -305,7 +289,7 @@ class SimulationService : LifecycleService() {
             startService(bubbleIntent)
         }
 
-        if (isResume) {
+        if (startRequest.isResume) {
             val pausedState = repository.state.value as SimulationState.Paused
             val profile     = MovementProfile.BUILT_IN[pausedState.profileName] ?: MovementProfile.PEDESTRIAN
             startForeground(NOTIFICATION_ID, buildNotification(profile.name))
@@ -315,76 +299,36 @@ class SimulationService : LifecycleService() {
                 startLng    = 0.0,
                 endLat      = 0.0,
                 endLng      = 0.0,
-                frequencyHz = frequencyHz,
-                speedRatio  = speedRatio,
-                appMode     = appMode,
-                waypointPauseSec = waypointPauseSec,
+                frequencyHz = startRequest.frequencyHz,
+                speedRatio  = startRequest.speedRatio,
+                appMode     = startRequest.appMode,
+                waypointPauseSec = startRequest.waypointPauseSec,
                 resumeState = pausedState,
-                repeatPolicy = repeatPolicy,
-                repeatCount = repeatCount,
+                repeatPolicy = startRequest.repeatPolicy,
+                repeatCount = startRequest.repeatCount,
             )
-            return START_NOT_STICKY
-        }
-
-        // ── Normal start ──────────────────────────────────────────────────────
-        val profileName = intent.getStringExtra(EXTRA_PROFILE_NAME) ?: "Pedestrian"
-
-        val startLat = startLatRaw
-            .takeIf { it.isValidLat() } ?: DefaultCoordinates.START_LAT.also {
-                Log.w(TAG, "Invalid startLat received — falling back to default.")
-            }
-        val startLng = intent.getDoubleExtra(EXTRA_START_LNG, DefaultCoordinates.START_LNG)
-            .takeIf { it.isValidLng() } ?: DefaultCoordinates.START_LNG.also {
-                Log.w(TAG, "Invalid startLng received — falling back to default.")
-            }
-        val endLat = intent.getDoubleExtra(EXTRA_END_LAT, DefaultCoordinates.END_LAT)
-            .takeIf { it.isValidLat() } ?: DefaultCoordinates.END_LAT.also {
-                Log.w(TAG, "Invalid endLat received — falling back to default.")
-            }
-        val endLng = intent.getDoubleExtra(EXTRA_END_LNG, DefaultCoordinates.END_LNG)
-            .takeIf { it.isValidLng() } ?: DefaultCoordinates.END_LNG.also {
-                Log.w(TAG, "Invalid endLng received — falling back to default.")
-            }
-
-        val profile = resolveProfile(profileName) ?: MovementProfile.PEDESTRIAN.also {
-            Log.w(TAG, LogSanitizer.sanitizeString("Unknown profile '$profileName' — defaulting to Pedestrian."))
-        }
-
-        val waypointsLat = intent.getDoubleArrayExtra(EXTRA_WAYPOINTS_LAT)
-        val waypointsLng = intent.getDoubleArrayExtra(EXTRA_WAYPOINTS_LNG)
-        val waypointsList = if (waypointsLat != null && waypointsLng != null && waypointsLat.size == waypointsLng.size) {
-            waypointsLat.zip(waypointsLng)
-                .filter { (lat, lng) -> lat.isValidLat() && lng.isValidLng() }
-                .map { com.ghostpin.core.model.Waypoint(it.first, it.second) }
-        } else {
-            emptyList()
-        }
-
-        if (appMode == AppMode.WAYPOINTS && waypointsList.size < 2) {
-            emitStateAndRefresh(SimulationState.Error("Add at least 2 waypoints to start multi-stop mode."))
-            stopSelf()
             return START_NOT_STICKY
         }
 
         repository.emitConfig(
-            SimulationConfig(
-                profileName = profile.name,
-                startLat = startLat,
-                startLng = startLng,
-                endLat = endLat,
-                endLng = endLng,
-                routeId = intent.getStringExtra(EXTRA_ROUTE_ID),
-                appMode = appMode,
-                waypoints = waypointsList,
-                waypointPauseSec = waypointPauseSec,
-                speedRatio = speedRatio,
-                frequencyHz = frequencyHz,
-                repeatPolicy = repeatPolicy,
-                repeatCount = repeatCount,
-            )
+            startRequest.toSimulationConfig(routeId = intent.getStringExtra(EXTRA_ROUTE_ID))
         )
-        startForeground(NOTIFICATION_ID, buildNotification(profile.name))
-        startSimulation(profile, startLat, startLng, endLat, endLng, frequencyHz, speedRatio, appMode, waypointPauseSec = waypointPauseSec, resumeState = null, waypoints = waypointsList, repeatPolicy = repeatPolicy, repeatCount = repeatCount)
+        startForeground(NOTIFICATION_ID, buildNotification(startRequest.profile.name))
+        startSimulation(
+            profile = startRequest.profile,
+            startLat = startRequest.startLat,
+            startLng = startRequest.startLng,
+            endLat = startRequest.endLat,
+            endLng = startRequest.endLng,
+            frequencyHz = startRequest.frequencyHz,
+            speedRatio = startRequest.speedRatio,
+            appMode = startRequest.appMode,
+            waypointPauseSec = startRequest.waypointPauseSec,
+            resumeState = null,
+            waypoints = startRequest.waypoints,
+            repeatPolicy = startRequest.repeatPolicy,
+            repeatCount = startRequest.repeatCount,
+        )
 
         return START_NOT_STICKY
     }
@@ -402,7 +346,7 @@ class SimulationService : LifecycleService() {
                     )
                 }
             }.onFailure { error ->
-                Log.e(TAG, "Failed to finalize history during service destruction", error)
+                Log.e(TAG, LogSanitizer.sanitizeString("Failed to finalize history during service destruction"), error)
             }
             runCatching { mockLocationInjector.unregisterProvider() }
             repository.reset()
@@ -462,94 +406,43 @@ class SimulationService : LifecycleService() {
 
                 // ── 1. Obtain route ──────────────────────────────────────────
                 val config = repository.lastUsedConfig.value
-                val persistedRouteId = config?.routeId
-                val persistedRoute = persistedRouteId?.let { routeRepository.getById(it) }
-                if (persistedRouteId != null && persistedRoute == null) {
-                    emitStateAndRefresh(
-                        SimulationState.Error("Saved route not found for routeId '$persistedRouteId'.")
-                    )
-                    stopSelf()
-                    return@launch
-                }
+                val routeRequest = SimulationRouteRequest(
+                    profile = profile,
+                    startLat = startLat,
+                    startLng = startLng,
+                    endLat = endLat,
+                    endLng = endLng,
+                    appMode = appMode,
+                    waypoints = waypoints,
+                    resumeState = resumeState,
+                    cachedRoute = repository.route.value,
+                    persistedRouteId = config?.routeId,
+                    cachedConfigWaypoints = config?.waypoints ?: emptyList(),
+                )
 
-                val route: Route = when {
-                    // Resume: reuse the existing route already cached in repo
-                    resumeState != null && repository.route.value != null -> {
-                        repository.route.value!!
+                val route: Route = when (val resolved = resolveSimulationRoute(
+                    request = routeRequest,
+                    routeRepository = routeRepository,
+                    simulationRepository = repository,
+                    osrmRouteProvider = osrmRouteProvider,
+                    loggerTag = TAG,
+                )) {
+                    is SimulationRouteResult.Success -> resolved.route
+                    is SimulationRouteResult.Error -> {
+                        emitStateAndRefresh(SimulationState.Error(resolved.message))
+                        stopSelf()
+                        return@launch
                     }
-
-                    persistedRoute != null -> {
-                        repository.emitRoute(persistedRoute)
-                        persistedRoute
-                    }
-
-                    // GPX mode: route was pre-loaded by the ViewModel's file picker.
-                    // Wait briefly in case the coroutine hasn't committed it yet.
-                    appMode == AppMode.GPX -> {
-                        val preloaded = repository.route.value
-                            ?: repository.route.first { it != null }
-                            ?: repository.lastUsedConfig.value
-                                ?.waypoints
-                                ?.takeIf { it.size >= 2 }
-                                ?.let { savedWaypoints ->
-                                    Route(
-                                        id = repository.lastUsedConfig.value?.routeId ?: "gpx-saved-route",
-                                        name = "Saved GPX Route",
-                                        waypoints = savedWaypoints,
-                                    )
-                                }
-                        if (preloaded == null) {
-                            emitStateAndRefresh(SimulationState.Error(
-                                "No GPX route loaded. Please select a .gpx file first."
-                            ))
-                            stopSelf()
-                            return@launch
-                        }
-                        Log.d(TAG, "GPX mode — using pre-loaded route (${preloaded.waypoints.size} pts), skipping OSRM.")
-                        preloaded
-                    }
-
-                    // Joystick mode: no route needed; we park at start position.
-                    appMode == AppMode.JOYSTICK -> {
+                    is SimulationRouteResult.Joystick -> {
                         emitStateAndRefresh(SimulationState.Running(
-                            currentLocation = MockLocation(startLat, startLng, 0.0, 0f, 0f),
+                            currentLocation = MockLocation(resolved.startLat, resolved.startLng, 0.0, 0f, 0f),
                             profileName     = profile.name,
                             progressPercent = 0f,
                             elapsedTimeSec  = 0L,
                             frameCount      = 0L,
                         ))
-                        runJoystickLoop(profile, startLat, startLng, intervalMs)
+                        runJoystickLoop(profile, resolved.startLat, resolved.startLng, intervalMs)
                         return@launch
-                    }
-
-                    // Waypoints Mode -> fetch using multiple points
-                    appMode == AppMode.WAYPOINTS && waypoints.size >= 2 -> {
-                        emitStateAndRefresh(SimulationState.FetchingRoute(profile.name))
-                        val newRoute = osrmRouteProvider
-                            .fetchMultiRoute(waypoints, profile)
-                            .getOrElse { error ->
-                                Log.w(TAG, LogSanitizer.sanitizeString(
-                                    "OSRM multi-fetch failed — straight-line fallback: ${error.message}"
-                                ))
-                                osrmRouteProvider.fallbackMultiRoute(waypoints)
-                            }
-                        repository.emitRoute(newRoute)
-                        newRoute
-                    }
-
-                    // Classic Mode: fetch from OSRM (or fallback)
-                    else -> {
-                        emitStateAndRefresh(SimulationState.FetchingRoute(profile.name))
-                        val newRoute = osrmRouteProvider
-                            .fetchRoute(startLat, startLng, endLat, endLng, profile)
-                            .getOrElse { error ->
-                                Log.w(TAG, LogSanitizer.sanitizeString(
-                                    "OSRM fetch failed — straight-line fallback: ${error.message}"
-                                ))
-                                osrmRouteProvider.fallbackRoute(startLat, startLng, endLat, endLng)
-                            }
-                        repository.emitRoute(newRoute)
-                        newRoute
                     }
                 }
 
@@ -689,7 +582,7 @@ class SimulationService : LifecycleService() {
 
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                Log.e(TAG, "Simulation error", e)
+                Log.e(TAG, LogSanitizer.sanitizeString("Simulation error"), e)
                 finishActiveHistory(
                     resultStatus = "ERROR",
                     distanceMeters = estimateCoveredDistanceMeters(),
@@ -819,7 +712,7 @@ class SimulationService : LifecycleService() {
                     )
                 }
             }.onFailure { error ->
-                Log.e(TAG, "Failed to finalize interrupted history", error)
+                Log.e(TAG, LogSanitizer.sanitizeString("Failed to finalize interrupted history"), error)
             }
         }
         runCatching { mockLocationInjector.unregisterProvider() }

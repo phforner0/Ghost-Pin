@@ -12,8 +12,9 @@ import com.ghostpin.core.security.LogSanitizer
 /**
  * BroadcastReceiver for external automation of GhostPin via ADB or Tasker.
  *
- * Protected by `com.ghostpin.permission.AUTOMATION` (normal protection level)
- * to prevent unauthorised apps from controlling the simulation.
+ * Protected by `com.ghostpin.permission.AUTOMATION` with `signature`
+ * protection level, so only trusted same-signature callers can control
+ * the simulation surface directly.
  *
  * Supported actions:
  *   - `com.ghostpin.ACTION_START`       — Start simulation
@@ -59,7 +60,7 @@ class AutomationReceiver : BroadcastReceiver() {
                     val validProfile = if (MovementProfile.BUILT_IN.containsKey(profileId)) {
                         profileId
                     } else {
-                        Log.w(TAG, "Unknown profile '${LogSanitizer.sanitizeString(profileId)}', defaulting to Car")
+                        Log.w(TAG, LogSanitizer.sanitizeString("Unknown profile '$profileId', defaulting to Car"))
                         "Car"
                     }
                     putExtra(SimulationService.EXTRA_PROFILE_NAME, validProfile)
@@ -80,7 +81,7 @@ class AutomationReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action ?: return
-        Log.i(TAG, "Received action: ${LogSanitizer.sanitizeString(action)}")
+        Log.i(TAG, LogSanitizer.sanitizeString("Received action: $action"))
 
         when (action) {
             ACTION_START -> handleStart(context, intent)
@@ -88,7 +89,7 @@ class AutomationReceiver : BroadcastReceiver() {
             ACTION_PAUSE -> handlePause(context)
             ACTION_SET_ROUTE   -> handleSetRoute(context, intent)
             ACTION_SET_PROFILE -> handleSetProfile(context, intent)
-            else -> Log.w(TAG, "Unknown action: ${LogSanitizer.sanitizeString(action)}")
+            else -> Log.w(TAG, LogSanitizer.sanitizeString("Unknown action: $action"))
         }
     }
 
@@ -113,14 +114,14 @@ class AutomationReceiver : BroadcastReceiver() {
     private fun handleSetRoute(context: Context, intent: Intent) {
         val uriString = intent.getStringExtra(EXTRA_ROUTE_FILE)
         if (uriString.isNullOrBlank()) {
-            Log.w(TAG, "ACTION_SET_ROUTE missing EXTRA_ROUTE_FILE")
+            Log.w(TAG, LogSanitizer.sanitizeString("ACTION_SET_ROUTE missing EXTRA_ROUTE_FILE"))
             return
         }
 
         val uri = try {
             Uri.parse(uriString)
         } catch (e: Exception) {
-            Log.w(TAG, "Invalid route file URI: ${LogSanitizer.sanitizeString(uriString)}")
+            Log.w(TAG, LogSanitizer.sanitizeString("Invalid route file URI: $uriString"))
             return
         }
 
@@ -134,12 +135,12 @@ class AutomationReceiver : BroadcastReceiver() {
     private fun handleSetProfile(context: Context, intent: Intent) {
         val profileId = intent.getStringExtra(EXTRA_PROFILE_ID)
         if (profileId.isNullOrBlank()) {
-            Log.w(TAG, "ACTION_SET_PROFILE missing EXTRA_PROFILE_ID")
+            Log.w(TAG, LogSanitizer.sanitizeString("ACTION_SET_PROFILE missing EXTRA_PROFILE_ID"))
             return
         }
 
         if (!MovementProfile.BUILT_IN.containsKey(profileId)) {
-            Log.w(TAG, "Unknown profile: ${LogSanitizer.sanitizeString(profileId)}")
+            Log.w(TAG, LogSanitizer.sanitizeString("Unknown profile: $profileId"))
             return
         }
 
