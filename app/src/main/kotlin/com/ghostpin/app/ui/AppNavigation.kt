@@ -1,5 +1,8 @@
+@file:Suppress("ktlint:standard:function-naming")
+
 package com.ghostpin.app.ui
 
+import android.net.Uri
 import androidx.compose.runtime.*
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
@@ -39,7 +42,7 @@ fun AppNavHost(
     onPickGpxFile: () -> Unit,
     onImportRouteFile: () -> Unit,
     onExportRouteFile: (String, String) -> Unit,
-    pendingImportedRoute: Pair<String, String>?,
+    pendingImportedRouteUri: Uri?,
     onImportedRouteConsumed: () -> Unit,
 ) {
     val navController = rememberNavController()
@@ -104,7 +107,7 @@ fun AppNavHost(
                 },
                 onImportRouteFile = onImportRouteFile,
                 onExportRouteFile = onExportRouteFile,
-                pendingImportedRoute = pendingImportedRoute,
+                pendingImportedRouteUri = pendingImportedRouteUri,
                 onImportedRouteConsumed = onImportedRouteConsumed,
             )
         }

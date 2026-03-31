@@ -13,12 +13,15 @@ import org.junit.Test
  * [GeocodingProvider.parseResults] without needing an Android context.
  */
 class GeocodingProviderTest {
-
     /**
      * Local reimplementation of the Nominatim parse logic for testing.
      * Mirrors [GeocodingProvider.parseResults] exactly.
      */
-    private data class GeoResult(val displayName: String, val lat: Double, val lng: Double)
+    private data class GeoResult(
+        val displayName: String,
+        val lat: Double,
+        val lng: Double
+    )
 
     private fun parseResults(json: String): List<GeoResult> {
         val array = JSONArray(json)
@@ -37,12 +40,13 @@ class GeocodingProviderTest {
 
     @Test
     fun `parses valid Nominatim response`() {
-        val json = """
+        val json =
+            """
             [
               {"lat": "-23.5505199", "lon": "-46.6333094", "display_name": "São Paulo, SP, Brazil"},
               {"lat": "-22.9068467", "lon": "-43.1728965", "display_name": "Rio de Janeiro, RJ, Brazil"}
             ]
-        """.trimIndent()
+            """.trimIndent()
 
         val results = parseResults(json)
         assertEquals(2, results.size)
@@ -60,12 +64,13 @@ class GeocodingProviderTest {
 
     @Test
     fun `skips entries with missing lat`() {
-        val json = """
+        val json =
+            """
             [
               {"lon": "-46.6333", "display_name": "Missing lat"},
               {"lat": "-22.9", "lon": "-43.1", "display_name": "Valid"}
             ]
-        """.trimIndent()
+            """.trimIndent()
 
         val results = parseResults(json)
         assertEquals(1, results.size)
@@ -89,9 +94,10 @@ class GeocodingProviderTest {
 
     @Test
     fun `handles many results`() {
-        val entries = (1..20).joinToString(",") { i ->
-            """{"lat": "-23.$i", "lon": "-46.$i", "display_name": "Location $i"}"""
-        }
+        val entries =
+            (1..20).joinToString(",") { i ->
+                """{"lat": "-23.$i", "lon": "-46.$i", "display_name": "Location $i"}"""
+            }
         val results = parseResults("[$entries]")
         assertEquals(20, results.size)
     }

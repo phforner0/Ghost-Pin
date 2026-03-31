@@ -45,7 +45,10 @@ class KalmanFilter1D(
      * @param deltaTimeSec  Time elapsed since the previous call (must be > 0).
      * @return Smoothed position estimate.
      */
-    fun update(measurement: Double, deltaTimeSec: Double): Double {
+    fun update(
+        measurement: Double,
+        deltaTimeSec: Double
+    ): Double {
         require(deltaTimeSec > 0.0) { "deltaTimeSec must be positive" }
 
         if (!initialized) {
@@ -74,11 +77,11 @@ class KalmanFilter1D(
         val innovation = measurement - predPos
 
         // Innovation covariance: S = H * P' * H^T + R = P'[0][0] + R
-        val S = pp00 + measurementNoise
+        val innovationCovariance = pp00 + measurementNoise
 
         // Kalman gain: K = P' * H^T / S
-        val k0 = pp00 / S   // gain for position update
-        val k1 = pp10 / S   // gain for velocity update
+        val k0 = pp00 / innovationCovariance // gain for position update
+        val k1 = pp10 / innovationCovariance // gain for velocity update
 
         // Updated state
         pos = predPos + k0 * innovation
@@ -106,7 +109,9 @@ class KalmanFilter1D(
         initialized = false
         pos = 0.0
         vel = 0.0
-        p00 = 1.0; p01 = 0.0
-        p10 = 0.0; p11 = 1.0
+        p00 = 1.0
+        p01 = 0.0
+        p10 = 0.0
+        p11 = 1.0
     }
 }

@@ -7,7 +7,6 @@ import androidx.room.Query
 
 @Dao
 interface SimulationHistoryDao {
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entity: SimulationHistoryEntity)
 
@@ -18,7 +17,10 @@ interface SimulationHistoryDao {
         LIMIT :limit OFFSET :offset
         """
     )
-    suspend fun listPaged(limit: Int, offset: Int): List<SimulationHistoryEntity>
+    suspend fun listPaged(
+        limit: Int,
+        offset: Int
+    ): List<SimulationHistoryEntity>
 
     @Query("SELECT * FROM simulation_history WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): SimulationHistoryEntity?

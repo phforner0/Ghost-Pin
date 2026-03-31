@@ -12,7 +12,6 @@ import org.junit.Test
  * through reflection or via equivalent inline logic.
  */
 class ProfileManagerSemverTest {
-
     /**
      * Replicates the bumpPatch logic from [ProfileManager] for isolated testing.
      */

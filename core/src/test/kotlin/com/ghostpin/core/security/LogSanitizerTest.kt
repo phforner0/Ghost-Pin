@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test
  * Tests for the LogSanitizer.
  */
 class LogSanitizerTest {
-
     @Test
     fun `sanitizeCoord truncates to 2 decimal places`() {
         assertEquals("-23.55°", LogSanitizer.sanitizeCoord(-23.550520))

@@ -22,8 +22,11 @@ internal fun resolveSegmentRuntimeBehavior(
 ): SegmentRuntimeBehavior {
     val normalizedBaseRatio = baseSpeedRatio.coerceIn(0.0, 1.0)
     val segmentOverride = route.segments.getOrNull(segmentIndex)?.overrides
-    val targetRatio = ((segmentOverride?.speedOverrideMs ?: (profile.maxSpeedMs * normalizedBaseRatio)) / profile.maxSpeedMs)
-        .coerceIn(0.0, 1.0)
+    val targetRatio =
+        (
+            (segmentOverride?.speedOverrideMs ?: (profile.maxSpeedMs * normalizedBaseRatio)) /
+                profile.maxSpeedMs
+        ).coerceIn(0.0, 1.0)
     val pauseSec = (segmentOverride?.pauseDurationSec ?: defaultWaypointPauseSec).coerceAtLeast(0.0)
 
     // Segment loop overrides are intentionally one-shot and only apply when

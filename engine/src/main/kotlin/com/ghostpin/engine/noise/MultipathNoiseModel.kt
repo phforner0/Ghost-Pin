@@ -1,10 +1,10 @@
 package com.ghostpin.engine.noise
 
 import com.ghostpin.core.model.NoiseVector
+import java.util.Random
 import kotlin.math.abs
 import kotlin.math.ln
 import kotlin.math.sign
-import java.util.Random
 
 /**
  * Multipath urban noise model — mixture of OU base noise + Laplace heavy-tail jumps.
@@ -80,7 +80,10 @@ class MultipathNoiseModel(
      * @param mu Location parameter (default 0).
      * @param scale Scale parameter b (controls spread).
      */
-    private fun laplaceSample(mu: Double = 0.0, scale: Double): Double {
+    private fun laplaceSample(
+        mu: Double = 0.0,
+        scale: Double
+    ): Double {
         val u = random.nextDouble() - 0.5
         return mu - scale * sign(u) * ln(1.0 - 2.0 * abs(u))
     }

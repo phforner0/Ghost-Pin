@@ -1,8 +1,8 @@
 package com.ghostpin.engine.validation
 
+import com.ghostpin.core.math.GeoMath
 import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.model.Route
-import com.ghostpin.core.math.GeoMath
 import kotlin.math.*
 
 /**
@@ -18,7 +18,6 @@ import kotlin.math.*
  * 3. Route has sufficient waypoints
  */
 class TrajectoryValidator {
-
     /**
      * Validate a route against profile constraints.
      *
@@ -26,7 +25,10 @@ class TrajectoryValidator {
      * @param profile The active movement profile.
      * @return [ValidationResult] with any warnings.
      */
-    fun validate(route: Route, profile: MovementProfile): ValidationResult {
+    fun validate(
+        route: Route,
+        profile: MovementProfile
+    ): ValidationResult {
         val warnings = mutableListOf<String>()
 
         // Validate segments: check required speed
@@ -72,7 +74,7 @@ class TrajectoryValidator {
 
                 val maxTurn = profile.maxTurnRateDegPerSec * estimatedTime
                 if (angleDelta > maxTurn && estimatedTime < 10.0) {
-                    warnings += "Waypoint ${i} (${curr.lat}, ${curr.lng}): bearing change " +
+                    warnings += "Waypoint $i (${curr.lat}, ${curr.lng}): bearing change " +
                         "${"%.1f".format(angleDelta)}° exceeds max " +
                         "${"%.1f".format(maxTurn)}° for estimated transit time " +
                         "${"%.1f".format(estimatedTime)}s"
@@ -85,7 +87,6 @@ class TrajectoryValidator {
             warnings = warnings,
         )
     }
-
 }
 
 /**

@@ -14,19 +14,20 @@ import org.junit.Test
  * and are parseable back by [RouteFileParser] (round-trip test).
  */
 class RouteFileExporterTest {
-
     private val exporter = RouteFileExporter()
     private val parser = RouteFileParser()
 
-    private val testRoute = Route(
-        id = "test-export",
-        name = "SP Test Route",
-        waypoints = listOf(
-            Waypoint(lat = -23.5505, lng = -46.6333, altitude = 760.0),
-            Waypoint(lat = -23.5520, lng = -46.6350, altitude = 761.5),
-            Waypoint(lat = -23.5540, lng = -46.6370, altitude = 762.0),
-        ),
-    )
+    private val testRoute =
+        Route(
+            id = "test-export",
+            name = "SP Test Route",
+            waypoints =
+                listOf(
+                    Waypoint(lat = -23.5505, lng = -46.6333, altitude = 760.0),
+                    Waypoint(lat = -23.5520, lng = -46.6350, altitude = 761.5),
+                    Waypoint(lat = -23.5540, lng = -46.6370, altitude = 762.0),
+                ),
+        )
 
     // ── GPX ──────────────────────────────────────────────────────────────────
 

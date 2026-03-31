@@ -12,8 +12,8 @@ import com.ghostpin.app.ui.overlay.FloatingBubbleView
 import com.ghostpin.app.ui.overlay.JoystickView
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import javax.inject.Inject
 
 /**
@@ -36,20 +36,17 @@ import javax.inject.Inject
  */
 @AndroidEntryPoint
 class FloatingBubbleService : Service() {
-
     companion object {
-        const val ACTION_SHOW           = "com.ghostpin.action.SHOW_BUBBLE"
-        const val ACTION_HIDE           = "com.ghostpin.action.HIDE_BUBBLE"
+        const val ACTION_SHOW = "com.ghostpin.action.SHOW_BUBBLE"
+        const val ACTION_HIDE = "com.ghostpin.action.HIDE_BUBBLE"
         const val ACTION_TOGGLE_JOYSTICK = "com.ghostpin.action.TOGGLE_JOYSTICK"
 
         /** Sprint 6 — Task 24: forces joystick visible without toggling. */
-        const val ACTION_SHOW_JOYSTICK  = "com.ghostpin.action.SHOW_JOYSTICK"
+        const val ACTION_SHOW_JOYSTICK = "com.ghostpin.action.SHOW_JOYSTICK"
 
-        fun showIntent(context: Context): Intent =
-            Intent(context, FloatingBubbleService::class.java).setAction(ACTION_SHOW)
+        fun showIntent(context: Context): Intent = Intent(context, FloatingBubbleService::class.java).setAction(ACTION_SHOW)
 
-        fun hideIntent(context: Context): Intent =
-            Intent(context, FloatingBubbleService::class.java).setAction(ACTION_HIDE)
+        fun hideIntent(context: Context): Intent = Intent(context, FloatingBubbleService::class.java).setAction(ACTION_HIDE)
 
         /**
          * Sprint 6 — Task 24: call this from [SimulationService] when entering
@@ -71,10 +68,14 @@ class FloatingBubbleService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    override fun onStartCommand(
+        intent: Intent?,
+        flags: Int,
+        startId: Int
+    ): Int {
         when (intent?.action) {
-            ACTION_SHOW           -> showBubble()
-            ACTION_HIDE           -> {
+            ACTION_SHOW -> showBubble()
+            ACTION_HIDE -> {
                 removeBubble()
                 stopSelf()
             }
@@ -82,7 +83,7 @@ class FloatingBubbleService : Service() {
 
             // Sprint 6 — Task 24: ensure bubble is visible, then show joystick directly.
             // Unlike ACTION_TOGGLE_JOYSTICK this never hides — it only shows.
-            ACTION_SHOW_JOYSTICK  -> {
+            ACTION_SHOW_JOYSTICK -> {
                 if (bubbleView == null) showBubble()
                 showJoystick()
             }
@@ -105,25 +106,27 @@ class FloatingBubbleService : Service() {
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         windowManager = wm
 
-        val bubble = FloatingBubbleView(
-            context = this,
-            onPlay  = { startSimulation() },
-            onPause = { pauseSimulation() },
-            onStop  = { stopSimulation() },
-            onNextWaypoint = { skipNextWaypoint() },
-            onPreviousWaypoint = { skipPreviousWaypoint() },
-        )
+        val bubble =
+            FloatingBubbleView(
+                context = this,
+                onPlay = { startSimulation() },
+                onPause = { pauseSimulation() },
+                onStop = { stopSimulation() },
+                onNextWaypoint = { skipNextWaypoint() },
+                onPreviousWaypoint = { skipPreviousWaypoint() },
+            )
         bubbleView = bubble
         wm.addView(bubble, bubble.windowParams)
 
         // Observe simulation state → sync bubble indicator
         serviceScope.launch {
             simulationRepository.state.collectLatest { state ->
-                bubble.bubbleState = when (state) {
-                    is SimulationState.Running -> FloatingBubbleView.BubbleState.RUNNING
-                    is SimulationState.Paused  -> FloatingBubbleView.BubbleState.PAUSED
-                    else                       -> FloatingBubbleView.BubbleState.IDLE
-                }
+                bubble.bubbleState =
+                    when (state) {
+                        is SimulationState.Running -> FloatingBubbleView.BubbleState.RUNNING
+                        is SimulationState.Paused -> FloatingBubbleView.BubbleState.PAUSED
+                        else -> FloatingBubbleView.BubbleState.IDLE
+                    }
             }
         }
     }
@@ -131,7 +134,10 @@ class FloatingBubbleService : Service() {
     private fun removeBubble() {
         val wm = windowManager ?: return
         bubbleView?.let {
-            try { wm.removeView(it) } catch (_: Exception) {}
+            try {
+                wm.removeView(it)
+            } catch (_: Exception) {
+            }
         }
         bubbleView = null
         removeJoystick()
@@ -147,35 +153,41 @@ class FloatingBubbleService : Service() {
         if (joystickView != null) return // already visible — idempotent
         val wm = windowManager ?: return
 
-        val sizePx = TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP,
-            JoystickView.RECOMMENDED_SIZE_DP.toFloat(),
-            resources.displayMetrics,
-        ).toInt()
+        val sizePx =
+            TypedValue
+                .applyDimension(
+                    TypedValue.COMPLEX_UNIT_DIP,
+                    JoystickView.RECOMMENDED_SIZE_DP.toFloat(),
+                    resources.displayMetrics,
+                ).toInt()
 
         val joy = JoystickView(this)
-        joystickView    = joy
+        joystickView = joy
         isJoystickVisible = true
         simulationRepository.setManualMode(true)
 
-        val params = WindowManager.LayoutParams(
-            sizePx, sizePx,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-            android.graphics.PixelFormat.TRANSLUCENT,
-        ).apply {
-            gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
-            x = 32
-            y = 200
-        }
+        val params =
+            WindowManager
+                .LayoutParams(
+                    sizePx,
+                    sizePx,
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                    android.graphics.PixelFormat.TRANSLUCENT,
+                ).apply {
+                    gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
+                    x = 32
+                    y = 200
+                }
         wm.addView(joy, params)
 
         joystickCollectionJob?.cancel()
-        joystickCollectionJob = serviceScope.launch {
-            joy.state.collect { state ->
-                simulationRepository.updateJoystickState(state)
+        joystickCollectionJob =
+            serviceScope.launch {
+                joy.state.collect { state ->
+                    simulationRepository.updateJoystickState(state)
+                }
             }
-        }
     }
 
     private fun removeJoystick() {
@@ -183,11 +195,17 @@ class FloatingBubbleService : Service() {
         joystickCollectionJob?.cancel()
         joystickCollectionJob = null
         joystickView?.let {
-            try { wm.removeView(it) } catch (_: Exception) {}
+            try {
+                wm.removeView(it)
+            } catch (_: Exception) {
+            }
         }
-        joystickView    = null
+        joystickView = null
         isJoystickVisible = false
-        simulationRepository.updateJoystickState(com.ghostpin.core.model.JoystickState(0f, 0f))
+        simulationRepository.updateJoystickState(
+            com.ghostpin.core.model
+                .JoystickState(0f, 0f)
+        )
         simulationRepository.setManualMode(false)
     }
 
@@ -208,7 +226,6 @@ class FloatingBubbleService : Service() {
             }
         )
     }
-
 
     private fun skipNextWaypoint() {
         startService(

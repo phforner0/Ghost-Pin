@@ -9,20 +9,21 @@ import kotlin.math.pow
  * Tests for the multipath noise model — validates Gap 2 fix.
  */
 class MultipathNoiseTest {
-
     @Test
     fun `excess kurtosis is positive with multipath`() {
-        val ou = OrnsteinUhlenbeckNoiseGenerator(
-            theta = 0.55,
-            sigma = 4.0,
-            random = Random(42),
-        )
-        val model = MultipathNoiseModel(
-            ouGenerator = ou,
-            pMultipath = 0.04,
-            laplaceScale = 15.0,
-            random = Random(42),
-        )
+        val ou =
+            OrnsteinUhlenbeckNoiseGenerator(
+                theta = 0.55,
+                sigma = 4.0,
+                random = Random(42),
+            )
+        val model =
+            MultipathNoiseModel(
+                ouGenerator = ou,
+                pMultipath = 0.04,
+                laplaceScale = 15.0,
+                random = Random(42),
+            )
 
         val samples = mutableListOf<Double>()
         repeat(50_000) {
@@ -40,15 +41,19 @@ class MultipathNoiseTest {
     @Test
     fun `jump frequency matches pMultipath within tolerance`() {
         val pMultipath = 0.04
-        val ou = OrnsteinUhlenbeckNoiseGenerator(
-            theta = 0.35, sigma = 2.5, random = Random(123)
-        )
-        val model = MultipathNoiseModel(
-            ouGenerator = ou,
-            pMultipath = pMultipath,
-            laplaceScale = 8.0,
-            random = Random(123),
-        )
+        val ou =
+            OrnsteinUhlenbeckNoiseGenerator(
+                theta = 0.35,
+                sigma = 2.5,
+                random = Random(123)
+            )
+        val model =
+            MultipathNoiseModel(
+                ouGenerator = ou,
+                pMultipath = pMultipath,
+                laplaceScale = 8.0,
+                random = Random(123),
+            )
 
         var jumpCount = 0
         val total = 100_000
@@ -66,15 +71,19 @@ class MultipathNoiseTest {
 
     @Test
     fun `no jumps when pMultipath is zero`() {
-        val ou = OrnsteinUhlenbeckNoiseGenerator(
-            theta = 0.5, sigma = 2.0, random = Random(42)
-        )
-        val model = MultipathNoiseModel(
-            ouGenerator = ou,
-            pMultipath = 0.0,
-            laplaceScale = 10.0,
-            random = Random(42),
-        )
+        val ou =
+            OrnsteinUhlenbeckNoiseGenerator(
+                theta = 0.5,
+                sigma = 2.0,
+                random = Random(42)
+            )
+        val model =
+            MultipathNoiseModel(
+                ouGenerator = ou,
+                pMultipath = 0.0,
+                laplaceScale = 10.0,
+                random = Random(42),
+            )
 
         var jumpCount = 0
         repeat(10_000) {
@@ -85,15 +94,19 @@ class MultipathNoiseTest {
 
     @Test
     fun `reset clears jump state`() {
-        val ou = OrnsteinUhlenbeckNoiseGenerator(
-            theta = 0.5, sigma = 2.0, random = Random(42)
-        )
-        val model = MultipathNoiseModel(
-            ouGenerator = ou,
-            pMultipath = 1.0, // force jumps
-            laplaceScale = 10.0,
-            random = Random(42),
-        )
+        val ou =
+            OrnsteinUhlenbeckNoiseGenerator(
+                theta = 0.5,
+                sigma = 2.0,
+                random = Random(42)
+            )
+        val model =
+            MultipathNoiseModel(
+                ouGenerator = ou,
+                pMultipath = 1.0, // force jumps
+                laplaceScale = 10.0,
+                random = Random(42),
+            )
 
         model.sample(1.0) // will be a jump
         assertTrue(model.lastWasJump)

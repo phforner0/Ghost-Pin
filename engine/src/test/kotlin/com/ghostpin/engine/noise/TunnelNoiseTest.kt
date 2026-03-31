@@ -9,7 +9,6 @@ import java.util.Random
  * Tests for the tunnel/signal-loss noise model.
  */
 class TunnelNoiseTest {
-
     @Test
     fun `tunnel events occur at approximately expected rate`() {
         val profile = MovementProfile.URBAN_VEHICLE // highest tunnel probability

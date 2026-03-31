@@ -8,14 +8,14 @@ import java.util.Random
  * Tests for the Ornstein-Uhlenbeck noise generator — validates Gap 1 fix.
  */
 class OrnsteinUhlenbeckTest {
-
     @Test
     fun `lag-1 autocorrelation is positive and significant`() {
-        val ou = OrnsteinUhlenbeckNoiseGenerator(
-            theta = 0.35,
-            sigma = 2.5,
-            random = Random(42),
-        )
+        val ou =
+            OrnsteinUhlenbeckNoiseGenerator(
+                theta = 0.35,
+                sigma = 2.5,
+                random = Random(42),
+            )
 
         val samples = mutableListOf<Double>()
         repeat(10_000) {
@@ -30,11 +30,12 @@ class OrnsteinUhlenbeckTest {
 
     @Test
     fun `mean reverts toward zero from displaced state`() {
-        val ou = OrnsteinUhlenbeckNoiseGenerator(
-            theta = 0.8, // fast reversion
-            sigma = 1.0,
-            random = Random(42),
-        )
+        val ou =
+            OrnsteinUhlenbeckNoiseGenerator(
+                theta = 0.8, // fast reversion
+                sigma = 1.0,
+                random = Random(42),
+            )
 
         // Manually displace the state
         ou.next(0.01) // prime with small step
@@ -57,11 +58,12 @@ class OrnsteinUhlenbeckTest {
     fun `variance is bounded by theoretical steady-state`() {
         val theta = 0.5
         val sigma = 3.0
-        val ou = OrnsteinUhlenbeckNoiseGenerator(
-            theta = theta,
-            sigma = sigma,
-            random = Random(42),
-        )
+        val ou =
+            OrnsteinUhlenbeckNoiseGenerator(
+                theta = theta,
+                sigma = sigma,
+                random = Random(42),
+            )
 
         val samples = mutableListOf<Double>()
         repeat(50_000) {
@@ -86,9 +88,12 @@ class OrnsteinUhlenbeckTest {
 
     @Test
     fun `reset clears state to zero`() {
-        val ou = OrnsteinUhlenbeckNoiseGenerator(
-            theta = 0.5, sigma = 2.0, random = Random(42)
-        )
+        val ou =
+            OrnsteinUhlenbeckNoiseGenerator(
+                theta = 0.5,
+                sigma = 2.0,
+                random = Random(42)
+            )
         ou.next(1.0)
         ou.next(1.0)
         ou.reset()
@@ -98,12 +103,18 @@ class OrnsteinUhlenbeckTest {
 
     @Test
     fun `different profiles produce different autocorrelation strengths`() {
-        val ouSlow = OrnsteinUhlenbeckNoiseGenerator(
-            theta = 0.25, sigma = 2.0, random = Random(42)
-        )
-        val ouFast = OrnsteinUhlenbeckNoiseGenerator(
-            theta = 0.60, sigma = 2.0, random = Random(42)
-        )
+        val ouSlow =
+            OrnsteinUhlenbeckNoiseGenerator(
+                theta = 0.25,
+                sigma = 2.0,
+                random = Random(42)
+            )
+        val ouFast =
+            OrnsteinUhlenbeckNoiseGenerator(
+                theta = 0.60,
+                sigma = 2.0,
+                random = Random(42)
+            )
 
         val samplesSlow = mutableListOf<Double>()
         val samplesFast = mutableListOf<Double>()
@@ -121,7 +132,10 @@ class OrnsteinUhlenbeckTest {
         )
     }
 
-    private fun autocorrelation(series: List<Double>, lag: Int): Double {
+    private fun autocorrelation(
+        series: List<Double>,
+        lag: Int
+    ): Double {
         val n = series.size
         val mean = series.average()
         val variance = series.sumOf { (it - mean) * (it - mean) } / n

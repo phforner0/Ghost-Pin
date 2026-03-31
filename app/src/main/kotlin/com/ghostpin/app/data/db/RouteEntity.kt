@@ -17,9 +17,9 @@ import androidx.room.PrimaryKey
 data class RouteEntity(
     @PrimaryKey val id: String,
     val name: String,
-    val waypointsJson: String,           // JSON array of Waypoint objects
-    val segmentsJson: String,            // JSON array of Segment objects (may be "[]")
-    val sourceFormat: String,            // "manual" | "gpx" | "kml" | "tcx" | "osrm"
+    val waypointsJson: String, // JSON array of Waypoint objects
+    val segmentsJson: String, // JSON array of Segment objects (may be "[]")
+    val sourceFormat: String, // "manual" | "gpx" | "kml" | "tcx" | "osrm"
     val totalDistanceMeters: Double,
     val createdAtMs: Long,
     val updatedAtMs: Long,

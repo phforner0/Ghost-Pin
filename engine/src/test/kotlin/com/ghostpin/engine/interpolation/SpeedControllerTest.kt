@@ -5,10 +5,9 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class SpeedControllerTest {
-
-    private val pedestrian = MovementProfile.PEDESTRIAN  // maxSpeedMs=2.0, maxAccelMs2=1.5
-    private val car        = MovementProfile.CAR         // maxSpeedMs=33.3, maxAccelMs2=4.0
-    private val dt         = 1.0  // 1-second frame
+    private val pedestrian = MovementProfile.PEDESTRIAN // maxSpeedMs=2.0, maxAccelMs2=1.5
+    private val car = MovementProfile.CAR // maxSpeedMs=33.3, maxAccelMs2=4.0
+    private val dt = 1.0 // 1-second frame
 
     // ── Acceleration from rest ─────────────────────────────────────────────
 
@@ -29,8 +28,10 @@ class SpeedControllerTest {
     fun `speed never exceeds profile max`() {
         val ctrl = SpeedController(car, initialRatio = 1.0)
         repeat(100) { ctrl.advance(dt) }
-        assertTrue(ctrl.currentSpeedMs <= car.maxSpeedMs + 1e-9,
-            "Speed ${ctrl.currentSpeedMs} exceeds max ${car.maxSpeedMs}")
+        assertTrue(
+            ctrl.currentSpeedMs <= car.maxSpeedMs + 1e-9,
+            "Speed ${ctrl.currentSpeedMs} exceeds max ${car.maxSpeedMs}"
+        )
     }
 
     // ── Acceleration clamping ─────────────────────────────────────────────
@@ -42,8 +43,10 @@ class SpeedControllerTest {
         for (i in 0..50) {
             ctrl.advance(dt)
             val delta = kotlin.math.abs(ctrl.currentSpeedMs - prevSpeed)
-            assertTrue(delta <= pedestrian.maxAccelMs2 * dt + 1e-9,
-                "Frame $i speed delta $delta > maxAccel*dt ${pedestrian.maxAccelMs2 * dt}")
+            assertTrue(
+                delta <= pedestrian.maxAccelMs2 * dt + 1e-9,
+                "Frame $i speed delta $delta > maxAccel*dt ${pedestrian.maxAccelMs2 * dt}"
+            )
             prevSpeed = ctrl.currentSpeedMs
         }
     }
@@ -59,8 +62,10 @@ class SpeedControllerTest {
         val prevSpeed = ctrl.currentSpeedMs
         ctrl.advance(dt)
         val delta = prevSpeed - ctrl.currentSpeedMs
-        assertTrue(delta <= pedestrian.maxAccelMs2 * dt + 1e-9,
-            "Deceleration $delta exceeds maxAccel*dt")
+        assertTrue(
+            delta <= pedestrian.maxAccelMs2 * dt + 1e-9,
+            "Deceleration $delta exceeds maxAccel*dt"
+        )
         assertTrue(ctrl.currentSpeedMs >= 0.0, "Speed went negative")
     }
 
@@ -78,8 +83,10 @@ class SpeedControllerTest {
         repeat(30) { ctrl.advance(dt, distToNextWaypoint = 5.0) }
         val waypointSpeed = ctrl.currentSpeedMs
 
-        assertTrue(waypointSpeed < cruiseSpeed,
-            "Expected slowdown near waypoint: waypointSpeed=$waypointSpeed cruiseSpeed=$cruiseSpeed")
+        assertTrue(
+            waypointSpeed < cruiseSpeed,
+            "Expected slowdown near waypoint: waypointSpeed=$waypointSpeed cruiseSpeed=$cruiseSpeed"
+        )
     }
 
     @Test
@@ -98,9 +105,9 @@ class SpeedControllerTest {
     @Test
     fun `targetRatio 0 causes full stop over time`() {
         val ctrl = SpeedController(pedestrian, initialRatio = 1.0)
-        repeat(10) { ctrl.advance(dt) }   // reach speed
+        repeat(10) { ctrl.advance(dt) } // reach speed
         ctrl.targetRatio = 0.0
-        repeat(20) { ctrl.advance(dt) }   // brake to stop
+        repeat(20) { ctrl.advance(dt) } // brake to stop
         assertEquals(0.0, ctrl.currentSpeedMs, 1e-9)
     }
 
@@ -149,7 +156,7 @@ class SpeedControllerTest {
 
     @Test
     fun `estimateDurationSec returns distance divided by cruise speed`() {
-        val ctrl     = SpeedController(car, initialRatio = 0.5)
+        val ctrl = SpeedController(car, initialRatio = 0.5)
         val expected = 1000.0 / (car.maxSpeedMs * 0.5)
         assertEquals(expected, ctrl.estimateDurationSec(1000.0), 1e-6)
     }

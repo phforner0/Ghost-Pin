@@ -40,7 +40,6 @@ import javax.inject.Inject
  */
 @AndroidEntryPoint
 class GhostPinQsTile : TileService() {
-
     @Inject lateinit var simulationRepository: SimulationRepository
 
     private val tileScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -67,9 +66,10 @@ class GhostPinQsTile : TileService() {
 
         if (currentState is SimulationState.Running || currentState is SimulationState.Paused) {
             // Stop simulation
-            val intent = Intent(this, SimulationService::class.java).apply {
-                action = SimulationService.ACTION_STOP
-            }
+            val intent =
+                Intent(this, SimulationService::class.java).apply {
+                    action = SimulationService.ACTION_STOP
+                }
             startService(intent)
         } else {
             tileScope.launch {
@@ -80,11 +80,12 @@ class GhostPinQsTile : TileService() {
                         startForegroundService(intent)
                     }
                     is SimulationRepository.FavoriteResolution.Invalid -> {
-                        Toast.makeText(
-                            this@GhostPinQsTile,
-                            resolution.reason,
-                            Toast.LENGTH_LONG
-                        ).show()
+                        Toast
+                            .makeText(
+                                this@GhostPinQsTile,
+                                resolution.reason,
+                                Toast.LENGTH_LONG
+                            ).show()
                         openMainActivityFromTile()
                     }
                 }
@@ -119,8 +120,9 @@ class GhostPinQsTile : TileService() {
 
     @Suppress("DEPRECATION")
     private fun openMainActivityFromTile() {
-        val launchIntent = Intent(this, com.ghostpin.app.ui.MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val launchIntent =
+            Intent(this, com.ghostpin.app.ui.MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startActivityAndCollapse(

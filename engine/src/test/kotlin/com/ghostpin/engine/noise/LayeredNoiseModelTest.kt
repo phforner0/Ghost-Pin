@@ -8,20 +8,20 @@ import org.junit.jupiter.api.Test
 import java.util.Random
 
 class LayeredNoiseModelTest {
-
     @Test
     fun `applyToLocation preserves timing fields and finite coordinates`() {
         val model = LayeredNoiseModel.fromProfile(MovementProfile.PEDESTRIAN, seed = 123L)
-        val raw = MockLocation(
-            lat = -23.55052,
-            lng = -46.63331,
-            altitude = 12.0,
-            speed = 1.5f,
-            bearing = 42f,
-            accuracy = 6f,
-            timestampMs = 123456789L,
-            elapsedRealtimeNanos = 987654321L,
-        )
+        val raw =
+            MockLocation(
+                lat = -23.55052,
+                lng = -46.63331,
+                altitude = 12.0,
+                speed = 1.5f,
+                bearing = 42f,
+                accuracy = 6f,
+                timestampMs = 123456789L,
+                elapsedRealtimeNanos = 987654321L,
+            )
 
         val result = model.applyToLocation(raw, deltaTimeSec = 0.2)
 
@@ -33,53 +33,60 @@ class LayeredNoiseModelTest {
 
     @Test
     fun `tunnel event freezes last known position`() {
-        val tunnelProfile = MovementProfile.PEDESTRIAN.copy(
-            tunnelProbabilityPerSec = 1.0,
-            tunnelDurationMeanSec = 0.0,
-            tunnelDurationSigmaSec = 0.0,
-        )
-        val random = ControlledRandom(
-            doubles = doubleArrayOf(1.0, 1.0, 0.0),
-            gaussians = doubleArrayOf(0.0, 0.0, 0.0),
-        )
-        val model = LayeredNoiseModel(
-            profile = tunnelProfile,
-            multipath = MultipathNoiseModel(
-                ouGenerator = OrnsteinUhlenbeckNoiseGenerator(
-                    theta = tunnelProfile.theta,
-                    sigma = tunnelProfile.sigma,
-                    random = random,
+        val tunnelProfile =
+            MovementProfile.PEDESTRIAN.copy(
+                tunnelProbabilityPerSec = 1.0,
+                tunnelDurationMeanSec = 0.0,
+                tunnelDurationSigmaSec = 0.0,
+            )
+        val random =
+            ControlledRandom(
+                doubles = doubleArrayOf(1.0, 1.0, 0.0),
+                gaussians = doubleArrayOf(0.0, 0.0, 0.0),
+            )
+        val model =
+            LayeredNoiseModel(
+                profile = tunnelProfile,
+                multipath =
+                    MultipathNoiseModel(
+                        ouGenerator =
+                            OrnsteinUhlenbeckNoiseGenerator(
+                                theta = tunnelProfile.theta,
+                                sigma = tunnelProfile.sigma,
+                                random = random,
+                            ),
+                        pMultipath = tunnelProfile.pMultipath,
+                        laplaceScale = tunnelProfile.laplaceScale,
+                        random = random,
+                    ),
+                tunnel = TunnelNoiseModel(tunnelProfile, random),
+                quantization = QuantizationNoise(tunnelProfile.quantizationDecimals),
+                coherence = SensorCoherenceFilter(tunnelProfile),
+            )
+
+        val first =
+            model.applyToLocation(
+                MockLocation(
+                    lat = -23.0,
+                    lng = -46.0,
+                    speed = 1.0f,
+                    timestampMs = 1L,
+                    elapsedRealtimeNanos = 1L,
                 ),
-                pMultipath = tunnelProfile.pMultipath,
-                laplaceScale = tunnelProfile.laplaceScale,
-                random = random,
-            ),
-            tunnel = TunnelNoiseModel(tunnelProfile, random),
-            quantization = QuantizationNoise(tunnelProfile.quantizationDecimals),
-            coherence = SensorCoherenceFilter(tunnelProfile),
-        )
+                deltaTimeSec = 0.1,
+            )
 
-        val first = model.applyToLocation(
-            MockLocation(
-                lat = -23.0,
-                lng = -46.0,
-                speed = 1.0f,
-                timestampMs = 1L,
-                elapsedRealtimeNanos = 1L,
-            ),
-            deltaTimeSec = 0.1,
-        )
-
-        val second = model.applyToLocation(
-            MockLocation(
-                lat = -22.0,
-                lng = -45.0,
-                speed = 1.0f,
-                timestampMs = 2L,
-                elapsedRealtimeNanos = 2L,
-            ),
-            deltaTimeSec = 0.1,
-        )
+        val second =
+            model.applyToLocation(
+                MockLocation(
+                    lat = -22.0,
+                    lng = -45.0,
+                    speed = 1.0f,
+                    timestampMs = 2L,
+                    elapsedRealtimeNanos = 2L,
+                ),
+                deltaTimeSec = 0.1,
+            )
 
         assertEquals(first.lat, second.lat, 1e-9)
         assertEquals(first.lng, second.lng, 1e-9)

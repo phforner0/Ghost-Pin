@@ -18,56 +18,50 @@ import com.ghostpin.core.model.MovementProfile
  */
 @Entity(tableName = "profiles")
 data class ProfileEntity(
-    @PrimaryKey val id: String,              // UUID for user profiles, "builtin_<name>" for factory
+    @PrimaryKey val id: String, // UUID for user profiles, "builtin_<name>" for factory
     val name: String,
-    val version: String,                     // semver: "1.0.0"
+    val version: String, // semver: "1.0.0"
     val isBuiltIn: Boolean,
-    val isCustom: Boolean,                   // true = user-created or cloned
-
+    val isCustom: Boolean, // true = user-created or cloned
     // Ornstein-Uhlenbeck noise parameters
     val theta: Double,
     val sigma: Double,
-
     // Multipath parameters
     val pMultipath: Double,
     val laplaceScale: Double,
-
     // Physical constraints
     val maxSpeedMs: Double,
     val maxAccelMs2: Double,
     val maxTurnRateDegPerSec: Double,
-
     // Tunnel/signal-loss parameters
     val tunnelProbabilityPerSec: Double,
     val tunnelDurationMeanSec: Double,
     val tunnelDurationSigmaSec: Double,
-
     // Altitude
     val altitudeSigma: Double,
-
     // Quantization
     val quantizationDecimals: Int,
-
     // Metadata
     val createdAtMs: Long,
     val updatedAtMs: Long,
 ) {
     /** Convert back to the domain model used by the engine. */
-    fun toDomain(): MovementProfile = MovementProfile(
-        name = name,
-        theta = theta,
-        sigma = sigma,
-        pMultipath = pMultipath,
-        laplaceScale = laplaceScale,
-        maxSpeedMs = maxSpeedMs,
-        maxAccelMs2 = maxAccelMs2,
-        maxTurnRateDegPerSec = maxTurnRateDegPerSec,
-        tunnelProbabilityPerSec = tunnelProbabilityPerSec,
-        tunnelDurationMeanSec = tunnelDurationMeanSec,
-        tunnelDurationSigmaSec = tunnelDurationSigmaSec,
-        altitudeSigma = altitudeSigma,
-        quantizationDecimals = quantizationDecimals,
-    )
+    fun toDomain(): MovementProfile =
+        MovementProfile(
+            name = name,
+            theta = theta,
+            sigma = sigma,
+            pMultipath = pMultipath,
+            laplaceScale = laplaceScale,
+            maxSpeedMs = maxSpeedMs,
+            maxAccelMs2 = maxAccelMs2,
+            maxTurnRateDegPerSec = maxTurnRateDegPerSec,
+            tunnelProbabilityPerSec = tunnelProbabilityPerSec,
+            tunnelDurationMeanSec = tunnelDurationMeanSec,
+            tunnelDurationSigmaSec = tunnelDurationSigmaSec,
+            altitudeSigma = altitudeSigma,
+            quantizationDecimals = quantizationDecimals,
+        )
 
     companion object {
         /** Create a [ProfileEntity] from a domain [MovementProfile]. */

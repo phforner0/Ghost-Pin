@@ -8,7 +8,9 @@ package com.ghostpin.core.model
  * - [WAYPOINTS]: multi-stop routing allowing the user to plot an exact path manually
  * - [GPX]: playback of pre-recorded GPX trace files
  */
-enum class AppMode(val displayName: String) {
+enum class AppMode(
+    val displayName: String
+) {
     CLASSIC("Classic"),
     JOYSTICK("Joystick"),
     WAYPOINTS("Waypoints"),
