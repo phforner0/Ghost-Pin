@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.ghostpin.app.data.SimulationConfig
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -42,8 +43,7 @@ import java.util.Locale
 @Composable
 fun ScheduleScreen(
     onBack: () -> Unit,
-    defaultStartLat: Double,
-    defaultStartLng: Double,
+    defaultConfig: SimulationConfig,
     viewModel: ScheduleViewModel = hiltViewModel(),
 ) {
     val schedules by viewModel.schedules.collectAsState()
@@ -68,10 +68,11 @@ fun ScheduleScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             OutlinedTextField(
@@ -121,9 +122,11 @@ fun ScheduleScreen(
                     viewModel.createSchedule(
                         startDelayMinutes = startDelayMinutes.toIntOrNull() ?: 5,
                         durationMinutes = durationMinutes.toIntOrNull() ?: 15,
-                        profileName = selectedProfile,
-                        startLat = defaultStartLat,
-                        startLng = defaultStartLng,
+                        config =
+                            defaultConfig.copy(
+                                profileName = selectedProfile,
+                                profileLookupKey = selectedProfile,
+                            ),
                     )
                 },
                 modifier = Modifier.fillMaxWidth(),

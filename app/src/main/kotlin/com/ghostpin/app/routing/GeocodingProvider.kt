@@ -1,6 +1,7 @@
 package com.ghostpin.app.routing
 
 import android.util.Log
+import com.ghostpin.core.security.LogSanitizer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -63,7 +64,9 @@ class GeocodingProvider @Inject constructor() {
                 val json = httpGet(url)
                 parseResults(json)
             }.getOrElse { e ->
-                Log.w(TAG, "Geocoding failed for query: ${e.message}")
+                Log.w(TAG, LogSanitizer.sanitizeString(
+                    "Geocoding failed for query '${query.take(64)}': ${e.message}"
+                ))
                 emptyList()
             }
         }

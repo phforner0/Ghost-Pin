@@ -1,0 +1,576 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 5,
+    "identityHash": "baf4ba587a9856c139299b8d9aad5034",
+    "entities": [
+      {
+        "tableName": "profiles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `version` TEXT NOT NULL, `isBuiltIn` INTEGER NOT NULL, `isCustom` INTEGER NOT NULL, `theta` REAL NOT NULL, `sigma` REAL NOT NULL, `pMultipath` REAL NOT NULL, `laplaceScale` REAL NOT NULL, `maxSpeedMs` REAL NOT NULL, `maxAccelMs2` REAL NOT NULL, `maxTurnRateDegPerSec` REAL NOT NULL, `tunnelProbabilityPerSec` REAL NOT NULL, `tunnelDurationMeanSec` REAL NOT NULL, `tunnelDurationSigmaSec` REAL NOT NULL, `altitudeSigma` REAL NOT NULL, `quantizationDecimals` INTEGER NOT NULL, `createdAtMs` INTEGER NOT NULL, `updatedAtMs` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "version",
+            "columnName": "version",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isBuiltIn",
+            "columnName": "isBuiltIn",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCustom",
+            "columnName": "isCustom",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "theta",
+            "columnName": "theta",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sigma",
+            "columnName": "sigma",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pMultipath",
+            "columnName": "pMultipath",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "laplaceScale",
+            "columnName": "laplaceScale",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxSpeedMs",
+            "columnName": "maxSpeedMs",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxAccelMs2",
+            "columnName": "maxAccelMs2",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxTurnRateDegPerSec",
+            "columnName": "maxTurnRateDegPerSec",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tunnelProbabilityPerSec",
+            "columnName": "tunnelProbabilityPerSec",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tunnelDurationMeanSec",
+            "columnName": "tunnelDurationMeanSec",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tunnelDurationSigmaSec",
+            "columnName": "tunnelDurationSigmaSec",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "altitudeSigma",
+            "columnName": "altitudeSigma",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quantizationDecimals",
+            "columnName": "quantizationDecimals",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "createdAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updatedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "routes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `waypointsJson` TEXT NOT NULL, `segmentsJson` TEXT NOT NULL, `sourceFormat` TEXT NOT NULL, `totalDistanceMeters` REAL NOT NULL, `createdAtMs` INTEGER NOT NULL, `updatedAtMs` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "waypointsJson",
+            "columnName": "waypointsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "segmentsJson",
+            "columnName": "segmentsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceFormat",
+            "columnName": "sourceFormat",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalDistanceMeters",
+            "columnName": "totalDistanceMeters",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "createdAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updatedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "simulation_history",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `profileIdOrName` TEXT NOT NULL, `routeId` TEXT, `startLat` REAL NOT NULL, `startLng` REAL NOT NULL, `endLat` REAL NOT NULL, `endLng` REAL NOT NULL, `appMode` TEXT NOT NULL, `waypointsJson` TEXT NOT NULL, `waypointPauseSec` REAL NOT NULL, `speedRatio` REAL NOT NULL, `frequencyHz` INTEGER NOT NULL, `repeatPolicy` TEXT NOT NULL, `repeatCount` INTEGER NOT NULL, `startedAtMs` INTEGER NOT NULL, `endedAtMs` INTEGER, `durationMs` INTEGER, `avgSpeedMs` REAL, `distanceMeters` REAL NOT NULL, `resultStatus` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileIdOrName",
+            "columnName": "profileIdOrName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "routeId",
+            "columnName": "routeId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "startLat",
+            "columnName": "startLat",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startLng",
+            "columnName": "startLng",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endLat",
+            "columnName": "endLat",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endLng",
+            "columnName": "endLng",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appMode",
+            "columnName": "appMode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "waypointsJson",
+            "columnName": "waypointsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "waypointPauseSec",
+            "columnName": "waypointPauseSec",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "speedRatio",
+            "columnName": "speedRatio",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "frequencyHz",
+            "columnName": "frequencyHz",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repeatPolicy",
+            "columnName": "repeatPolicy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repeatCount",
+            "columnName": "repeatCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAtMs",
+            "columnName": "startedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endedAtMs",
+            "columnName": "endedAtMs",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "avgSpeedMs",
+            "columnName": "avgSpeedMs",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "distanceMeters",
+            "columnName": "distanceMeters",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "resultStatus",
+            "columnName": "resultStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "favorite_simulations",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `profileIdOrName` TEXT NOT NULL, `routeId` TEXT, `startLat` REAL NOT NULL, `startLng` REAL NOT NULL, `endLat` REAL NOT NULL, `endLng` REAL NOT NULL, `appMode` TEXT NOT NULL, `waypointsJson` TEXT NOT NULL, `waypointPauseSec` REAL NOT NULL, `speedRatio` REAL NOT NULL, `frequencyHz` INTEGER NOT NULL, `repeatPolicy` TEXT NOT NULL, `repeatCount` INTEGER NOT NULL, `createdAtMs` INTEGER NOT NULL, `updatedAtMs` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileIdOrName",
+            "columnName": "profileIdOrName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "routeId",
+            "columnName": "routeId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "startLat",
+            "columnName": "startLat",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startLng",
+            "columnName": "startLng",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endLat",
+            "columnName": "endLat",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endLng",
+            "columnName": "endLng",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appMode",
+            "columnName": "appMode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "waypointsJson",
+            "columnName": "waypointsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "waypointPauseSec",
+            "columnName": "waypointPauseSec",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "speedRatio",
+            "columnName": "speedRatio",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "frequencyHz",
+            "columnName": "frequencyHz",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repeatPolicy",
+            "columnName": "repeatPolicy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repeatCount",
+            "columnName": "repeatCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "createdAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updatedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "schedules",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `startAtMs` INTEGER NOT NULL, `stopAtMs` INTEGER, `profileName` TEXT NOT NULL, `startLat` REAL NOT NULL, `startLng` REAL NOT NULL, `endLat` REAL NOT NULL, `endLng` REAL NOT NULL, `routeId` TEXT, `appMode` TEXT NOT NULL, `waypointsJson` TEXT NOT NULL, `waypointPauseSec` REAL NOT NULL, `speedRatio` REAL NOT NULL, `frequencyHz` INTEGER NOT NULL, `repeatPolicy` TEXT NOT NULL, `repeatCount` INTEGER NOT NULL, `enabled` INTEGER NOT NULL, `createdAtMs` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startAtMs",
+            "columnName": "startAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stopAtMs",
+            "columnName": "stopAtMs",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profileName",
+            "columnName": "profileName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startLat",
+            "columnName": "startLat",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startLng",
+            "columnName": "startLng",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endLat",
+            "columnName": "endLat",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endLng",
+            "columnName": "endLng",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "routeId",
+            "columnName": "routeId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "appMode",
+            "columnName": "appMode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "waypointsJson",
+            "columnName": "waypointsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "waypointPauseSec",
+            "columnName": "waypointPauseSec",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "speedRatio",
+            "columnName": "speedRatio",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "frequencyHz",
+            "columnName": "frequencyHz",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repeatPolicy",
+            "columnName": "repeatPolicy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repeatCount",
+            "columnName": "repeatCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enabled",
+            "columnName": "enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "createdAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'baf4ba587a9856c139299b8d9aad5034')"
+    ]
+  }
+}

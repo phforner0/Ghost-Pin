@@ -63,6 +63,10 @@ fun RouteEditorScreen(
     viewModel: RouteEditorViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
     onRouteReady: (com.ghostpin.core.model.Route) -> Unit = {},
+    onImportRouteFile: () -> Unit = {},
+    onExportRouteFile: (String, String) -> Unit = { _, _ -> },
+    pendingImportedRoute: Pair<String, String>? = null,
+    onImportedRouteConsumed: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     val savedRoutes by viewModel.savedRoutes.collectAsState(initial = emptyList())
@@ -92,10 +96,16 @@ fun RouteEditorScreen(
 
     // Handle export trigger
     LaunchedEffect(state.exportContent) {
-        state.exportContent?.let { _ ->
-            // The UI layer would call a system share sheet here.
-            // We expose the content so the parent Activity can handle it.
+        state.exportContent?.let { (filename, content) ->
+            onExportRouteFile(filename, content)
             viewModel.clearExport()
+        }
+    }
+
+    LaunchedEffect(pendingImportedRoute) {
+        pendingImportedRoute?.let { (filename, content) ->
+            viewModel.importFromContent(content, filename)
+            onImportedRouteConsumed()
         }
     }
 
@@ -130,6 +140,9 @@ fun RouteEditorScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = GhostPinColors.TopBar),
                 actions = {
+                    IconButton(onClick = onImportRouteFile) {
+                        Icon(Icons.Default.FileOpen, null, tint = GhostPinColors.Primary)
+                    }
                     // Export button
                     IconButton(onClick = { showExportMenu = true }) {
                         Icon(Icons.Default.Share, null, tint = GhostPinColors.Primary)

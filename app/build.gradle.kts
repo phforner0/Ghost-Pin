@@ -7,6 +7,9 @@ plugins {
     id("com.google.dagger.hilt.android")
 }
 
+import org.gradle.api.tasks.testing.Test
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+
 android {
     namespace = "com.ghostpin.app"
     compileSdk = 35
@@ -63,6 +66,12 @@ android {
     kotlin {
         jvmToolchain(21)
     }
+
+    sourceSets {
+        getByName("androidTest") {
+            assets.srcDir("schemas")
+        }
+    }
 }
 
 dependencies {
@@ -98,6 +107,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.8.5")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 
     // MapLibre
     implementation("org.maplibre.gl:android-sdk:11.8.2")
@@ -112,7 +122,27 @@ dependencies {
     // Testing
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20231013")
+    testImplementation("org.robolectric:robolectric:4.14.1")
     testImplementation("androidx.room:room-testing:$roomVersion")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    androidTestImplementation("androidx.room:room-testing:$roomVersion")
+    androidTestImplementation(composeBom)
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+}
+
+val sanitizedPathForTests = (System.getenv("PATH") ?: "").replace("\"", "")
+
+tasks.withType<Test>().configureEach {
+    // Some Windows PATH entries are quoted (for example Tesseract), which breaks
+    // the Gradle test worker command line and causes the JVM to parse `VS Code`
+    // as a main class. Sanitize the environment and library path for test forks.
+    environment("PATH", sanitizedPathForTests)
+    systemProperty("java.library.path", sanitizedPathForTests)
+    javaLauncher.set(
+        javaToolchains.launcherFor {
+            languageVersion.set(JavaLanguageVersion.of(21))
+        }
+    )
 }

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission
+        android:name="android.permission.ACCESS_MOCK_LOCATION"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.RECEIVE_BOOT_COMPLETED"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.SYSTEM_ALERT_WINDOW"
+        tools:node="remove" />
+
+    <permission
+        android:name="com.ghostpin.permission.AUTOMATION"
+        tools:node="remove" />
+
+    <application>
+        <service
+            android:name=".service.FloatingBubbleService"
+            tools:node="remove" />
+
+        <service
+            android:name=".service.GhostPinQsTile"
+            tools:node="remove" />
+
+        <receiver
+            android:name=".widget.GhostPinWidget"
+            tools:node="remove" />
+
+        <receiver
+            android:name=".scheduling.ScheduleReceiver"
+            tools:node="remove" />
+
+        <receiver
+            android:name=".scheduling.BootCompletedReceiver"
+            tools:node="remove" />
+
+        <receiver
+            android:name=".automation.AutomationReceiver"
+            tools:node="remove" />
+    </application>
+</manifest>

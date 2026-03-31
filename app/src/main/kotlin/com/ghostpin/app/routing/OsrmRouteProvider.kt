@@ -4,6 +4,7 @@ import android.util.Log
 import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.model.Route
 import com.ghostpin.core.model.Waypoint
+import com.ghostpin.core.security.LogSanitizer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -86,7 +87,9 @@ class OsrmRouteProvider @Inject constructor() {
             val json = httpGet(url)
             parseOsrmResponse(json)
         }.onFailure { e ->
-            Log.w(TAG, "Route fetch failed — will use straight-line fallback: ${e.message}")
+            Log.w(TAG, LogSanitizer.sanitizeString(
+                "Route fetch failed — will use straight-line fallback: ${e.message}"
+            ))
         }
     }
 
@@ -114,7 +117,9 @@ class OsrmRouteProvider @Inject constructor() {
             val json = httpGet(url)
             parseOsrmResponse(json)
         }.onFailure { e ->
-            Log.w(TAG, "Multi-route fetch failed — will use straight-line fallback: ${e.message}")
+            Log.w(TAG, LogSanitizer.sanitizeString(
+                "Multi-route fetch failed — will use straight-line fallback: ${e.message}"
+            ))
         }
     }
 
@@ -247,7 +252,9 @@ class OsrmRouteProvider @Inject constructor() {
         PROFILE_URBAN_VEHICLE -> "car"
         PROFILE_DRONE         -> null
         else -> {
-            Log.w(TAG, "Unknown profile name '${name}' — defaulting to 'foot' routing.")
+            Log.w(TAG, LogSanitizer.sanitizeString(
+                "Unknown profile name '${name}' — defaulting to 'foot' routing."
+            ))
             "foot"
         }
     }

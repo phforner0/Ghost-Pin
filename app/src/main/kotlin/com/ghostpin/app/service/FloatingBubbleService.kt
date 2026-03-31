@@ -13,6 +13,7 @@ import com.ghostpin.app.ui.overlay.JoystickView
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.collect
 import javax.inject.Inject
 
 /**
@@ -64,6 +65,7 @@ class FloatingBubbleService : Service() {
     private var bubbleView: FloatingBubbleView? = null
     private var joystickView: JoystickView? = null
     private var isJoystickVisible = false
+    private var joystickCollectionJob: Job? = null
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -154,6 +156,7 @@ class FloatingBubbleService : Service() {
         val joy = JoystickView(this)
         joystickView    = joy
         isJoystickVisible = true
+        simulationRepository.setManualMode(true)
 
         val params = WindowManager.LayoutParams(
             sizePx, sizePx,
@@ -166,15 +169,26 @@ class FloatingBubbleService : Service() {
             y = 200
         }
         wm.addView(joy, params)
+
+        joystickCollectionJob?.cancel()
+        joystickCollectionJob = serviceScope.launch {
+            joy.state.collect { state ->
+                simulationRepository.updateJoystickState(state)
+            }
+        }
     }
 
     private fun removeJoystick() {
         val wm = windowManager ?: return
+        joystickCollectionJob?.cancel()
+        joystickCollectionJob = null
         joystickView?.let {
             try { wm.removeView(it) } catch (_: Exception) {}
         }
         joystickView    = null
         isJoystickVisible = false
+        simulationRepository.updateJoystickState(com.ghostpin.core.model.JoystickState(0f, 0f))
+        simulationRepository.setManualMode(false)
     }
 
     // ── Simulation control ────────────────────────────────────────────────

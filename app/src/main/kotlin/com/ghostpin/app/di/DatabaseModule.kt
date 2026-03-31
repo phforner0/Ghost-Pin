@@ -18,21 +18,23 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
-
     @Provides
     @Singleton
-    fun provideDatabase(@ApplicationContext context: Context): GhostPinDatabase =
-        Room.databaseBuilder(
-            context,
-            GhostPinDatabase::class.java,
-            "ghostpin.db",
-        )
-            .addMigrations(
+    fun provideDatabase(
+        @ApplicationContext context: Context
+    ): GhostPinDatabase =
+        Room
+            .databaseBuilder(
+                context,
+                GhostPinDatabase::class.java,
+                "ghostpin.db",
+            ).addMigrations(
                 GhostPinDatabase.MIGRATION_1_2,
                 GhostPinDatabase.MIGRATION_2_3,
                 GhostPinDatabase.MIGRATION_3_4,
-            )
-            .build()
+                GhostPinDatabase.MIGRATION_4_5,
+                GhostPinDatabase.MIGRATION_5_6,
+            ).build()
 
     @Provides
     @Singleton

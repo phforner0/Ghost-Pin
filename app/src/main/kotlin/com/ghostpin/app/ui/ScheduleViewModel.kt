@@ -2,6 +2,7 @@ package com.ghostpin.app.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ghostpin.app.data.SimulationConfig
 import com.ghostpin.app.scheduling.ScheduleEntity
 import com.ghostpin.app.scheduling.ScheduleManager
 import com.ghostpin.app.scheduling.ScheduleDao
@@ -33,9 +34,7 @@ class ScheduleViewModel @Inject constructor(
     fun createSchedule(
         startDelayMinutes: Int,
         durationMinutes: Int,
-        profileName: String,
-        startLat: Double,
-        startLng: Double,
+        config: SimulationConfig,
     ) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
@@ -47,11 +46,7 @@ class ScheduleViewModel @Inject constructor(
                     ScheduleManager.CreateScheduleRequest(
                         startAtMs = startAtMs,
                         stopAtMs = stopAtMs,
-                        profileName = profileName,
-                        startLat = startLat,
-                        startLng = startLng,
-                        speedRatio = 1.0,
-                        frequencyHz = 5,
+                        config = config,
                     )
                 )
             ) {

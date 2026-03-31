@@ -51,10 +51,11 @@ fun HistoryScreen(
         },
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (state.error != null) {
@@ -100,12 +101,13 @@ private fun HistoryItemCard(
 ) {
     Card {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(item.profileIdOrName, style = MaterialTheme.typography.titleMedium)
+            Text(item.profileName, style = MaterialTheme.typography.titleMedium)
             Text("Início: ${item.startedAtMs.asDateTime()}")
             Text("Status: ${item.resultStatus}")
             Text("Distância: ${"%.1f".format(Locale.US, item.distanceMeters)} m")

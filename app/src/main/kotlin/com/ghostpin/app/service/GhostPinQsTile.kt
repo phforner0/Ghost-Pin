@@ -73,41 +73,19 @@ class GhostPinQsTile : TileService() {
             startService(intent)
         } else {
             tileScope.launch {
-                when (val resolution = simulationRepository.applyMostRecentFavorite(simulationRepository.lastUsedConfig.value)) {
+                when (val resolution = simulationRepository.applyMostRecentFavorite()) {
                     is SimulationRepository.FavoriteResolution.Valid -> {
                         val config = resolution.config
-                        val intent = Intent(this@GhostPinQsTile, SimulationService::class.java).apply {
-                            action = SimulationService.ACTION_START
-                            putExtra(SimulationService.EXTRA_PROFILE_NAME, config.profileName)
-                            putExtra(SimulationService.EXTRA_START_LAT, config.startLat)
-                            putExtra(SimulationService.EXTRA_START_LNG, config.startLng)
-                            config.routeId?.let { putExtra(SimulationService.EXTRA_ROUTE_ID, it) }
-                        }
+                        val intent = SimulationService.createStartIntent(this@GhostPinQsTile, config)
                         startForegroundService(intent)
                     }
                     is SimulationRepository.FavoriteResolution.Invalid -> {
-                        val config = resolution.fallbackConfig ?: run {
-                            Toast.makeText(
-                                this@GhostPinQsTile,
-                                "Open GhostPin and start a simulation once to configure Quick Tile",
-                                Toast.LENGTH_LONG
-                            ).show()
-                            openMainActivityFromTile()
-                            return@launch
-                        }
                         Toast.makeText(
                             this@GhostPinQsTile,
-                            "Favorite inválido. Usando última configuração.",
-                            Toast.LENGTH_SHORT
+                            resolution.reason,
+                            Toast.LENGTH_LONG
                         ).show()
-                        val intent = Intent(this@GhostPinQsTile, SimulationService::class.java).apply {
-                            action = SimulationService.ACTION_START
-                            putExtra(SimulationService.EXTRA_PROFILE_NAME, config.profileName)
-                            putExtra(SimulationService.EXTRA_START_LAT, config.startLat)
-                            putExtra(SimulationService.EXTRA_START_LNG, config.startLng)
-                            config.routeId?.let { putExtra(SimulationService.EXTRA_ROUTE_ID, it) }
-                        }
-                        startForegroundService(intent)
+                        openMainActivityFromTile()
                     }
                 }
             }

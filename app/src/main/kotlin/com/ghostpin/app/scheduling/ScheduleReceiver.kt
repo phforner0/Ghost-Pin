@@ -4,10 +4,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.ghostpin.app.automation.AutomationReceiver
 import com.ghostpin.app.data.SimulationRepository
 import com.ghostpin.app.service.SimulationService
 import com.ghostpin.app.service.SimulationState
+import com.ghostpin.core.security.LogSanitizer
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -28,7 +28,6 @@ class ScheduleReceiver : BroadcastReceiver() {
             try {
                 when (intent.action) {
                     ACTION_SCHEDULE_EVENT -> handleScheduleEvent(context, intent)
-                    Intent.ACTION_BOOT_COMPLETED -> scheduleManager.rearmPersistedSchedules()
                 }
             } finally {
                 pendingResult.finish()
@@ -47,18 +46,11 @@ class ScheduleReceiver : BroadcastReceiver() {
                 val busy = simulationRepository.state.value is SimulationState.Running ||
                     simulationRepository.state.value is SimulationState.FetchingRoute
                 if (busy) {
-                    Log.i(TAG, "START ignorado; simulação já está em execução.")
+                    Log.i(TAG, LogSanitizer.sanitizeString("START ignored; simulation already running."))
                     return
                 }
 
-                val automationIntent = Intent().apply {
-                    putExtra(AutomationReceiver.EXTRA_PROFILE_ID, schedule.profileName)
-                    putExtra(AutomationReceiver.EXTRA_LAT, schedule.startLat)
-                    putExtra(AutomationReceiver.EXTRA_LNG, schedule.startLng)
-                    putExtra(AutomationReceiver.EXTRA_SPEED_RATIO, schedule.speedRatio)
-                    putExtra(AutomationReceiver.EXTRA_FREQUENCY_HZ, schedule.frequencyHz)
-                }
-                val serviceIntent = AutomationReceiver.buildStartServiceIntent(context, automationIntent)
+                val serviceIntent = SimulationService.createStartIntent(context, schedule.toSimulationConfig())
                 context.startForegroundService(serviceIntent)
             }
 
@@ -67,7 +59,7 @@ class ScheduleReceiver : BroadcastReceiver() {
                     simulationRepository.state.value is SimulationState.Paused ||
                     simulationRepository.state.value is SimulationState.FetchingRoute
                 if (!hasActiveSession) {
-                    Log.i(TAG, "STOP ignorado; não há sessão ativa.")
+                    Log.i(TAG, LogSanitizer.sanitizeString("STOP ignored; no active session."))
                     return
                 }
 

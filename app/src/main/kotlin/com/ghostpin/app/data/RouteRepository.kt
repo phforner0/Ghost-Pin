@@ -66,7 +66,9 @@ class RouteRepository @Inject constructor(
     suspend fun save(route: Route, sourceFormat: String = "manual"): String {
         val entity = route.toEntity(sourceFormat)
         dao.insert(entity)
-        Log.d(TAG, "Route saved: id=${route.id} name='${route.name}' source=$sourceFormat")
+        Log.d(TAG, LogSanitizer.sanitizeString(
+            "Route saved: id=${route.id} name='${route.name}' source=$sourceFormat"
+        ))
         return route.id
     }
 
@@ -88,7 +90,7 @@ class RouteRepository @Inject constructor(
      */
     suspend fun deleteById(id: String) {
         dao.deleteById(id)
-        Log.d(TAG, "Route deleted: id=$id")
+        Log.d(TAG, LogSanitizer.sanitizeString("Route deleted: id=$id"))
     }
 
     // ── Serialization ─────────────────────────────────────────────────────────
@@ -175,13 +177,15 @@ class RouteRepository @Inject constructor(
         // BUG-05: Safety check — Route.init requires ≥2 waypoints.
         // Corrupted DB entries with <2 waypoints would crash without this guard.
         if (waypoints.size < 2) {
-            Log.w(TAG, "Route id=$id has ${waypoints.size} waypoints — skipping (minimum 2 required).")
+            Log.w(TAG, LogSanitizer.sanitizeString(
+                "Route id=$id has ${waypoints.size} waypoints — skipping (minimum 2 required)."
+            ))
             return@runCatching null
         }
 
         Route(id = id, name = name, waypoints = waypoints, segments = segments)
     }.onFailure { e ->
-        Log.e(TAG, "Failed to deserialize route id=$id: ${e.message}")
+        Log.e(TAG, LogSanitizer.sanitizeString("Failed to deserialize route id=$id: ${e.message}"))
     }.getOrNull()
 
     // ── Haversine helper ──────────────────────────────────────────────────────

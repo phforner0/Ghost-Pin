@@ -26,6 +26,11 @@
 @rem Set local scope for the variables with windows NT shell
 if "%OS%"=="Windows_NT" setlocal
 
+@rem Some Windows PATH entries may be quoted (for example Tesseract), which breaks
+@rem downstream Gradle test workers by corrupting the java.library.path command line.
+@rem Strip quotes early so every Java process launched by this wrapper inherits a safe PATH.
+set PATH=%PATH:"=%
+
 set DIRNAME=%~dp0
 if "%DIRNAME%"=="" set DIRNAME=.
 @rem This is normally unused
