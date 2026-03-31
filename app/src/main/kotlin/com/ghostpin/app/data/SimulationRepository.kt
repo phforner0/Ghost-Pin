@@ -7,6 +7,8 @@ import com.ghostpin.app.data.db.RouteDao
 import com.ghostpin.app.data.db.SimulationHistoryDao
 import com.ghostpin.app.data.db.SimulationHistoryEntity
 import com.ghostpin.app.service.SimulationState
+import com.ghostpin.core.model.AppMode
+import com.ghostpin.core.model.DefaultCoordinates
 import com.ghostpin.core.model.Route
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -103,15 +105,28 @@ class SimulationRepository @Inject constructor(
     fun reset() {
         _state.value = SimulationState.Idle
         _route.value = null
+        _isManualMode.value = false
+        _joystickState.value = JoystickState(0f, 0f)
     }
 
-    suspend fun startHistory(profileIdOrName: String, routeId: String?): String {
+    suspend fun startHistory(config: SimulationConfig): String {
         val id = UUID.randomUUID().toString()
         simulationHistoryDao.insert(
             SimulationHistoryEntity(
                 id = id,
-                profileIdOrName = profileIdOrName,
-                routeId = routeId,
+                profileIdOrName = config.profileName,
+                routeId = config.routeId,
+                startLat = config.startLat,
+                startLng = config.startLng,
+                endLat = config.endLat,
+                endLng = config.endLng,
+                appMode = config.appMode.name,
+                waypointsJson = config.serializedWaypoints(),
+                waypointPauseSec = config.waypointPauseSec,
+                speedRatio = config.speedRatio,
+                frequencyHz = config.frequencyHz,
+                repeatPolicy = config.repeatPolicy.name,
+                repeatCount = config.repeatCount,
                 startedAtMs = System.currentTimeMillis(),
                 endedAtMs = null,
                 durationMs = null,
@@ -152,10 +167,7 @@ class SimulationRepository @Inject constructor(
 
     suspend fun saveFavorite(
         name: String,
-        profileIdOrName: String,
-        routeId: String?,
-        speedRatio: Double,
-        frequencyHz: Int,
+        config: SimulationConfig,
     ): String {
         val now = System.currentTimeMillis()
         val id = UUID.randomUUID().toString()
@@ -163,10 +175,19 @@ class SimulationRepository @Inject constructor(
             FavoriteSimulationEntity(
                 id = id,
                 name = name,
-                profileIdOrName = profileIdOrName,
-                routeId = routeId,
-                speedRatio = speedRatio,
-                frequencyHz = frequencyHz,
+                profileIdOrName = config.profileName,
+                routeId = config.routeId,
+                startLat = config.startLat,
+                startLng = config.startLng,
+                endLat = config.endLat,
+                endLng = config.endLng,
+                appMode = config.appMode.name,
+                waypointsJson = config.serializedWaypoints(),
+                waypointPauseSec = config.waypointPauseSec,
+                speedRatio = config.speedRatio,
+                frequencyHz = config.frequencyHz,
+                repeatPolicy = config.repeatPolicy.name,
+                repeatCount = config.repeatCount,
                 createdAtMs = now,
                 updatedAtMs = now,
             )
@@ -180,35 +201,13 @@ class SimulationRepository @Inject constructor(
         favorite: FavoriteSimulationEntity,
         fallback: SimulationConfig? = _lastUsedConfig.value,
     ): FavoriteResolution {
-        val hasRoute = favorite.routeId == null || routeDao.getById(favorite.routeId) != null
-        val hasProfile =
-            com.ghostpin.core.model.MovementProfile.BUILT_IN.containsKey(favorite.profileIdOrName) ||
-                profileDao.getById(favorite.profileIdOrName) != null ||
-                profileDao.getByName(favorite.profileIdOrName) != null
-
-        if (!hasRoute || !hasProfile) {
-            val reason = buildString {
-                if (!hasRoute) append("Route not found")
-                if (!hasRoute && !hasProfile) append("; ")
-                if (!hasProfile) append("Profile not found")
-            }
-            return FavoriteResolution.Invalid(
-                reason = "$reason for favorite '${favorite.name}'.",
-                fallbackConfig = fallback,
+        return when (val validation = validateConfig(favorite.toSimulationConfig(), fallback)) {
+            is ConfigValidation.Valid -> FavoriteResolution.Valid(validation.config, favorite)
+            is ConfigValidation.Invalid -> FavoriteResolution.Invalid(
+                reason = "${validation.reason} for favorite '${favorite.name}'.",
+                fallbackConfig = validation.fallbackConfig,
             )
         }
-
-        val profileName = favorite.profileIdOrName
-        val base = fallback
-        val config = SimulationConfig(
-            profileName = profileName,
-            startLat = base?.startLat ?: com.ghostpin.core.model.DefaultCoordinates.START_LAT,
-            startLng = base?.startLng ?: com.ghostpin.core.model.DefaultCoordinates.START_LNG,
-            routeId = favorite.routeId,
-            repeatPolicy = base?.repeatPolicy ?: RepeatPolicy.NONE,
-            repeatCount = base?.repeatCount ?: 1,
-        )
-        return FavoriteResolution.Valid(config, favorite)
     }
 
     suspend fun applyMostRecentFavorite(
@@ -222,6 +221,61 @@ class SimulationRepository @Inject constructor(
         return resolveFavoriteConfig(favorite, fallback)
     }
 
+    suspend fun validateConfig(
+        config: SimulationConfig,
+        fallback: SimulationConfig? = _lastUsedConfig.value,
+    ): ConfigValidation {
+        val persistedRoute = config.routeId?.let { routeDao.getById(it) }
+        val hasRoute = config.routeId == null || persistedRoute != null
+        val hasProfile =
+            com.ghostpin.core.model.MovementProfile.BUILT_IN.containsKey(config.profileName) ||
+                profileDao.getById(config.profileName) != null ||
+                profileDao.getByName(config.profileName) != null
+        val hasWaypointPlan = when (config.appMode) {
+            AppMode.WAYPOINTS -> config.waypoints.size >= 2 || persistedRoute != null
+            AppMode.GPX -> config.waypoints.size >= 2 || persistedRoute != null || route.value != null
+            else -> true
+        }
+
+        if (!hasRoute || !hasProfile || !hasWaypointPlan) {
+            val reason = buildString {
+                if (!hasRoute) append("Route not found")
+                if (!hasRoute && (!hasProfile || !hasWaypointPlan)) append("; ")
+                if (!hasProfile) append("Profile not found")
+                if (!hasProfile && !hasWaypointPlan) append("; ")
+                if (!hasWaypointPlan) append("Mode configuration incomplete")
+            }
+            return ConfigValidation.Invalid(reason = reason, fallbackConfig = fallback)
+        }
+
+        val hydratedWaypoints = when {
+            config.waypoints.isNotEmpty() -> config.waypoints
+            persistedRoute != null -> RouteRepositoryHydration.deserializeWaypoints(persistedRoute.waypointsJson)
+            else -> emptyList()
+        }
+        val hydratedConfig = if (persistedRoute != null && hydratedWaypoints.size >= 2) {
+            config.copy(
+                startLat = hydratedWaypoints.first().lat,
+                startLng = hydratedWaypoints.first().lng,
+                endLat = hydratedWaypoints.last().lat,
+                endLng = hydratedWaypoints.last().lng,
+                waypoints = hydratedWaypoints,
+            )
+        } else {
+            config
+        }
+        return ConfigValidation.Valid(hydratedConfig)
+    }
+
+    sealed class ConfigValidation {
+        data class Valid(val config: SimulationConfig) : ConfigValidation()
+
+        data class Invalid(
+            val reason: String,
+            val fallbackConfig: SimulationConfig?,
+        ) : ConfigValidation()
+    }
+
     sealed class FavoriteResolution {
         data class Valid(
             val config: SimulationConfig,
@@ -232,5 +286,10 @@ class SimulationRepository @Inject constructor(
             val reason: String,
             val fallbackConfig: SimulationConfig?,
         ) : FavoriteResolution()
+    }
+
+    private object RouteRepositoryHydration {
+        fun deserializeWaypoints(serialized: String): List<com.ghostpin.core.model.Waypoint> =
+            SimulationConfig.deserializeWaypoints(serialized)
     }
 }

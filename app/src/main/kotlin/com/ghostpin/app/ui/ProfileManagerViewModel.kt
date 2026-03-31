@@ -33,6 +33,14 @@ class ProfileManagerViewModel @Inject constructor(
 
     // ── CRUD ─────────────────────────────────────────────────────────────────
 
+    fun create(profile: MovementProfile, onResult: (String?) -> Unit = {}, onError: (String) -> Unit = {}) {
+        viewModelScope.launch {
+            runCatching { profileManager.create(profile) }
+                .onSuccess { id -> onResult(id) }
+                .onFailure { error -> onError(error.message ?: "Create failed") }
+        }
+    }
+
     /**
      * Clone an existing profile under a new name.
      *

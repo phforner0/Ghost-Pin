@@ -84,9 +84,12 @@
 
         <receiver
             android:name=".scheduling.ScheduleReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".scheduling.BootCompletedReceiver"
             android:exported="true">
             <intent-filter>
-                <action android:name="com.ghostpin.app.scheduling.ACTION_SCHEDULE_EVENT" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>

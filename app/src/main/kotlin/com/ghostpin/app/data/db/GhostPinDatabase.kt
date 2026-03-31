@@ -18,7 +18,7 @@ import com.ghostpin.app.scheduling.ScheduleEntity
         FavoriteSimulationEntity::class,
         ScheduleEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class GhostPinDatabase : RoomDatabase() {
@@ -89,6 +89,41 @@ abstract class GhostPinDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `favorite_simulations` ADD COLUMN `startLat` REAL NOT NULL DEFAULT -23.5505")
+                db.execSQL("ALTER TABLE `favorite_simulations` ADD COLUMN `startLng` REAL NOT NULL DEFAULT -46.6333")
+                db.execSQL("ALTER TABLE `favorite_simulations` ADD COLUMN `endLat` REAL NOT NULL DEFAULT -22.9068")
+                db.execSQL("ALTER TABLE `favorite_simulations` ADD COLUMN `endLng` REAL NOT NULL DEFAULT -43.1729")
+                db.execSQL("ALTER TABLE `favorite_simulations` ADD COLUMN `appMode` TEXT NOT NULL DEFAULT 'CLASSIC'")
+                db.execSQL("ALTER TABLE `favorite_simulations` ADD COLUMN `waypointsJson` TEXT NOT NULL DEFAULT '[]'")
+                db.execSQL("ALTER TABLE `favorite_simulations` ADD COLUMN `waypointPauseSec` REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE `favorite_simulations` ADD COLUMN `repeatPolicy` TEXT NOT NULL DEFAULT 'NONE'")
+                db.execSQL("ALTER TABLE `favorite_simulations` ADD COLUMN `repeatCount` INTEGER NOT NULL DEFAULT 1")
+
+                db.execSQL("ALTER TABLE `simulation_history` ADD COLUMN `startLat` REAL NOT NULL DEFAULT -23.5505")
+                db.execSQL("ALTER TABLE `simulation_history` ADD COLUMN `startLng` REAL NOT NULL DEFAULT -46.6333")
+                db.execSQL("ALTER TABLE `simulation_history` ADD COLUMN `endLat` REAL NOT NULL DEFAULT -22.9068")
+                db.execSQL("ALTER TABLE `simulation_history` ADD COLUMN `endLng` REAL NOT NULL DEFAULT -43.1729")
+                db.execSQL("ALTER TABLE `simulation_history` ADD COLUMN `appMode` TEXT NOT NULL DEFAULT 'CLASSIC'")
+                db.execSQL("ALTER TABLE `simulation_history` ADD COLUMN `waypointsJson` TEXT NOT NULL DEFAULT '[]'")
+                db.execSQL("ALTER TABLE `simulation_history` ADD COLUMN `waypointPauseSec` REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE `simulation_history` ADD COLUMN `speedRatio` REAL NOT NULL DEFAULT 1.0")
+                db.execSQL("ALTER TABLE `simulation_history` ADD COLUMN `frequencyHz` INTEGER NOT NULL DEFAULT 5")
+                db.execSQL("ALTER TABLE `simulation_history` ADD COLUMN `repeatPolicy` TEXT NOT NULL DEFAULT 'NONE'")
+                db.execSQL("ALTER TABLE `simulation_history` ADD COLUMN `repeatCount` INTEGER NOT NULL DEFAULT 1")
+
+                db.execSQL("ALTER TABLE `schedules` ADD COLUMN `endLat` REAL NOT NULL DEFAULT -22.9068")
+                db.execSQL("ALTER TABLE `schedules` ADD COLUMN `endLng` REAL NOT NULL DEFAULT -43.1729")
+                db.execSQL("ALTER TABLE `schedules` ADD COLUMN `routeId` TEXT")
+                db.execSQL("ALTER TABLE `schedules` ADD COLUMN `appMode` TEXT NOT NULL DEFAULT 'CLASSIC'")
+                db.execSQL("ALTER TABLE `schedules` ADD COLUMN `waypointsJson` TEXT NOT NULL DEFAULT '[]'")
+                db.execSQL("ALTER TABLE `schedules` ADD COLUMN `waypointPauseSec` REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE `schedules` ADD COLUMN `repeatPolicy` TEXT NOT NULL DEFAULT 'NONE'")
+                db.execSQL("ALTER TABLE `schedules` ADD COLUMN `repeatCount` INTEGER NOT NULL DEFAULT 1")
             }
         }
     }

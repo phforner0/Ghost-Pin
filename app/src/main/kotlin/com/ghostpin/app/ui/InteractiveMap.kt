@@ -85,28 +85,43 @@ fun InteractiveMap(
         hasCenteredOnDeviceLocation = true
     }
 
-    // Update map whenever relevant state changes
-    LaunchedEffect(simulationState, startLat, startLng, endLat, endLng, waypoints, appMode, route, previewPlayhead) {
+    val routeVisualState = when (simulationState) {
+        is SimulationState.Idle -> "idle"
+        is SimulationState.FetchingRoute -> "fetching"
+        is SimulationState.Error -> "error"
+        else -> "active"
+    }
+
+    // Update static route/pins only when the route model or route-related state changes.
+    LaunchedEffect(routeVisualState, startLat, startLng, endLat, endLng, waypoints, appMode, route, previewPlayhead) {
         val controller = mapController ?: return@LaunchedEffect
-        when (simulationState) {
-            is SimulationState.Idle, is SimulationState.FetchingRoute -> {
+        when (routeVisualState) {
+            "idle", "fetching" -> {
                 controller.clearPosition()
                 val fetched = route
                 if (fetched != null) controller.updateRoute(fetched)
                 else if (appMode == AppMode.WAYPOINTS) controller.updateWaypoints(waypoints)
                 else controller.updateRoute(startLat, startLng, endLat, endLng)
             }
-            is SimulationState.Running -> {
+            "error" -> controller.clearPosition()
+            else -> {
                 val fetched = route
                 if (fetched != null) controller.updateRoute(fetched)
                 else if (appMode == AppMode.WAYPOINTS) controller.updateWaypoints(waypoints)
                 else controller.updateRoute(startLat, startLng, endLat, endLng)
-                controller.updatePosition(simulationState.currentLocation)
             }
-            is SimulationState.Paused -> controller.updatePosition(simulationState.lastLocation)
-            is SimulationState.Error -> controller.clearPosition()
         }
         controller.updatePreviewPlayhead(previewPlayhead)
+    }
+
+    // Update the simulated position independently so route redraws do not fight the camera.
+    LaunchedEffect(simulationState) {
+        val controller = mapController ?: return@LaunchedEffect
+        when (simulationState) {
+            is SimulationState.Running -> controller.updatePosition(simulationState.currentLocation)
+            is SimulationState.Paused -> controller.updatePosition(simulationState.lastLocation)
+            else -> Unit
+        }
     }
 
     // Hint text: tells user what the next long-press will do

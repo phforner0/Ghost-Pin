@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.ghostpin.app.automation.AutomationReceiver
 import com.ghostpin.app.data.SimulationRepository
 import com.ghostpin.app.service.SimulationService
 import com.ghostpin.app.service.SimulationState
@@ -28,7 +27,6 @@ class ScheduleReceiver : BroadcastReceiver() {
             try {
                 when (intent.action) {
                     ACTION_SCHEDULE_EVENT -> handleScheduleEvent(context, intent)
-                    Intent.ACTION_BOOT_COMPLETED -> scheduleManager.rearmPersistedSchedules()
                 }
             } finally {
                 pendingResult.finish()
@@ -51,14 +49,7 @@ class ScheduleReceiver : BroadcastReceiver() {
                     return
                 }
 
-                val automationIntent = Intent().apply {
-                    putExtra(AutomationReceiver.EXTRA_PROFILE_ID, schedule.profileName)
-                    putExtra(AutomationReceiver.EXTRA_LAT, schedule.startLat)
-                    putExtra(AutomationReceiver.EXTRA_LNG, schedule.startLng)
-                    putExtra(AutomationReceiver.EXTRA_SPEED_RATIO, schedule.speedRatio)
-                    putExtra(AutomationReceiver.EXTRA_FREQUENCY_HZ, schedule.frequencyHz)
-                }
-                val serviceIntent = AutomationReceiver.buildStartServiceIntent(context, automationIntent)
+                val serviceIntent = SimulationService.createStartIntent(context, schedule.toSimulationConfig())
                 context.startForegroundService(serviceIntent)
             }
 

@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import com.ghostpin.app.data.SimulationConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
@@ -22,11 +23,7 @@ class ScheduleManager @Inject constructor(
     data class CreateScheduleRequest(
         val startAtMs: Long,
         val stopAtMs: Long?,
-        val profileName: String,
-        val startLat: Double,
-        val startLng: Double,
-        val speedRatio: Double,
-        val frequencyHz: Int,
+        val config: SimulationConfig,
     )
 
     sealed class CreateScheduleResult {
@@ -46,11 +43,19 @@ class ScheduleManager @Inject constructor(
             id = UUID.randomUUID().toString(),
             startAtMs = request.startAtMs,
             stopAtMs = request.stopAtMs,
-            profileName = request.profileName,
-            startLat = request.startLat,
-            startLng = request.startLng,
-            speedRatio = request.speedRatio,
-            frequencyHz = request.frequencyHz,
+            profileName = request.config.profileName,
+            startLat = request.config.startLat,
+            startLng = request.config.startLng,
+            endLat = request.config.endLat,
+            endLng = request.config.endLng,
+            routeId = request.config.routeId,
+            appMode = request.config.appMode.name,
+            waypointsJson = request.config.serializedWaypoints(),
+            waypointPauseSec = request.config.waypointPauseSec,
+            speedRatio = request.config.speedRatio,
+            frequencyHz = request.config.frequencyHz,
+            repeatPolicy = request.config.repeatPolicy.name,
+            repeatCount = request.config.repeatCount,
             enabled = true,
             createdAtMs = System.currentTimeMillis(),
         )

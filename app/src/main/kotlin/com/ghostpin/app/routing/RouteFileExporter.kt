@@ -5,6 +5,7 @@ import com.ghostpin.core.model.Waypoint
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -139,7 +140,7 @@ class RouteFileExporter @Inject constructor() {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /** Format a coordinate to 7 decimal places. */
-    private fun Double.fmt() = "%.7f".format(this)
+    private fun Double.fmt() = String.format(Locale.US, "%.7f", this)
 
     /** Escape XML special characters in route names / labels. */
     private fun String.xmlEscape() = replace("&", "&amp;")

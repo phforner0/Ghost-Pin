@@ -12,9 +12,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.ghostpin.app.data.OnboardingDataStore
 import com.ghostpin.app.service.SimulationService
 import com.ghostpin.core.model.MovementProfile
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import org.maplibre.android.MapLibre
@@ -32,6 +36,8 @@ class MainActivity : ComponentActivity() {
     // The Snackbar is coordinated via a channel-style StateFlow read by GhostPinScreen.
     private val _permissionMessage = mutableStateOf<String?>(null)
     private val _lowMemorySignal = mutableIntStateOf(0)
+    private val _pendingImportedRoute = mutableStateOf<Pair<String, String>?>(null)
+    private var pendingRouteExport: Pair<String, String>? = null
 
     private val locationPermissionLauncher =
             registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -51,10 +57,47 @@ class MainActivity : ComponentActivity() {
                 uri?.let { viewModel.loadGpxFromUri(this, it) }
             }
 
+    private val routeFileImportLauncher =
+            registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+                uri ?: return@registerForActivityResult
+                lifecycleScope.launch {
+                    runCatching {
+                        withContext(Dispatchers.IO) {
+                            val content = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                                ?: error("Cannot open route file")
+                            val name = queryDisplayName(uri) ?: "imported-route"
+                            name to content
+                        }
+                    }.onSuccess { imported ->
+                        _pendingImportedRoute.value = imported
+                    }.onFailure { error ->
+                        _permissionMessage.value = error.message ?: "Failed to import route file."
+                    }
+                }
+            }
+
+    private val routeFileExportLauncher =
+            registerForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri: Uri? ->
+                val export = pendingRouteExport
+                pendingRouteExport = null
+                if (uri == null || export == null) return@registerForActivityResult
+
+                lifecycleScope.launch {
+                    runCatching {
+                        withContext(Dispatchers.IO) {
+                            contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+                                writer.write(export.second)
+                            } ?: error("Cannot open destination for route export")
+                        }
+                    }.onFailure { error ->
+                        _permissionMessage.value = error.message ?: "Failed to export route file."
+                    }
+                }
+            }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         MapLibre.getInstance(this)
-        requestPermissions()
         setContent {
             val isOnboardingComplete by
                     onboardingDataStore.isComplete.collectAsState(initial = null)
@@ -63,6 +106,9 @@ class MainActivity : ComponentActivity() {
                 // Wait for DataStore to load before rendering to avoid UI flash
                 val complete = isOnboardingComplete
                 if (complete != null) {
+                    LaunchedEffect(complete) {
+                        if (complete) requestPermissions()
+                    }
                     AppNavHost(
                         viewModel = viewModel,
                         isOnboardingComplete = complete,
@@ -72,6 +118,13 @@ class MainActivity : ComponentActivity() {
                         onStartSimulation = ::startSimulation,
                         onStopSimulation = ::stopSimulation,
                         onPickGpxFile = { gpxFilePickerLauncher.launch(arrayOf("*/*")) },
+                        onImportRouteFile = { routeFileImportLauncher.launch(arrayOf("*/*")) },
+                        onExportRouteFile = { filename, content ->
+                            pendingRouteExport = filename to content
+                            routeFileExportLauncher.launch(filename)
+                        },
+                        pendingImportedRoute = _pendingImportedRoute.value,
+                        onImportedRouteConsumed = { _pendingImportedRoute.value = null },
                     )
                 }
             }
@@ -96,28 +149,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startSimulation(profile: MovementProfile, waypointPauseSec: Double = 0.0) {
-        val intent =
-                Intent(this, SimulationService::class.java).apply {
-                    putExtra(SimulationService.EXTRA_PROFILE_NAME, profile.name)
-                    putExtra(SimulationService.EXTRA_START_LAT, viewModel.startLat.value)
-                    putExtra(SimulationService.EXTRA_START_LNG, viewModel.startLng.value)
-                    putExtra(SimulationService.EXTRA_END_LAT, viewModel.endLat.value)
-                    putExtra(SimulationService.EXTRA_END_LNG, viewModel.endLng.value)
-                    putExtra(
-                            SimulationService.EXTRA_FREQUENCY_HZ,
-                            SimulationService.DEFAULT_FREQUENCY
-                    )
-                    // Sprint 6 — Task 23/24: inform the service about the current operating mode
-                    putExtra(SimulationService.EXTRA_MODE, viewModel.selectedMode.value.name)
-                    
-                    val currentWaypoints = viewModel.waypoints.value
-                    putExtra(SimulationService.EXTRA_WAYPOINTS_LAT, currentWaypoints.map { it.lat }.toDoubleArray())
-                    putExtra(SimulationService.EXTRA_WAYPOINTS_LNG, currentWaypoints.map { it.lng }.toDoubleArray())
-                    putExtra(SimulationService.EXTRA_WAYPOINT_PAUSE_SEC, waypointPauseSec)
-                    putExtra(SimulationService.EXTRA_REPEAT_POLICY, viewModel.repeatPolicy.value.name)
-                    putExtra(SimulationService.EXTRA_REPEAT_COUNT, viewModel.repeatCount.value)
-                    putExtra(SimulationService.EXTRA_ROUTE_ID, viewModel.lastUsedConfig.value?.routeId)
-                }
+        val config = viewModel.buildCurrentConfig(profile = profile, waypointPauseSec = waypointPauseSec)
+        val intent = SimulationService.createStartIntent(this, config)
         ContextCompat.startForegroundService(this, intent)
     }
 
@@ -132,5 +165,13 @@ class MainActivity : ComponentActivity() {
     override fun onLowMemory() {
         super.onLowMemory()
         _lowMemorySignal.intValue += 1
+    }
+
+    private fun queryDisplayName(uri: Uri): String? {
+        val projection = arrayOf(android.provider.OpenableColumns.DISPLAY_NAME)
+        return contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (nameIndex >= 0 && cursor.moveToFirst()) cursor.getString(nameIndex) else null
+        }
     }
 }

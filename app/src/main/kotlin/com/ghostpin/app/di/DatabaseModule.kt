@@ -31,6 +31,7 @@ object DatabaseModule {
                 GhostPinDatabase.MIGRATION_1_2,
                 GhostPinDatabase.MIGRATION_2_3,
                 GhostPinDatabase.MIGRATION_3_4,
+                GhostPinDatabase.MIGRATION_4_5,
             )
             .build()
 

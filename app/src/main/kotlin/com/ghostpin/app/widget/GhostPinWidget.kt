@@ -72,9 +72,9 @@ class GhostPinWidget : AppWidgetProvider() {
             // ── Profile + progress ────────────────────────────────────────────
             val secondaryText: String = when (state) {
                 is SimulationState.Running ->
-                    "${state.profileName} · ${state.progressPercent.toInt()}%"
+                    "${state.profileName} · ${(state.progressPercent * 100).toInt()}%"
                 is SimulationState.Paused ->
-                    "${state.profileName} · ${state.progressPercent.toInt()}% (paused)"
+                    "${state.profileName} · ${(state.progressPercent * 100).toInt()}% (paused)"
                 is SimulationState.FetchingRoute ->
                     state.profileName
                 else -> "—"
@@ -85,8 +85,11 @@ class GhostPinWidget : AppWidgetProvider() {
             val isActive = state is SimulationState.Running || state is SimulationState.Paused
             views.setTextViewText(R.id.widget_button, if (isActive) "Stop" else "Start")
 
-            // SimulationService uses ACTION_START for both "start" and "resume from pause"
-            val toggleAction = if (isActive) SimulationService.ACTION_STOP else SimulationService.ACTION_START
+            val toggleAction = if (isActive) {
+                SimulationService.ACTION_STOP
+            } else {
+                SimulationService.ACTION_START_LAST_CONFIG
+            }
 
             val toggleIntent = Intent(context, SimulationService::class.java).apply {
                 action = toggleAction

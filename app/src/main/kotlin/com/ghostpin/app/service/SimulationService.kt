@@ -2,7 +2,9 @@ package com.ghostpin.app.service
 
 import android.app.Notification
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
@@ -10,7 +12,9 @@ import androidx.lifecycle.lifecycleScope
 import com.ghostpin.app.BuildConfig
 import com.ghostpin.app.GhostPinApp
 import com.ghostpin.app.R
+import com.ghostpin.app.data.RouteRepository
 import com.ghostpin.app.data.SimulationRepository
+import com.ghostpin.app.data.db.ProfileDao
 import com.ghostpin.app.routing.OsrmRouteProvider
 import com.ghostpin.app.routing.RouteFileParser
 import com.ghostpin.app.ui.MainActivity
@@ -19,6 +23,7 @@ import com.ghostpin.core.security.LogSanitizer
 import com.ghostpin.app.location.MockLocationInjector
 import com.ghostpin.app.data.SimulationConfig
 import com.ghostpin.engine.interpolation.RepeatPolicy
+import com.ghostpin.engine.interpolation.RouteInterpolator
 import com.ghostpin.engine.interpolation.RepeatTraversalController
 import com.ghostpin.engine.interpolation.RepeatTraversalState
 import com.ghostpin.engine.validation.TrajectoryValidator
@@ -28,14 +33,18 @@ import com.ghostpin.core.model.MockLocation
 import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.model.Route
 import com.ghostpin.core.model.distanceMeters
+import com.ghostpin.core.math.GeoMath
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
-import kotlin.math.*
 import kotlin.math.roundToLong
+import com.ghostpin.engine.interpolation.SpeedController
+import com.ghostpin.engine.noise.LayeredNoiseModel
 
 /**
  * Background service that drives the mock GPS location simulation.
@@ -58,7 +67,9 @@ class SimulationService : LifecycleService() {
 
     @Inject lateinit var mockLocationInjector: MockLocationInjector
     @Inject lateinit var osrmRouteProvider: OsrmRouteProvider
+    @Inject lateinit var routeRepository: RouteRepository
     @Inject lateinit var repository: SimulationRepository
+    @Inject lateinit var profileDao: ProfileDao
     @Inject lateinit var trajectoryValidator: TrajectoryValidator
     @Inject lateinit var routeFileParser: RouteFileParser
 
@@ -67,6 +78,7 @@ class SimulationService : LifecycleService() {
     private var activeHistoryId: String? = null
     private var activeHistoryStartedAtMs: Long? = null
     private var activeHistoryRouteDistanceMeters: Double = 0.0
+    private var isStopping = false
 
     companion object {
         private const val TAG = "SimulationService"
@@ -95,12 +107,33 @@ class SimulationService : LifecycleService() {
         const val ACTION_SKIP_NEXT_WAYPOINT = "com.ghostpin.ACTION_SKIP_NEXT_WAYPOINT"
         const val ACTION_SKIP_PREV_WAYPOINT = "com.ghostpin.ACTION_SKIP_PREV_WAYPOINT"
         const val ACTION_START_LAST_FAVORITE = "com.ghostpin.ACTION_START_LAST_FAVORITE"
+        const val ACTION_START_LAST_CONFIG = "com.ghostpin.ACTION_START_LAST_CONFIG"
 
         const val NOTIFICATION_ID     = 1001
         const val DEFAULT_FREQUENCY   = 5   // Hz — smooth map animation
 
         private const val MIN_FREQUENCY = 1  // Hz
         private const val MAX_FREQUENCY = 60 // Hz
+
+        fun createStartIntent(context: Context, config: SimulationConfig): Intent {
+            return Intent(context, SimulationService::class.java).apply {
+                action = ACTION_START
+                putExtra(EXTRA_PROFILE_NAME, config.profileName)
+                putExtra(EXTRA_START_LAT, config.startLat)
+                putExtra(EXTRA_START_LNG, config.startLng)
+                putExtra(EXTRA_END_LAT, config.endLat)
+                putExtra(EXTRA_END_LNG, config.endLng)
+                putExtra(EXTRA_FREQUENCY_HZ, config.frequencyHz)
+                putExtra(EXTRA_SPEED_RATIO, config.speedRatio)
+                putExtra(EXTRA_MODE, config.appMode.name)
+                putExtra(EXTRA_WAYPOINTS_LAT, config.waypoints.map { it.lat }.toDoubleArray())
+                putExtra(EXTRA_WAYPOINTS_LNG, config.waypoints.map { it.lng }.toDoubleArray())
+                putExtra(EXTRA_WAYPOINT_PAUSE_SEC, config.waypointPauseSec)
+                putExtra(EXTRA_REPEAT_POLICY, config.repeatPolicy.name)
+                putExtra(EXTRA_REPEAT_COUNT, config.repeatCount)
+                config.routeId?.let { putExtra(EXTRA_ROUTE_ID, it) }
+            }
+        }
     }
 
     // ── Service lifecycle ────────────────────────────────────────────────────
@@ -126,20 +159,28 @@ class SimulationService : LifecycleService() {
 
         if (intent.action == ACTION_SET_PROFILE) {
             val profileName = intent.getStringExtra(EXTRA_PROFILE_NAME)
-            if (!profileName.isNullOrBlank() && MovementProfile.BUILT_IN.containsKey(profileName)) {
+            val resolvedProfile = resolveProfile(profileName)
+            if (resolvedProfile != null) {
                 val current = repository.lastUsedConfig.value
                 repository.emitConfig(
                     SimulationConfig(
-                        profileName = profileName,
+                        profileName = resolvedProfile.name,
                         startLat = current?.startLat ?: DefaultCoordinates.START_LAT,
                         startLng = current?.startLng ?: DefaultCoordinates.START_LNG,
+                        endLat = current?.endLat ?: DefaultCoordinates.END_LAT,
+                        endLng = current?.endLng ?: DefaultCoordinates.END_LNG,
                         routeId = current?.routeId,
+                        appMode = current?.appMode ?: AppMode.CLASSIC,
+                        waypoints = current?.waypoints ?: emptyList(),
+                        waypointPauseSec = current?.waypointPauseSec ?: 0.0,
+                        speedRatio = current?.speedRatio ?: 1.0,
+                        frequencyHz = current?.frequencyHz ?: DEFAULT_FREQUENCY,
                         repeatPolicy = current?.repeatPolicy ?: RepeatPolicy.NONE,
                         repeatCount = current?.repeatCount ?: 1,
                     )
                 )
             } else {
-                repository.emitState(SimulationState.Error("Invalid profile for ACTION_SET_PROFILE"))
+                emitStateAndRefresh(SimulationState.Error("Invalid profile for ACTION_SET_PROFILE"))
             }
             return START_NOT_STICKY
         }
@@ -147,7 +188,7 @@ class SimulationService : LifecycleService() {
         if (intent.action == ACTION_SET_ROUTE) {
             val uri = intent.data
             if (uri == null) {
-                repository.emitState(SimulationState.Error("Missing route URI for ACTION_SET_ROUTE"))
+                emitStateAndRefresh(SimulationState.Error("Missing route URI for ACTION_SET_ROUTE"))
                 return START_NOT_STICKY
             }
 
@@ -160,7 +201,7 @@ class SimulationService : LifecycleService() {
                 }.onSuccess { route ->
                     repository.emitRoute(route)
                 }.onFailure { e ->
-                    repository.emitState(SimulationState.Error(e.message ?: "Failed to parse route file"))
+                    emitStateAndRefresh(SimulationState.Error(e.message ?: "Failed to parse route file"))
                 }
             }
             return START_NOT_STICKY
@@ -178,37 +219,36 @@ class SimulationService : LifecycleService() {
 
         if (intent.action == ACTION_START_LAST_FAVORITE) {
             lifecycleScope.launch {
-                when (val resolution = repository.applyMostRecentFavorite(repository.lastUsedConfig.value)) {
+                when (val resolution = repository.applyMostRecentFavorite()) {
                     is SimulationRepository.FavoriteResolution.Valid -> {
-                        val startIntent = Intent(this@SimulationService, SimulationService::class.java).apply {
-                            action = ACTION_START
-                            putExtra(EXTRA_PROFILE_NAME, resolution.config.profileName)
-                            putExtra(EXTRA_START_LAT, resolution.config.startLat)
-                            putExtra(EXTRA_START_LNG, resolution.config.startLng)
-                            resolution.config.routeId?.let { putExtra(EXTRA_ROUTE_ID, it) }
-                            putExtra(EXTRA_REPEAT_POLICY, resolution.config.repeatPolicy.name)
-                            putExtra(EXTRA_REPEAT_COUNT, resolution.config.repeatCount)
-                        }
+                        val startIntent = createStartIntent(this@SimulationService, resolution.config)
                         startForegroundService(startIntent)
                     }
                     is SimulationRepository.FavoriteResolution.Invalid -> {
-                        val fallback = resolution.fallbackConfig
-                        if (fallback == null) {
-                            repository.emitState(SimulationState.Error(resolution.reason))
-                            stopSelf()
-                            return@launch
-                        }
-                        repository.emitState(SimulationState.Error("Favorite inválido. Usando última configuração."))
-                        val startIntent = Intent(this@SimulationService, SimulationService::class.java).apply {
-                            action = ACTION_START
-                            putExtra(EXTRA_PROFILE_NAME, fallback.profileName)
-                            putExtra(EXTRA_START_LAT, fallback.startLat)
-                            putExtra(EXTRA_START_LNG, fallback.startLng)
-                            fallback.routeId?.let { putExtra(EXTRA_ROUTE_ID, it) }
-                            putExtra(EXTRA_REPEAT_POLICY, fallback.repeatPolicy.name)
-                            putExtra(EXTRA_REPEAT_COUNT, fallback.repeatCount)
-                        }
-                        startForegroundService(startIntent)
+                        emitStateAndRefresh(SimulationState.Error(resolution.reason))
+                        stopSelf()
+                    }
+                }
+            }
+            return START_NOT_STICKY
+        }
+
+        if (intent.action == ACTION_START_LAST_CONFIG) {
+            lifecycleScope.launch {
+                val currentConfig = repository.lastUsedConfig.value
+                if (currentConfig == null) {
+                    emitStateAndRefresh(SimulationState.Error("No recent simulation configuration available."))
+                    stopSelf()
+                    return@launch
+                }
+
+                when (val validation = repository.validateConfig(currentConfig, fallback = null)) {
+                    is SimulationRepository.ConfigValidation.Valid -> {
+                        startForegroundService(createStartIntent(this@SimulationService, validation.config))
+                    }
+                    is SimulationRepository.ConfigValidation.Invalid -> {
+                        emitStateAndRefresh(SimulationState.Error(validation.reason))
+                        stopSelf()
                     }
                 }
             }
@@ -216,7 +256,7 @@ class SimulationService : LifecycleService() {
         }
 
         if (!BuildConfig.MOCK_PROVIDER_ENABLED) {
-            repository.emitState(SimulationState.Error(
+            emitStateAndRefresh(SimulationState.Error(
                 "Mock provider not available in this build. " +
                 "Enable Developer Options → Mock location app."
             ))
@@ -226,15 +266,21 @@ class SimulationService : LifecycleService() {
 
         // ── Parse operating mode ─────────────────────────────────────────────
         val modeName  = intent.getStringExtra(EXTRA_MODE) ?: AppMode.CLASSIC.name
-        val appMode   = runCatching { AppMode.valueOf(modeName) }.getOrDefault(AppMode.CLASSIC)
+        val requestedMode = runCatching { AppMode.valueOf(modeName) }.getOrDefault(AppMode.CLASSIC)
 
         // ── Resume detection ──────────────────────────────────────────────────
         val startLatRaw = intent.getDoubleExtra(EXTRA_START_LAT, Double.NaN)
         val isResume    = repository.state.value is SimulationState.Paused && startLatRaw.isNaN()
+        val appMode = if (isResume && repository.isManualMode.value) AppMode.JOYSTICK else requestedMode
 
         val frequencyHz = intent.getIntExtra(EXTRA_FREQUENCY_HZ, DEFAULT_FREQUENCY)
             .coerceIn(MIN_FREQUENCY, MAX_FREQUENCY)
         val speedRatio = intent.getDoubleExtra(EXTRA_SPEED_RATIO, 1.0).coerceIn(0.0, 1.0)
+        if (speedRatio <= 0.0) {
+            emitStateAndRefresh(SimulationState.Error("Speed ratio must be greater than 0 to start simulation."))
+            stopSelf()
+            return START_NOT_STICKY
+        }
         val waypointPauseSec = intent.getDoubleExtra(EXTRA_WAYPOINT_PAUSE_SEC, 0.0).coerceIn(0.0, 30.0)
         val repeatPolicy = runCatching {
             val raw = intent.getStringExtra(EXTRA_REPEAT_POLICY)
@@ -300,7 +346,7 @@ class SimulationService : LifecycleService() {
                 Log.w(TAG, "Invalid endLng received — falling back to default.")
             }
 
-        val profile = MovementProfile.BUILT_IN[profileName] ?: MovementProfile.PEDESTRIAN.also {
+        val profile = resolveProfile(profileName) ?: MovementProfile.PEDESTRIAN.also {
             Log.w(TAG, LogSanitizer.sanitizeString("Unknown profile '$profileName' — defaulting to Pedestrian."))
         }
 
@@ -315,7 +361,7 @@ class SimulationService : LifecycleService() {
         }
 
         if (appMode == AppMode.WAYPOINTS && waypointsList.size < 2) {
-            repository.emitState(SimulationState.Error("Add at least 2 waypoints to start multi-stop mode."))
+            emitStateAndRefresh(SimulationState.Error("Add at least 2 waypoints to start multi-stop mode."))
             stopSelf()
             return START_NOT_STICKY
         }
@@ -325,7 +371,14 @@ class SimulationService : LifecycleService() {
                 profileName = profile.name,
                 startLat = startLat,
                 startLng = startLng,
+                endLat = endLat,
+                endLng = endLng,
                 routeId = intent.getStringExtra(EXTRA_ROUTE_ID),
+                appMode = appMode,
+                waypoints = waypointsList,
+                waypointPauseSec = waypointPauseSec,
+                speedRatio = speedRatio,
+                frequencyHz = frequencyHz,
                 repeatPolicy = repeatPolicy,
                 repeatCount = repeatCount,
             )
@@ -338,7 +391,24 @@ class SimulationService : LifecycleService() {
 
     override fun onDestroy() {
         stopService(Intent(this, FloatingBubbleService::class.java))
-        stopSimulation()
+        if (activeHistoryId != null) {
+            simulationJob?.cancel()
+            simulationJob = null
+            runCatching {
+                runBlocking {
+                    finishActiveHistory(
+                        resultStatus = "INTERRUPTED",
+                        distanceMeters = estimateCoveredDistanceMeters(),
+                    )
+                }
+            }.onFailure { error ->
+                Log.e(TAG, "Failed to finalize history during service destruction", error)
+            }
+            runCatching { mockLocationInjector.unregisterProvider() }
+            repository.reset()
+            refreshCompanionSurfaces(SimulationState.Idle)
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        }
         super.onDestroy()
     }
 
@@ -360,26 +430,57 @@ class SimulationService : LifecycleService() {
         repeatCount: Int = 1,
     ) {
         simulationJob?.cancel()
-        if (resumeState == null) repository.emitRoute(null)
+        isStopping = false
+        if (resumeState == null && appMode != AppMode.GPX) {
+            repository.emitRoute(null)
+        }
 
         val intervalMs   = 1000L / frequencyHz
         val deltaTimeSec = 1.0 / frequencyHz
 
-        simulationJob = lifecycleScope.launch {
+        simulationJob = lifecycleScope.launch(Dispatchers.Default) {
             try {
                 if (resumeState == null) {
                     activeHistoryStartedAtMs = System.currentTimeMillis()
-                    activeHistoryId = repository.startHistory(
-                        profileIdOrName = profile.name,
-                        routeId = repository.lastUsedConfig.value?.routeId,
+                    val launchConfig = repository.lastUsedConfig.value ?: SimulationConfig(
+                        profileName = profile.name,
+                        startLat = startLat,
+                        startLng = startLng,
+                        endLat = endLat,
+                        endLng = endLng,
+                        routeId = null,
+                        appMode = appMode,
+                        waypoints = waypoints,
+                        waypointPauseSec = waypointPauseSec,
+                        speedRatio = speedRatio,
+                        frequencyHz = frequencyHz,
+                        repeatPolicy = repeatPolicy,
+                        repeatCount = repeatCount,
                     )
+                    activeHistoryId = repository.startHistory(launchConfig)
                 }
 
                 // ── 1. Obtain route ──────────────────────────────────────────
+                val config = repository.lastUsedConfig.value
+                val persistedRouteId = config?.routeId
+                val persistedRoute = persistedRouteId?.let { routeRepository.getById(it) }
+                if (persistedRouteId != null && persistedRoute == null) {
+                    emitStateAndRefresh(
+                        SimulationState.Error("Saved route not found for routeId '$persistedRouteId'.")
+                    )
+                    stopSelf()
+                    return@launch
+                }
+
                 val route: Route = when {
                     // Resume: reuse the existing route already cached in repo
                     resumeState != null && repository.route.value != null -> {
                         repository.route.value!!
+                    }
+
+                    persistedRoute != null -> {
+                        repository.emitRoute(persistedRoute)
+                        persistedRoute
                     }
 
                     // GPX mode: route was pre-loaded by the ViewModel's file picker.
@@ -387,8 +488,18 @@ class SimulationService : LifecycleService() {
                     appMode == AppMode.GPX -> {
                         val preloaded = repository.route.value
                             ?: repository.route.first { it != null }
+                            ?: repository.lastUsedConfig.value
+                                ?.waypoints
+                                ?.takeIf { it.size >= 2 }
+                                ?.let { savedWaypoints ->
+                                    Route(
+                                        id = repository.lastUsedConfig.value?.routeId ?: "gpx-saved-route",
+                                        name = "Saved GPX Route",
+                                        waypoints = savedWaypoints,
+                                    )
+                                }
                         if (preloaded == null) {
-                            repository.emitState(SimulationState.Error(
+                            emitStateAndRefresh(SimulationState.Error(
                                 "No GPX route loaded. Please select a .gpx file first."
                             ))
                             stopSelf()
@@ -400,7 +511,7 @@ class SimulationService : LifecycleService() {
 
                     // Joystick mode: no route needed; we park at start position.
                     appMode == AppMode.JOYSTICK -> {
-                        repository.emitState(SimulationState.Running(
+                        emitStateAndRefresh(SimulationState.Running(
                             currentLocation = MockLocation(startLat, startLng, 0.0, 0f, 0f),
                             profileName     = profile.name,
                             progressPercent = 0f,
@@ -413,7 +524,7 @@ class SimulationService : LifecycleService() {
 
                     // Waypoints Mode -> fetch using multiple points
                     appMode == AppMode.WAYPOINTS && waypoints.size >= 2 -> {
-                        repository.emitState(SimulationState.FetchingRoute(profile.name))
+                        emitStateAndRefresh(SimulationState.FetchingRoute(profile.name))
                         val newRoute = osrmRouteProvider
                             .fetchMultiRoute(waypoints, profile)
                             .getOrElse { error ->
@@ -428,7 +539,7 @@ class SimulationService : LifecycleService() {
 
                     // Classic Mode: fetch from OSRM (or fallback)
                     else -> {
-                        repository.emitState(SimulationState.FetchingRoute(profile.name))
+                        emitStateAndRefresh(SimulationState.FetchingRoute(profile.name))
                         val newRoute = osrmRouteProvider
                             .fetchRoute(startLat, startLng, endLat, endLng, profile)
                             .getOrElse { error ->
@@ -447,8 +558,22 @@ class SimulationService : LifecycleService() {
                     repository.emitRoute(route)
                 }
 
+                val validation = trajectoryValidator.validate(route, profile)
+                if (!validation.isValid) {
+                    val message = validation.warnings.joinToString(separator = "; ")
+                        .ifBlank { "Route failed engine validation." }
+                    emitStateAndRefresh(SimulationState.Error(message))
+                    stopSelf()
+                    return@launch
+                }
+
                 // ── 3. Interpolation loop ────────────────────────────────────
                 mockLocationInjector.registerProvider()
+                val speedController = SpeedController(profile, initialRatio = speedRatio)
+                val noiseModel = LayeredNoiseModel.fromProfile(profile)
+                val interpolator = RouteInterpolator(route)
+                speedController.reset()
+                noiseModel.reset()
 
                 val controller = RepeatTraversalController(repeatPolicy, repeatCount)
                 var traversal = RepeatTraversalState(
@@ -456,18 +581,19 @@ class SimulationService : LifecycleService() {
                     direction = resumeState?.direction ?: 1,
                     currentLap = resumeState?.currentLap ?: 1,
                 )
-                var elapsedSec    = resumeState?.elapsedTimeSec ?: 0L
                 var frameCount    = 0L
+                val elapsedOffsetMs = (resumeState?.elapsedTimeSec ?: 0L) * 1000L
+                val loopStartedAtMs = SystemClock.elapsedRealtime()
 
-                val totalDist = route.distanceMeters.takeIf { it > 0 } ?: 1.0
+                val totalDist = interpolator.totalDistanceMeters.takeIf { it > 0 } ?: 1.0
                 val nominalLapCount = if (repeatPolicy == RepeatPolicy.LOOP_N || repeatPolicy == RepeatPolicy.PING_PONG_N) {
                     repeatCount.toDouble()
                 } else {
                     1.0
                 }
                 activeHistoryRouteDistanceMeters = route.distanceMeters.coerceAtLeast(0.0) * nominalLapCount
-                val speedMs   = profile.maxSpeedMs * speedRatio
                 var lastWaypointIndex = 0
+                val triggeredLoopSegments = mutableSetOf<Int>()
 
                 while (!traversal.completed) {
                     val frameStart = System.currentTimeMillis()
@@ -479,27 +605,37 @@ class SimulationService : LifecycleService() {
                         pendingWaypointSkip = 0
                     }
 
-                    if (appMode == AppMode.WAYPOINTS && waypointPauseSec > 0.0) {
-                        val idx = currentWaypointIndex(route, traversal.progress)
-                        if (idx > lastWaypointIndex) {
-                            lastWaypointIndex = idx
-                            delay((waypointPauseSec * 1000.0).toLong())
-                        }
-                    }
-
-                    val (lat, lng) = interpolate(route, traversal.progress)
-                    val altitude   = estimateAltitude(route, traversal.progress)
-                    val bearing    = computeBearing(route, traversal.progress, traversal.direction)
-
-                    val loc = MockLocation(
-                        lat       = lat,
-                        lng       = lng,
-                        altitude  = altitude,
-                        bearing   = bearing,
-                        speed     = speedMs.toFloat(),
+                    val distanceAlongRoute = traversal.progress * totalDist
+                    val frame = interpolator.positionAt(distanceAlongRoute)
+                    val segmentIndex = currentSegmentIndex(route, traversal.progress)
+                    val runtimeBehavior = resolveSegmentRuntimeBehavior(
+                        route = route,
+                        segmentIndex = segmentIndex,
+                        profile = profile,
+                        baseSpeedRatio = speedRatio,
+                        defaultWaypointPauseSec = waypointPauseSec,
+                        repeatPolicy = repeatPolicy,
+                        triggeredLoopSegments = triggeredLoopSegments,
                     )
+                    speedController.targetRatio = runtimeBehavior.targetRatio
+                    val distToNextWaypoint = distanceToNextWaypointMeters(interpolator, traversal.progress, traversal.direction)
+                    val distPerFrame = speedController.advance(deltaTimeSec, distToNextWaypoint)
+                    val frameTimestampMs = System.currentTimeMillis()
+                    val frameElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+
+                    val rawLoc = MockLocation(
+                        lat       = frame.lat,
+                        lng       = frame.lng,
+                        altitude  = interpolateAltitude(interpolator, route, distanceAlongRoute),
+                        bearing   = if (traversal.direction >= 0) frame.bearing else ((frame.bearing + 180f) % 360f),
+                        speed     = speedController.currentSpeedMs.toFloat(),
+                        timestampMs = frameTimestampMs,
+                        elapsedRealtimeNanos = frameElapsedRealtimeNanos,
+                    )
+                    val loc = noiseModel.applyToLocation(rawLoc, deltaTimeSec)
 
                     mockLocationInjector.inject(loc)
+                    val elapsedSec = ((SystemClock.elapsedRealtime() - loopStartedAtMs) + elapsedOffsetMs) / 1000L
 
                     val runningState = SimulationState.Running(
                         currentLocation = loc,
@@ -516,12 +652,23 @@ class SimulationService : LifecycleService() {
                         elapsedTimeSec  = elapsedSec,
                         frameCount      = frameCount,
                     )
-                    repository.emitState(runningState)
-                    GhostPinWidget.updateAll(this@SimulationService, runningState)
+                    emitStateAndRefresh(runningState, refreshSurfaces = frameCount == 0L)
 
-                    val distPerFrame = speedMs * deltaTimeSec
                     traversal = controller.advance(traversal, distPerFrame / totalDist)
-                    elapsedSec++
+                    if (runtimeBehavior.shouldRestartFromStart) {
+                        val waypointIndex = currentWaypointIndex(route, traversal.progress)
+                        if (waypointIndex > lastWaypointIndex) {
+                            triggeredLoopSegments += segmentIndex
+                            traversal = traversal.copy(progress = 0.0)
+                            lastWaypointIndex = 0
+                        }
+                    } else if (runtimeBehavior.pauseSec > 0.0) {
+                        val waypointIndex = currentWaypointIndex(route, traversal.progress)
+                        if (waypointIndex > lastWaypointIndex) {
+                            lastWaypointIndex = waypointIndex
+                            delay((runtimeBehavior.pauseSec * 1000.0).toLong())
+                        }
+                    }
                     frameCount++
 
                     val elapsed = System.currentTimeMillis() - frameStart
@@ -534,8 +681,10 @@ class SimulationService : LifecycleService() {
                     distanceMeters = activeHistoryRouteDistanceMeters,
                 )
                 repository.reset()
-                GhostPinWidget.updateAll(this@SimulationService, SimulationState.Idle)
+                refreshCompanionSurfaces(SimulationState.Idle)
+                noiseModel.reset()
                 mockLocationInjector.unregisterProvider()
+                simulationJob = null
                 stopSelf()
 
             } catch (e: Exception) {
@@ -545,9 +694,9 @@ class SimulationService : LifecycleService() {
                     resultStatus = "ERROR",
                     distanceMeters = estimateCoveredDistanceMeters(),
                 )
-                repository.emitState(SimulationState.Error(e.message ?: "Unknown simulation error"))
+                emitStateAndRefresh(SimulationState.Error(e.message ?: "Unknown simulation error"))
                 repository.emitRoute(null)
-                GhostPinWidget.updateAll(this@SimulationService, SimulationState.Idle)
+                simulationJob = null
                 stopSelf()
             }
         }
@@ -569,13 +718,15 @@ class SimulationService : LifecycleService() {
         intervalMs:  Long,
     ) {
         mockLocationInjector.registerProvider()
+        val noiseModel = LayeredNoiseModel.fromProfile(profile)
+        noiseModel.reset()
 
         var lat        = initialLat
         var lng        = initialLng
         var frameCount = 0L
-        var elapsedSec = 0L
 
         val deltaTimeSec = intervalMs / 1000.0
+        val loopStartedAtMs = SystemClock.elapsedRealtime()
 
         try {
             while (true) {
@@ -596,31 +747,38 @@ class SimulationService : LifecycleService() {
                     lng = (lng + dLng).coerceIn(-180.0, 180.0)
                 }
 
-                val loc = MockLocation(
+                val frameTimestampMs = System.currentTimeMillis()
+                val frameElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+
+                val rawLoc = MockLocation(
                     lat      = lat,
                     lng      = lng,
                     altitude = 0.0,
                     bearing  = joystick.angle,
                     speed    = (profile.maxSpeedMs * joystick.magnitude).toFloat(),
+                    timestampMs = frameTimestampMs,
+                    elapsedRealtimeNanos = frameElapsedRealtimeNanos,
                 )
+                val loc = noiseModel.applyToLocation(rawLoc, deltaTimeSec)
                 mockLocationInjector.inject(loc)
 
-                repository.emitState(SimulationState.Running(
+                val elapsedSec = (SystemClock.elapsedRealtime() - loopStartedAtMs) / 1000L
+
+                emitStateAndRefresh(SimulationState.Running(
                     currentLocation = loc,
                     profileName     = profile.name,
                     progressPercent = 0f, // indefinite in joystick mode
                     elapsedTimeSec  = elapsedSec,
                     frameCount      = frameCount,
-                ))
-                GhostPinWidget.updateAll(this@SimulationService, repository.state.value)
+                ), refreshSurfaces = frameCount == 0L)
 
                 frameCount++
-                elapsedSec++
 
                 val elapsed = System.currentTimeMillis() - frameStart
                 delay((intervalMs - elapsed).coerceAtLeast(0L))
             }
         } finally {
+            noiseModel.reset()
             mockLocationInjector.unregisterProvider()
         }
     }
@@ -642,25 +800,31 @@ class SimulationService : LifecycleService() {
                 direction = currentState.direction,
                 elapsedTimeSec  = currentState.elapsedTimeSec,
             )
-            repository.emitState(pausedState)
-            GhostPinWidget.updateAll(this, pausedState)
+            emitStateAndRefresh(pausedState)
         }
     }
 
     private fun stopSimulation() {
-        if (activeHistoryId != null) {
-            lifecycleScope.launch {
-                finishActiveHistory(
-                    resultStatus = "INTERRUPTED",
-                    distanceMeters = estimateCoveredDistanceMeters(),
-                )
-            }
-        }
+        if (isStopping) return
+        isStopping = true
+
         simulationJob?.cancel()
         simulationJob = null
+        if (activeHistoryId != null) {
+            runCatching {
+                runBlocking {
+                    finishActiveHistory(
+                        resultStatus = "INTERRUPTED",
+                        distanceMeters = estimateCoveredDistanceMeters(),
+                    )
+                }
+            }.onFailure { error ->
+                Log.e(TAG, "Failed to finalize interrupted history", error)
+            }
+        }
         runCatching { mockLocationInjector.unregisterProvider() }
         repository.reset()
-        GhostPinWidget.updateAll(this, SimulationState.Idle)
+        refreshCompanionSurfaces(SimulationState.Idle)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -693,54 +857,69 @@ class SimulationService : LifecycleService() {
         return (activeHistoryRouteDistanceMeters * progress).roundToLong().toDouble()
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    /** Linearly interpolates a (lat, lng) position along [route] at [progress] ∈ [0, 1]. */
-    private fun interpolate(route: Route, progress: Double): Pair<Double, Double> {
-        if (route.waypoints.isEmpty()) return Pair(0.0, 0.0)
-        if (route.waypoints.size == 1) return Pair(route.waypoints[0].lat, route.waypoints[0].lng)
-
-        val totalDist = route.distanceMeters.coerceAtLeast(1.0)
-        val target    = progress * totalDist
-        var covered   = 0.0
-
-        for (i in 0 until route.waypoints.size - 1) {
-            val a = route.waypoints[i]
-            val b = route.waypoints[i + 1]
-            val segDist = haversineMeters(a.lat, a.lng, b.lat, b.lng)
-            if (covered + segDist >= target) {
-                val t = ((target - covered) / segDist.coerceAtLeast(1.0)).coerceIn(0.0, 1.0)
-                return Pair(a.lat + t * (b.lat - a.lat), a.lng + t * (b.lng - a.lng))
-            }
-            covered += segDist
-        }
-        val last = route.waypoints.last()
-        return Pair(last.lat, last.lng)
+    private fun emitStateAndRefresh(
+        state: SimulationState,
+        refreshSurfaces: Boolean = true,
+    ) {
+        repository.emitState(state)
+        if (refreshSurfaces) refreshCompanionSurfaces(state)
     }
 
-    /** Bearing from current position toward next waypoint, in degrees. */
-    private fun computeBearing(route: Route, progress: Double, direction: Int = 1): Float {
-        if (route.waypoints.size < 2) return 0f
-        val totalDist = route.distanceMeters.coerceAtLeast(1.0)
-        val target    = progress * totalDist
-        var covered   = 0.0
+    private fun refreshCompanionSurfaces(state: SimulationState) {
+        GhostPinWidget.updateAll(this, state)
+        GhostPinQsTile.requestUpdate(this)
+    }
 
-        for (i in 0 until route.waypoints.size - 1) {
-            val a = route.waypoints[i]
-            val b = route.waypoints[i + 1]
-            val segDist = haversineMeters(a.lat, a.lng, b.lat, b.lng)
-            if (covered + segDist >= target) {
-                val dLng = Math.toRadians(b.lng - a.lng)
-                val aLat = Math.toRadians(a.lat)
-                val bLat = Math.toRadians(b.lat)
-                val y    = Math.sin(dLng) * Math.cos(bLat)
-                val x    = Math.cos(aLat) * Math.sin(bLat) - Math.sin(aLat) * Math.cos(bLat) * Math.cos(dLng)
-                val forward = ((Math.toDegrees(Math.atan2(y, x)) + 360) % 360).toFloat()
-                return if (direction >= 0) forward else ((forward + 180f) % 360f)
-            }
-            covered += segDist
+    private fun resolveProfile(profileIdOrName: String?): MovementProfile? {
+        if (profileIdOrName.isNullOrBlank()) return null
+        MovementProfile.BUILT_IN[profileIdOrName]?.let { return it }
+
+        return runBlocking {
+            profileDao.getById(profileIdOrName)?.toDomain()
+                ?: profileDao.getByName(profileIdOrName)?.toDomain()
         }
-        return 0f
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private fun distanceToNextWaypointMeters(
+        interpolator: RouteInterpolator,
+        progress: Double,
+        direction: Int,
+    ): Double {
+        val segmentIndex = currentSegmentIndex(interpolator.route, progress)
+        val distanceAlongRoute = progress.coerceIn(0.0, 1.0) * interpolator.totalDistanceMeters
+
+        return if (direction >= 0) {
+            val nextWaypointIndex = (segmentIndex + 1).coerceAtMost(interpolator.route.waypoints.lastIndex)
+            (interpolator.distanceToWaypoint(nextWaypointIndex) - distanceAlongRoute).coerceAtLeast(0.0)
+        } else {
+            val previousWaypointIndex = segmentIndex.coerceAtLeast(0)
+            (distanceAlongRoute - interpolator.distanceToWaypoint(previousWaypointIndex)).coerceAtLeast(0.0)
+        }
+    }
+
+    private fun currentSegmentIndex(route: Route, progress: Double): Int {
+        if (route.waypoints.size < 2) return 0
+        return (currentWaypointIndex(route, progress) - 1).coerceIn(0, route.waypoints.lastIndex - 1)
+    }
+
+    private fun interpolateAltitude(
+        interpolator: RouteInterpolator,
+        route: Route,
+        distanceMeters: Double,
+    ): Double {
+        if (route.waypoints.size < 2) return route.waypoints.firstOrNull()?.altitude ?: 0.0
+
+        val clamped = distanceMeters.coerceIn(0.0, interpolator.totalDistanceMeters)
+        val segmentIndex = currentSegmentIndex(route, if (interpolator.totalDistanceMeters > 0.0) clamped / interpolator.totalDistanceMeters else 0.0)
+        val segStart = interpolator.cumulativeDistances[segmentIndex]
+        val segEnd = interpolator.cumulativeDistances[(segmentIndex + 1).coerceAtMost(interpolator.cumulativeDistances.lastIndex)]
+        val segLength = (segEnd - segStart).coerceAtLeast(1e-6)
+        val t = ((clamped - segStart) / segLength).coerceIn(0.0, 1.0)
+        val a = route.waypoints[segmentIndex]
+        val b = route.waypoints[(segmentIndex + 1).coerceAtMost(route.waypoints.lastIndex)]
+        return a.altitude + (b.altitude - a.altitude) * t
     }
 
 
@@ -753,7 +932,7 @@ class SimulationService : LifecycleService() {
         for (i in 0 until route.waypoints.size - 1) {
             val a = route.waypoints[i]
             val b = route.waypoints[i + 1]
-            val segDist = haversineMeters(a.lat, a.lng, b.lat, b.lng)
+            val segDist = GeoMath.haversineMeters(a.lat, a.lng, b.lat, b.lng)
             if (covered + segDist >= target) return i + 1
             covered += segDist
         }
@@ -771,7 +950,7 @@ class SimulationService : LifecycleService() {
         for (i in 0 until route.waypoints.size - 1) {
             val a = route.waypoints[i]
             val b = route.waypoints[i + 1]
-            val segDist = haversineMeters(a.lat, a.lng, b.lat, b.lng)
+            val segDist = GeoMath.haversineMeters(a.lat, a.lng, b.lat, b.lng)
             if (covered + segDist >= target) {
                 nextWaypointIndex = i + 1
                 break
@@ -789,23 +968,10 @@ class SimulationService : LifecycleService() {
         for (i in 0 until desiredIndex) {
             val a = route.waypoints[i]
             val b = route.waypoints[i + 1]
-            desiredDistance += haversineMeters(a.lat, a.lng, b.lat, b.lng)
+            desiredDistance += GeoMath.haversineMeters(a.lat, a.lng, b.lat, b.lng)
         }
 
         return (desiredDistance / totalDist).coerceIn(0.0, 1.0)
-    }
-
-    @Suppress("UNUSED_PARAMETER")
-    private fun estimateAltitude(route: Route, progress: Double): Double = 0.0
-
-    private fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val R    = 6_371_000.0
-        val dLat = Math.toRadians(lat2 - lat1)
-        val dLon = Math.toRadians(lon2 - lon1)
-        val a    = Math.sin(dLat / 2).let { it * it } +
-                   Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
-                   Math.sin(dLon / 2).let { it * it }
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
     }
 
     private fun buildNotification(profileName: String): Notification {
