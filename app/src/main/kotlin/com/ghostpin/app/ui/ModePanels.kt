@@ -483,13 +483,13 @@ fun GpxModePanel(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                         imageVector = Icons.Default.Folder,
-                        contentDescription = "GPX import",
+                        contentDescription = "Route file import",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp),
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                        text = "GPX Import",
+                        text = "Route File Import",
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 16.sp,
@@ -502,7 +502,7 @@ fun GpxModePanel(
                 is SimulationViewModel.GpxLoadState.Idle -> {
                     Text(
                             text =
-                                    "Select a .gpx file from your device. The route will be followed exactly, bypassing OSRM.",
+                                    "Select a GPX, KML, or TCX file from your device. The imported route will be followed exactly, bypassing OSRM.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 13.sp,
                     )
@@ -514,11 +514,11 @@ fun GpxModePanel(
                     ) {
                         Icon(
                                 Icons.Default.FileOpen,
-                                contentDescription = "Choose GPX file",
+                                contentDescription = "Choose route file",
                                 modifier = Modifier.size(18.dp)
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text("Choose GPX File", fontWeight = FontWeight.Medium)
+                        Text("Choose Route File", fontWeight = FontWeight.Medium)
                     }
                 }
 
@@ -533,7 +533,7 @@ fun GpxModePanel(
                                 color = MaterialTheme.colorScheme.primary,
                                 strokeWidth = 2.dp,
                         )
-                        Text("Parsing GPX file…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                        Text("Parsing route file…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                     }
                 }
 
@@ -575,7 +575,7 @@ fun GpxModePanel(
                         }
                     }
                     Text(
-                            text = "✓ Route loaded. Press Start to begin GPX playback.",
+                            text = "✓ Route loaded. Press Start to begin imported-route playback.",
                             color = MaterialTheme.colorScheme.statusSuccess,
                             fontSize = 12.sp,
                     )
@@ -593,7 +593,7 @@ fun GpxModePanel(
                         ) {
                             Icon(
                                     imageVector = Icons.Default.Error,
-                                    contentDescription = "GPX error",
+                                    contentDescription = "Route import error",
                                     tint = MaterialTheme.colorScheme.statusError,
                                     modifier = Modifier.size(18.dp),
                             )

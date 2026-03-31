@@ -51,7 +51,12 @@ class ScheduleViewModel @Inject constructor(
                 )
             ) {
                 is ScheduleManager.CreateScheduleResult.Success -> {
-                    _events.emit("Agendamento criado: ${result.schedule.id.take(8)}")
+                    val suffix = if (result.exactAlarmGranted) {
+                        ""
+                    } else {
+                        " (sem alarmes exatos; o sistema pode atrasar a execução)"
+                    }
+                    _events.emit("Agendamento criado: ${result.schedule.id.take(8)}$suffix")
                 }
 
                 is ScheduleManager.CreateScheduleResult.Conflict -> {

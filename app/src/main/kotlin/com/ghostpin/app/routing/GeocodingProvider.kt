@@ -3,6 +3,9 @@ package com.ghostpin.app.routing
 import android.util.Log
 import com.ghostpin.core.security.LogSanitizer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import java.net.HttpURLConnection
@@ -32,7 +35,13 @@ class GeocodingProvider @Inject constructor() {
         private const val BASE_URL = "https://nominatim.openstreetmap.org/search"
         private const val TIMEOUT_MS = 8_000
         private const val MAX_RESULTS = 5
+        private const val MIN_REQUEST_INTERVAL_MS = 1_000L
     }
+
+    private val rateLimitMutex = Mutex()
+    private val cachedResults = LinkedHashMap<String, List<GeoResult>>()
+    @Volatile private var lastRequestAtMs: Long = 0L
+    @Volatile private var lastFailureMessage: String? = null
 
     /**
      * A geocoding search result.
@@ -58,18 +67,36 @@ class GeocodingProvider @Inject constructor() {
         withContext(Dispatchers.IO) {
             if (query.isBlank()) return@withContext emptyList()
 
+            val normalizedQuery = query.trim().lowercase()
+            val cacheKey = "$normalizedQuery:$limit"
+
             runCatching {
-                val encoded = URLEncoder.encode(query.trim(), "UTF-8")
-                val url = "$BASE_URL?q=$encoded&format=json&limit=$limit&addressdetails=0"
-                val json = httpGet(url)
-                parseResults(json)
+                cachedResults[cacheKey]?.let { return@runCatching it }
+                rateLimitMutex.withLock {
+                    cachedResults[cacheKey]?.let { return@withLock it }
+                    val now = System.currentTimeMillis()
+                    val waitMs = (MIN_REQUEST_INTERVAL_MS - (now - lastRequestAtMs)).coerceAtLeast(0L)
+                    if (waitMs > 0L) delay(waitMs)
+                    lastRequestAtMs = System.currentTimeMillis()
+                    val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+                    val url = "$BASE_URL?q=$encoded&format=json&limit=$limit&addressdetails=0"
+                    val json = httpGet(url)
+                    parseResults(json).also {
+                        cachedResults[cacheKey] = it
+                        trimCache()
+                        lastFailureMessage = null
+                    }
+                }.also {
+                    trimCache()
+                }
             }.getOrElse { e ->
-                Log.w(TAG, LogSanitizer.sanitizeString(
-                    "Geocoding failed for query '${query.take(64)}': ${e.message}"
-                ))
+                lastFailureMessage = "Geocoding unavailable. Check your connection and try again."
+                Log.w(TAG, LogSanitizer.sanitizeString("Geocoding failed for query '${query.take(64)}': ${e.message}"))
                 emptyList()
             }
         }
+
+    fun consumeLastFailureMessage(): String? = lastFailureMessage.also { lastFailureMessage = null }
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
@@ -105,5 +132,12 @@ class GeocodingProvider @Inject constructor() {
             results.add(GeoResult(displayName, lat, lon))
         }
         return results
+    }
+
+    private fun trimCache(maxEntries: Int = 16) {
+        while (cachedResults.size > maxEntries) {
+            val firstKey = cachedResults.entries.firstOrNull()?.key ?: break
+            cachedResults.remove(firstKey)
+        }
     }
 }

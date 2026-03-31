@@ -54,6 +54,7 @@ fun InteractiveMap(
     val mapView = remember { MapView(context) }
     var mapController by remember { mutableStateOf<MapController?>(null) }
     var hasCenteredOnDeviceLocation by remember { mutableStateOf(false) }
+    var mapWarning by remember { mutableStateOf<String?>(null) }
 
     // Manage MapView lifecycle (destroy only once, on disposal).
     DisposableEffect(lifecycleOwner, mapView) {
@@ -152,14 +153,19 @@ fun InteractiveMap(
             AndroidView(
                 factory = {
                     mapView.apply {
-                        getMapAsync { mapLibreMap ->
-                            mapController =
-                                MapController(mapLibreMap) { latLng ->
-                                    onMapLongPress(latLng.latitude, latLng.longitude)
-                                }
+                            getMapAsync { mapLibreMap ->
+                                mapController =
+                                    MapController(
+                                        mapView = mapView,
+                                        map = mapLibreMap,
+                                        onMapLongClick = { latLng ->
+                                            onMapLongPress(latLng.latitude, latLng.longitude)
+                                        },
+                                        onMapWarning = { warning -> mapWarning = warning },
+                                    )
+                            }
                         }
-                    }
-                },
+                    },
                 modifier = Modifier.fillMaxSize(),
             )
 
@@ -216,6 +222,21 @@ fun InteractiveMap(
                             Text("Fetching route…", color = Color(0xFFB0BEC5), fontSize = 12.sp)
                         }
                     }
+                }
+            }
+
+            if (!mapWarning.isNullOrBlank()) {
+                Surface(
+                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 12.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xCC4E342E),
+                ) {
+                    Text(
+                        text = mapWarning.orEmpty(),
+                        color = Color(0xFFFFE0B2),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
                 }
             }
         }

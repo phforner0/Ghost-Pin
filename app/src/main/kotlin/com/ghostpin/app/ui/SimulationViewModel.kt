@@ -14,6 +14,7 @@ import com.ghostpin.app.data.db.ProfileEntity
 import com.ghostpin.app.data.db.SimulationHistoryEntity
 import com.ghostpin.app.routing.GeocodingProvider
 import com.ghostpin.app.routing.GpxParser
+import com.ghostpin.app.routing.RouteImportValidator
 import com.ghostpin.app.service.SimulationService
 import com.ghostpin.app.service.SimulationState
 import com.ghostpin.app.service.estimateRuntimeDurationSec
@@ -88,8 +89,14 @@ class SimulationViewModel
                 viewModelScope.launch {
                     delay(400) // debounce
                     _isSearching.value = true
-                    _geoSuggestions.value = geocodingProvider.search(query)
+                    val results = geocodingProvider.search(query)
+                    _geoSuggestions.value = results
                     _isSearching.value = false
+                    if (results.isEmpty()) {
+                        geocodingProvider.consumeLastFailureMessage()?.let { message ->
+                            _uiEvents.emit(message)
+                        }
+                    }
                 }
         }
 
@@ -267,10 +274,12 @@ class SimulationViewModel
                 val result =
                     withContext(Dispatchers.IO) {
                         try {
+                            val validUri = RouteImportValidator.validateUri(uri).getOrThrow()
+                            val displayName = RouteImportValidator.resolveDisplayName(context.contentResolver, validUri)
                             val stream =
-                                context.contentResolver.openInputStream(uri)
-                                    ?: throw IllegalStateException("Cannot open stream for URI: $uri")
-                            gpxParser.parse(stream)
+                                context.contentResolver.openInputStream(validUri)
+                                    ?: throw IllegalStateException("Cannot open route file stream.")
+                            gpxParser.parse(stream, displayName)
                         } catch (e: Exception) {
                             Result.failure(e)
                         }
@@ -283,7 +292,7 @@ class SimulationViewModel
                     },
                     onFailure = { error ->
                         _gpxLoadState.value =
-                            GpxLoadState.Error(error.message ?: "Failed to parse GPX file.")
+                            GpxLoadState.Error(error.message ?: "Failed to parse route file.")
                     },
                 )
             }

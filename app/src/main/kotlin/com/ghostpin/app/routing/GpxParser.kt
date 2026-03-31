@@ -24,7 +24,9 @@ import javax.inject.Singleton
  * were causing a compilation error and cascading KSP/Hilt failures.
  */
 @Singleton
-class GpxParser @Inject constructor() {
+class GpxParser @Inject constructor(
+    private val routeFileParser: RouteFileParser,
+) {
 
     // A minimal namespace setting for pull parser (usually null is fine)
     private val ns: String? = null
@@ -37,11 +39,16 @@ class GpxParser @Inject constructor() {
      * @throws XmlPullParserException If the XML format is malformed.
      */
     @Throws(XmlPullParserException::class, IOException::class)
-    fun parse(inputStream: InputStream): Result<Route> {
+    fun parse(inputStream: InputStream, filename: String? = null): Result<Route> {
+        inputStream.markSupported()
         return try {
+            val bytes = inputStream.readBytes()
+            val delegated = routeFileParser.parse(bytes.inputStream(), filename ?: "Imported Route")
+            if (delegated.isSuccess) return delegated
+
             val parser: XmlPullParser = Xml.newPullParser().apply {
                 setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
-                setInput(inputStream, null)
+                setInput(bytes.inputStream(), null)
                 nextTag()
             }
 

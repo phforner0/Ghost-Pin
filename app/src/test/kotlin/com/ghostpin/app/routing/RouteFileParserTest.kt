@@ -2,6 +2,7 @@ package com.ghostpin.app.routing
 
 import org.junit.Assert.*
 import org.junit.Test
+import java.io.ByteArrayInputStream
 
 /**
  * Unit tests for [RouteFileParser] — GPX, KML, and TCX parsing.
@@ -220,5 +221,23 @@ class RouteFileParserTest {
         val result = parser.parse(gpx, name = "Custom Name")
         assertTrue(result.isSuccess)
         assertEquals("Custom Name", result.getOrThrow().name)
+    }
+
+    @Test
+    fun `parses valid GPX from input stream`() {
+        val gpx = """
+            <?xml version="1.0"?>
+            <gpx version="1.1">
+              <trk><trkseg>
+                <trkpt lat="-23.55" lon="-46.63"/>
+                <trkpt lat="-23.56" lon="-46.64"/>
+              </trkseg></trk>
+            </gpx>
+        """.trimIndent()
+
+        val result = parser.parse(ByteArrayInputStream(gpx.toByteArray()), "stream-route.gpx")
+
+        assertTrue(result.isSuccess)
+        assertEquals("stream-route", result.getOrThrow().name)
     }
 }

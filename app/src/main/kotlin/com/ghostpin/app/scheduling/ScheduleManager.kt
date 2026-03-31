@@ -4,11 +4,18 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.util.Log
 import com.ghostpin.app.data.SimulationConfig
+import com.ghostpin.core.security.LogSanitizer
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+
+internal fun shouldUseExactAlarms(apiLevel: Int, canScheduleExactAlarms: Boolean): Boolean {
+    return apiLevel < Build.VERSION_CODES.S || canScheduleExactAlarms
+}
 
 @Singleton
 class ScheduleManager
@@ -17,6 +24,10 @@ class ScheduleManager
         @ApplicationContext private val context: Context,
         private val scheduleDao: ScheduleDao,
     ) {
+        companion object {
+            private const val TAG = "ScheduleManager"
+        }
+
         private val alarmManager: AlarmManager by lazy {
             context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         }
@@ -29,7 +40,8 @@ class ScheduleManager
 
         sealed class CreateScheduleResult {
             data class Success(
-                val schedule: ScheduleEntity
+                val schedule: ScheduleEntity,
+                val exactAlarmGranted: Boolean,
             ) : CreateScheduleResult()
 
             data class Conflict(
@@ -68,8 +80,8 @@ class ScheduleManager
                     createdAtMs = System.currentTimeMillis(),
                 )
             scheduleDao.upsert(schedule)
-            armSchedule(schedule)
-            return CreateScheduleResult.Success(schedule)
+            val exactAlarmGranted = armSchedule(schedule)
+            return CreateScheduleResult.Success(schedule, exactAlarmGranted)
         }
 
         suspend fun cancelSchedule(scheduleId: String) {
@@ -89,25 +101,54 @@ class ScheduleManager
             }
         }
 
-        private fun armSchedule(schedule: ScheduleEntity) {
-            if (!schedule.enabled) return
+        private fun armSchedule(schedule: ScheduleEntity): Boolean {
+            val exactAlarmGranted = canUseExactAlarms()
+            if (!schedule.enabled) return exactAlarmGranted
 
             if (schedule.startAtMs > System.currentTimeMillis()) {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    schedule.startAtMs,
-                    buildPendingIntent(schedule.id, ScheduleReceiver.EVENT_START),
+                scheduleAlarm(
+                    triggerAtMs = schedule.startAtMs,
+                    pendingIntent = buildPendingIntent(schedule.id, ScheduleReceiver.EVENT_START),
+                    exactAlarmGranted = exactAlarmGranted,
                 )
             }
 
             val stopAt = schedule.stopAtMs
             if (stopAt != null && stopAt > System.currentTimeMillis()) {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    stopAt,
-                    buildPendingIntent(schedule.id, ScheduleReceiver.EVENT_STOP),
+                scheduleAlarm(
+                    triggerAtMs = stopAt,
+                    pendingIntent = buildPendingIntent(schedule.id, ScheduleReceiver.EVENT_STOP),
+                    exactAlarmGranted = exactAlarmGranted,
                 )
             }
+
+            return exactAlarmGranted
+        }
+
+        private fun scheduleAlarm(
+            triggerAtMs: Long,
+            pendingIntent: PendingIntent,
+            exactAlarmGranted: Boolean,
+        ) {
+            if (exactAlarmGranted) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent)
+            } else {
+                Log.w(TAG, LogSanitizer.sanitizeString(
+                    "Exact alarms unavailable; falling back to inexact scheduling."
+                ))
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent)
+            }
+        }
+
+        private fun canUseExactAlarms(): Boolean {
+            return shouldUseExactAlarms(
+                apiLevel = Build.VERSION.SDK_INT,
+                canScheduleExactAlarms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    alarmManager.canScheduleExactAlarms()
+                } else {
+                    true
+                }
+            )
         }
 
         private fun cancelAlarms(scheduleId: String) {

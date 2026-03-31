@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.ghostpin.app.data.OnboardingDataStore
+import com.ghostpin.app.routing.RouteImportValidator
 import com.ghostpin.app.service.SimulationService
 import com.ghostpin.core.model.MovementProfile
 import kotlinx.coroutines.Dispatchers
@@ -63,9 +64,10 @@ class MainActivity : ComponentActivity() {
                 lifecycleScope.launch {
                     runCatching {
                         withContext(Dispatchers.IO) {
-                            val content = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                            val validUri = RouteImportValidator.validateUri(uri).getOrThrow()
+                            val content = contentResolver.openInputStream(validUri)?.bufferedReader()?.use { it.readText() }
                                 ?: error("Cannot open route file")
-                            val name = queryDisplayName(uri) ?: "imported-route"
+                            val name = RouteImportValidator.resolveDisplayName(contentResolver, validUri) ?: "imported-route"
                             name to content
                         }
                     }.onSuccess { imported ->
@@ -167,11 +169,4 @@ class MainActivity : ComponentActivity() {
         _lowMemorySignal.intValue += 1
     }
 
-    private fun queryDisplayName(uri: Uri): String? {
-        val projection = arrayOf(android.provider.OpenableColumns.DISPLAY_NAME)
-        return contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
-            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-            if (nameIndex >= 0 && cursor.moveToFirst()) cursor.getString(nameIndex) else null
-        }
-    }
 }

@@ -5,8 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import com.ghostpin.app.routing.RouteImportValidator
 import com.ghostpin.app.service.SimulationService
-import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.security.LogSanitizer
 
 /**
@@ -57,13 +57,8 @@ class AutomationReceiver : BroadcastReceiver() {
 
                 if (sourceIntent.hasExtra(EXTRA_PROFILE_ID)) {
                     val profileId = sourceIntent.getStringExtra(EXTRA_PROFILE_ID) ?: "Car"
-                    val validProfile = if (MovementProfile.BUILT_IN.containsKey(profileId)) {
-                        profileId
-                    } else {
-                        Log.w(TAG, LogSanitizer.sanitizeString("Unknown profile '$profileId', defaulting to Car"))
-                        "Car"
-                    }
-                    putExtra(SimulationService.EXTRA_PROFILE_NAME, validProfile)
+                    putExtra(SimulationService.EXTRA_PROFILE_NAME, profileId)
+                    putExtra(SimulationService.EXTRA_PROFILE_LOOKUP_KEY, profileId)
                 }
 
                 if (sourceIntent.hasExtra(EXTRA_SPEED_RATIO)) {
@@ -119,7 +114,7 @@ class AutomationReceiver : BroadcastReceiver() {
         }
 
         val uri = try {
-            Uri.parse(uriString)
+            RouteImportValidator.validateUri(Uri.parse(uriString)).getOrThrow()
         } catch (e: Exception) {
             Log.w(TAG, LogSanitizer.sanitizeString("Invalid route file URI: $uriString"))
             return
@@ -128,6 +123,11 @@ class AutomationReceiver : BroadcastReceiver() {
         val serviceIntent = Intent(context, SimulationService::class.java).apply {
             action = SimulationService.ACTION_SET_ROUTE
             data = uri
+            addFlags(intent.flags and (
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+                ))
         }
         context.startService(serviceIntent)
     }
@@ -139,14 +139,10 @@ class AutomationReceiver : BroadcastReceiver() {
             return
         }
 
-        if (!MovementProfile.BUILT_IN.containsKey(profileId)) {
-            Log.w(TAG, LogSanitizer.sanitizeString("Unknown profile: $profileId"))
-            return
-        }
-
         val serviceIntent = Intent(context, SimulationService::class.java).apply {
             action = SimulationService.ACTION_SET_PROFILE
             putExtra(SimulationService.EXTRA_PROFILE_NAME, profileId)
+            putExtra(SimulationService.EXTRA_PROFILE_LOOKUP_KEY, profileId)
         }
         context.startService(serviceIntent)
     }

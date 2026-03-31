@@ -18,6 +18,7 @@ import com.ghostpin.app.data.SimulationRepository
 import com.ghostpin.app.data.db.ProfileDao
 import com.ghostpin.app.location.MockLocationInjector
 import com.ghostpin.app.routing.OsrmRouteProvider
+import com.ghostpin.app.routing.RouteImportValidator
 import com.ghostpin.app.routing.RouteFileParser
 import com.ghostpin.app.ui.MainActivity
 import com.ghostpin.app.widget.GhostPinWidget
@@ -200,18 +201,17 @@ class SimulationService : LifecycleService() {
         }
 
         if (intent.action == ACTION_SET_ROUTE) {
-            val uri = intent.data
-            if (uri == null) {
-                emitStateAndRefresh(SimulationState.Error("Missing route URI for ACTION_SET_ROUTE"))
+            val uri = RouteImportValidator.validateUri(intent.data).getOrElse {
+                emitStateAndRefresh(SimulationState.Error(it.message ?: "Missing route URI for ACTION_SET_ROUTE"))
                 return START_NOT_STICKY
             }
 
             lifecycleScope.launch {
                 runCatching {
                     contentResolver.openInputStream(uri)?.use { input ->
-                        val content = input.bufferedReader().use { it.readText() }
-                        routeFileParser.parse(content).getOrThrow()
-                    } ?: error("Cannot open URI: $uri")
+                        val displayName = RouteImportValidator.resolveDisplayName(contentResolver, uri)
+                        routeFileParser.parse(input, displayName).getOrThrow()
+                    } ?: error("Cannot open route URI.")
                 }.onSuccess { route ->
                     repository.emitRoute(route)
                 }.onFailure { e ->

@@ -3,8 +3,11 @@ package com.ghostpin.app.ui
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.util.Log
 import com.ghostpin.core.model.MockLocation
 import com.ghostpin.core.model.Route
+import com.ghostpin.core.security.LogSanitizer
+import org.maplibre.android.maps.MapView
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
@@ -29,10 +32,13 @@ import org.maplibre.geojson.Point
  * - [updateRoute] overload kept for backward-compat (two-point straight line)
  */
 class MapController(
+        private val mapView: MapView,
         private val map: MapLibreMap,
         private val onMapLongClick: (LatLng) -> Unit,
+        private val onMapWarning: (String?) -> Unit = {},
 ) {
     companion object {
+        private const val TAG = "MapController"
         // Route polyline
         private const val SOURCE_ROUTE = "source_route"
         private const val LAYER_ROUTE_CASING = "layer_route_casing"
@@ -65,15 +71,32 @@ class MapController(
         private const val ICON_PIN_END = "icon_pin_end"
 
         // Bug #4: full street tiles from OpenFreeMap (free, no API key)
-        private const val MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
+        private const val PRIMARY_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
+        private const val FALLBACK_STYLE_URL = "https://demotiles.maplibre.org/style.json"
     }
 
     private var style: Style? = null
+    private var usingFallbackStyle = false
 
     init {
-        // Bug #4: was "https://demotiles.maplibre.org/style.json" (no streets)
-        map.setStyle(Style.Builder().fromUri(MAP_STYLE_URL)) { loadedStyle ->
+        mapView.addOnDidFailLoadingMapListener { error ->
+            if (!usingFallbackStyle) {
+                usingFallbackStyle = true
+                onMapWarning("Remote map style unavailable. Using fallback map style.")
+                Log.w(TAG, LogSanitizer.sanitizeString("Primary map style failed: $error"))
+                loadStyle(FALLBACK_STYLE_URL)
+            } else {
+                onMapWarning("Map style failed to load.")
+                Log.e(TAG, LogSanitizer.sanitizeString("Fallback map style failed: $error"))
+            }
+        }
+        loadStyle(PRIMARY_STYLE_URL)
+    }
+
+    private fun loadStyle(styleUrl: String) {
+        map.setStyle(Style.Builder().fromUri(styleUrl)) { loadedStyle ->
             this.style = loadedStyle
+            onMapWarning(if (usingFallbackStyle) "Using fallback map style." else null)
             setupLayers(loadedStyle)
             map.addOnMapLongClickListener { latLng ->
                 onMapLongClick(latLng)

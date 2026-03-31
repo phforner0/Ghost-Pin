@@ -3,7 +3,9 @@ package com.ghostpin.app.routing
 import android.util.Log
 import com.ghostpin.core.model.Route
 import com.ghostpin.core.model.Waypoint
+import com.ghostpin.core.security.LogSanitizer
 import org.xml.sax.InputSource
+import java.io.InputStream
 import java.io.StringReader
 import java.util.UUID
 import javax.inject.Inject
@@ -65,6 +67,15 @@ class RouteFileParser @Inject constructor() {
             RouteFormat.GPX -> parseGpx(content, name)
             RouteFormat.KML -> parseKml(content, name)
             RouteFormat.TCX -> parseTcx(content, name)
+        }
+    }
+
+    fun parse(inputStream: InputStream, filename: String? = null): Result<Route> {
+        return runCatching {
+            inputStream.bufferedReader().use { reader ->
+                parse(reader.readText(), filename?.substringBeforeLast('.').takeUnless { it.isNullOrBlank() })
+                    .getOrThrow()
+            }
         }
     }
 
@@ -195,11 +206,11 @@ class RouteFileParser @Inject constructor() {
         !lng.isNaN() && !lng.isInfinite() && lng in -180.0..180.0
 
     private fun logDebug(message: String) {
-        runCatching { Log.d(TAG, message) }
+        runCatching { Log.d(TAG, LogSanitizer.sanitizeString(message)) }
     }
 
     private fun logError(message: String) {
-        runCatching { Log.e(TAG, message) }
+        runCatching { Log.e(TAG, LogSanitizer.sanitizeString(message)) }
     }
 
     private fun buildRoute(

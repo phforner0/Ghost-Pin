@@ -6,6 +6,7 @@ import com.ghostpin.core.model.Route
 import com.ghostpin.core.model.Waypoint
 import com.ghostpin.core.security.LogSanitizer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -83,9 +84,11 @@ class OsrmRouteProvider @Inject constructor() {
         }
 
         runCatching {
-            val url  = buildUrl(osrmProfile, startLng, startLat, endLng, endLat)
-            val json = httpGet(url)
-            parseOsrmResponse(json)
+            fetchRouteWithRetry {
+                val url  = buildUrl(osrmProfile, startLng, startLat, endLng, endLat)
+                val json = httpGet(url)
+                parseOsrmResponse(json)
+            }
         }.onFailure { e ->
             Log.w(TAG, LogSanitizer.sanitizeString(
                 "Route fetch failed — will use straight-line fallback: ${e.message}"
@@ -112,10 +115,12 @@ class OsrmRouteProvider @Inject constructor() {
         }
 
         runCatching {
-            val coordsString = waypoints.joinToString(";") { "${it.lng},${it.lat}" }
-            val url = "$BASE_URL/$osrmProfile/$coordsString?overview=full&geometries=geojson&steps=false"
-            val json = httpGet(url)
-            parseOsrmResponse(json)
+            fetchRouteWithRetry {
+                val coordsString = waypoints.joinToString(";") { "${it.lng},${it.lat}" }
+                val url = "$BASE_URL/$osrmProfile/$coordsString?overview=full&geometries=geojson&steps=false"
+                val json = httpGet(url)
+                parseOsrmResponse(json)
+            }
         }.onFailure { e ->
             Log.w(TAG, LogSanitizer.sanitizeString(
                 "Multi-route fetch failed — will use straight-line fallback: ${e.message}"
@@ -165,6 +170,16 @@ class OsrmRouteProvider @Inject constructor() {
         return "$BASE_URL/$osrmProfile/" +
             "$startLng,$startLat;$endLng,$endLat" +
             "?overview=full&geometries=geojson&steps=false"
+    }
+
+    private suspend fun fetchRouteWithRetry(block: () -> Route): Route {
+        return try {
+            block()
+        } catch (error: Throwable) {
+            if (!error.isTransientRoutingFailure()) throw error
+            delay(500)
+            block()
+        }
     }
 
     /**
@@ -257,5 +272,12 @@ class OsrmRouteProvider @Inject constructor() {
             ))
             "foot"
         }
+    }
+
+    private fun Throwable.isTransientRoutingFailure(): Boolean {
+        val message = message.orEmpty()
+        return message.contains("HTTP 429") ||
+            message.contains("HTTP 5") ||
+            this is java.io.IOException
     }
 }
