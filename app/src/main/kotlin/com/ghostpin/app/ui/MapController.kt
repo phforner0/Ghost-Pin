@@ -7,10 +7,10 @@ import android.util.Log
 import com.ghostpin.core.model.MockLocation
 import com.ghostpin.core.model.Route
 import com.ghostpin.core.security.LogSanitizer
-import org.maplibre.android.maps.MapView
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
@@ -32,13 +32,14 @@ import org.maplibre.geojson.Point
  * - [updateRoute] overload kept for backward-compat (two-point straight line)
  */
 class MapController(
-        private val mapView: MapView,
-        private val map: MapLibreMap,
-        private val onMapLongClick: (LatLng) -> Unit,
-        private val onMapWarning: (String?) -> Unit = {},
+    private val mapView: MapView,
+    private val map: MapLibreMap,
+    private val onMapLongClick: (LatLng) -> Unit,
+    private val onMapWarning: (String?) -> Unit = {},
 ) {
     companion object {
         private const val TAG = "MapController"
+
         // Route polyline
         private const val SOURCE_ROUTE = "source_route"
         private const val LAYER_ROUTE_CASING = "layer_route_casing"
@@ -79,6 +80,10 @@ class MapController(
     private var usingFallbackStyle = false
 
     init {
+        map.addOnMapLongClickListener { latLng ->
+            onMapLongClick(latLng)
+            true
+        }
         mapView.addOnDidFailLoadingMapListener { error ->
             if (!usingFallbackStyle) {
                 usingFallbackStyle = true
@@ -98,10 +103,6 @@ class MapController(
             this.style = loadedStyle
             onMapWarning(if (usingFallbackStyle) "Using fallback map style." else null)
             setupLayers(loadedStyle)
-            map.addOnMapLongClickListener { latLng ->
-                onMapLongClick(latLng)
-                true
-            }
         }
     }
 
@@ -111,119 +112,119 @@ class MapController(
         // ── Route polyline ────────────────────────────────────────────────
         style.addSource(GeoJsonSource(SOURCE_ROUTE))
         style.addLayer(
-                LineLayer(LAYER_ROUTE_CASING, SOURCE_ROUTE)
-                        .withProperties(
-                                lineColor("#004D40"),
-                                lineWidth(7.5f),
-                                lineOpacity(0.7f),
-                        )
+            LineLayer(LAYER_ROUTE_CASING, SOURCE_ROUTE)
+                .withProperties(
+                    lineColor("#004D40"),
+                    lineWidth(7.5f),
+                    lineOpacity(0.7f),
+                )
         )
         style.addLayer(
-                LineLayer(LAYER_ROUTE, SOURCE_ROUTE)
-                        .withProperties(
-                                lineColor("#80CBC4"),
-                                lineWidth(4.5f),
-                                lineOpacity(0.95f),
-                        )
+            LineLayer(LAYER_ROUTE, SOURCE_ROUTE)
+                .withProperties(
+                    lineColor("#80CBC4"),
+                    lineWidth(4.5f),
+                    lineOpacity(0.95f),
+                )
         )
 
         // ── Start pin  (Bug #5: green circle with white border) ───────────
         style.addSource(GeoJsonSource(SOURCE_PIN_START))
         style.addImage(
-                ICON_PIN_START,
-                createPinBitmap(
-                        fillArgb = android.graphics.Color.parseColor("#00E676"), // green
-                        borderArgb = android.graphics.Color.WHITE,
-                )
+            ICON_PIN_START,
+            createPinBitmap(
+                fillArgb = android.graphics.Color.parseColor("#00E676"), // green
+                borderArgb = android.graphics.Color.WHITE,
+            )
         )
         style.addLayer(
-                SymbolLayer(LAYER_PIN_START, SOURCE_PIN_START)
-                        .withProperties(
-                                iconImage(ICON_PIN_START),
-                                iconAllowOverlap(true),
-                                iconIgnorePlacement(true),
-                                iconAnchor("bottom"),
-                                iconSize(1.0f),
-                        )
+            SymbolLayer(LAYER_PIN_START, SOURCE_PIN_START)
+                .withProperties(
+                    iconImage(ICON_PIN_START),
+                    iconAllowOverlap(true),
+                    iconIgnorePlacement(true),
+                    iconAnchor("bottom"),
+                    iconSize(1.0f),
+                )
         )
 
         // ── End pin  (Bug #5: red circle with white border) ───────────────
         style.addSource(GeoJsonSource(SOURCE_PIN_END))
         style.addImage(
-                ICON_PIN_END,
-                createPinBitmap(
-                        fillArgb = android.graphics.Color.parseColor("#FF5252"), // red
-                        borderArgb = android.graphics.Color.WHITE,
-                )
+            ICON_PIN_END,
+            createPinBitmap(
+                fillArgb = android.graphics.Color.parseColor("#FF5252"), // red
+                borderArgb = android.graphics.Color.WHITE,
+            )
         )
         style.addLayer(
-                SymbolLayer(LAYER_PIN_END, SOURCE_PIN_END)
-                        .withProperties(
-                                iconImage(ICON_PIN_END),
-                                iconAllowOverlap(true),
-                                iconIgnorePlacement(true),
-                                iconAnchor("bottom"),
-                                iconSize(1.0f),
-                        )
+            SymbolLayer(LAYER_PIN_END, SOURCE_PIN_END)
+                .withProperties(
+                    iconImage(ICON_PIN_END),
+                    iconAllowOverlap(true),
+                    iconIgnorePlacement(true),
+                    iconAnchor("bottom"),
+                    iconSize(1.0f),
+                )
         )
 
         // ── Waypoints (numbered circles) ──────────────────────────────────
         style.addSource(GeoJsonSource(SOURCE_PIN_WAYPOINTS))
         style.addLayer(
-                CircleLayer(LAYER_PIN_WAYPOINTS_CIRCLE, SOURCE_PIN_WAYPOINTS)
-                        .withProperties(
-                                circleColor("#7E57C2"),
-                                circleStrokeColor("#FFFFFF"),
-                                circleStrokeWidth(2f),
-                                circleRadius(8f),
-                                circleOpacity(0.95f),
+            CircleLayer(LAYER_PIN_WAYPOINTS_CIRCLE, SOURCE_PIN_WAYPOINTS)
+                .withProperties(
+                    circleColor("#7E57C2"),
+                    circleStrokeColor("#FFFFFF"),
+                    circleStrokeWidth(2f),
+                    circleRadius(8f),
+                    circleOpacity(0.95f),
                 )
         )
         style.addLayer(
-                SymbolLayer(LAYER_PIN_WAYPOINTS_LABEL, SOURCE_PIN_WAYPOINTS)
-                        .withProperties(
-                                textField("{order}"),
-                                textSize(11f),
-                                textColor("#FFFFFF"),
-                                textAllowOverlap(true),
-                                textIgnorePlacement(true),
-                        )
+            SymbolLayer(LAYER_PIN_WAYPOINTS_LABEL, SOURCE_PIN_WAYPOINTS)
+                .withProperties(
+                    textField("{order}"),
+                    textSize(11f),
+                    textColor("#FFFFFF"),
+                    textAllowOverlap(true),
+                    textIgnorePlacement(true),
+                )
         )
 
         // ── Position accuracy ring ────────────────────────────────────────
         style.addSource(GeoJsonSource(SOURCE_POSITION))
         style.addLayer(
-                CircleLayer(LAYER_POSITION_ACCURACY, SOURCE_POSITION)
-                        .withProperties(
-                                circleColor("#80CBC4"),
-                                circleOpacity(0.18f),
-                                circleStrokeColor("#80CBC4"),
-                                circleStrokeWidth(1f),
-                                circleRadius(0f),
-                        )
+            CircleLayer(LAYER_POSITION_ACCURACY, SOURCE_POSITION)
+                .withProperties(
+                    circleColor("#80CBC4"),
+                    circleOpacity(0.18f),
+                    circleStrokeColor("#80CBC4"),
+                    circleStrokeWidth(1f),
+                    circleRadius(0f),
+                )
         )
 
         // ── Animated position dot ─────────────────────────────────────────
         style.addImage(ICON_POSITION, createDotBitmap())
         style.addLayer(
-                SymbolLayer(LAYER_POSITION_ICON, SOURCE_POSITION)
-                        .withProperties(
-                                iconImage(ICON_POSITION),
-                                iconAllowOverlap(true),
-                                iconIgnorePlacement(true),
-                        )
+            SymbolLayer(LAYER_POSITION_ICON, SOURCE_POSITION)
+                .withProperties(
+                    iconImage(ICON_POSITION),
+                    iconAllowOverlap(true),
+                    iconIgnorePlacement(true),
+                )
         )
 
         // ── Route preview playhead ────────────────────────────────────────
         style.addSource(GeoJsonSource(SOURCE_PLAYHEAD))
         style.addImage(ICON_PLAYHEAD, createPlayheadBitmap())
         style.addLayer(
-                SymbolLayer(LAYER_PLAYHEAD, SOURCE_PLAYHEAD)
-                        .withProperties(
-                                iconImage(ICON_PLAYHEAD),
-                                iconAllowOverlap(true),
-                                iconIgnorePlacement(true),
-                        )
+            SymbolLayer(LAYER_PLAYHEAD, SOURCE_PLAYHEAD)
+                .withProperties(
+                    iconImage(ICON_PLAYHEAD),
+                    iconAllowOverlap(true),
+                    iconIgnorePlacement(true),
+                )
         )
     }
 
@@ -241,16 +242,17 @@ class MapController(
         val points = route.waypoints.map { Point.fromLngLat(it.lng, it.lat) }
         val lineString = LineString.fromLngLats(points)
         currentStyle
-                .getSourceAs<GeoJsonSource>(SOURCE_ROUTE)
-                ?.setGeoJson(Feature.fromGeometry(lineString))
+            .getSourceAs<GeoJsonSource>(SOURCE_ROUTE)
+            ?.setGeoJson(Feature.fromGeometry(lineString))
 
         // Update start / end pins
         val start = route.waypoints.first()
         val end = route.waypoints.last()
         updatePin(currentStyle, SOURCE_PIN_START, start.lat, start.lng)
         updatePin(currentStyle, SOURCE_PIN_END, end.lat, end.lng)
-        currentStyle.getSourceAs<GeoJsonSource>(SOURCE_PIN_WAYPOINTS)
-                ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+        currentStyle
+            .getSourceAs<GeoJsonSource>(SOURCE_PIN_WAYPOINTS)
+            ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
 
         // Fit camera to route bounds
         fitCamera(points.map { LatLng(it.latitude(), it.longitude()) })
@@ -260,21 +262,27 @@ class MapController(
      * Draw a straight two-point preview line (used before OSRM fetch completes). Fixes Bug #5: also
      * places start / end pins.
      */
-    fun updateRoute(startLat: Double, startLng: Double, endLat: Double, endLng: Double) {
+    fun updateRoute(
+        startLat: Double,
+        startLng: Double,
+        endLat: Double,
+        endLng: Double
+    ) {
         val currentStyle = style ?: return
 
         val p1 = Point.fromLngLat(startLng, startLat)
         val p2 = Point.fromLngLat(endLng, endLat)
         currentStyle
-                .getSourceAs<GeoJsonSource>(SOURCE_ROUTE)
-                ?.setGeoJson(Feature.fromGeometry(LineString.fromLngLats(listOf(p1, p2))))
+            .getSourceAs<GeoJsonSource>(SOURCE_ROUTE)
+            ?.setGeoJson(Feature.fromGeometry(LineString.fromLngLats(listOf(p1, p2))))
 
         updatePin(currentStyle, SOURCE_PIN_START, startLat, startLng)
         updatePin(currentStyle, SOURCE_PIN_END, endLat, endLng)
 
         // Hide multi-waypoints
-        currentStyle.getSourceAs<GeoJsonSource>(SOURCE_PIN_WAYPOINTS)
-                ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+        currentStyle
+            .getSourceAs<GeoJsonSource>(SOURCE_PIN_WAYPOINTS)
+            ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
 
         fitCamera(listOf(LatLng(startLat, startLng), LatLng(endLat, endLng)))
     }
@@ -282,11 +290,12 @@ class MapController(
     /** Display multiple waypoints on the map. */
     fun updateWaypoints(waypoints: List<com.ghostpin.core.model.Waypoint>) {
         val currentStyle = style ?: return
-        val features = waypoints.mapIndexed { index, waypoint ->
-            Feature.fromGeometry(Point.fromLngLat(waypoint.lng, waypoint.lat)).apply {
-                addNumberProperty("order", index + 1)
+        val features =
+            waypoints.mapIndexed { index, waypoint ->
+                Feature.fromGeometry(Point.fromLngLat(waypoint.lng, waypoint.lat)).apply {
+                    addNumberProperty("order", index + 1)
+                }
             }
-        }
         val collection = FeatureCollection.fromFeatures(features)
         currentStyle.getSourceAs<GeoJsonSource>(SOURCE_PIN_WAYPOINTS)?.setGeoJson(collection)
 
@@ -305,24 +314,25 @@ class MapController(
 
         val point = Point.fromLngLat(location.lng, location.lat)
         currentStyle
-                .getSourceAs<GeoJsonSource>(SOURCE_POSITION)
-                ?.setGeoJson(Feature.fromGeometry(point))
+            .getSourceAs<GeoJsonSource>(SOURCE_POSITION)
+            ?.setGeoJson(Feature.fromGeometry(point))
 
         // Scale accuracy ring to match reported accuracy
         val zoom = map.cameraPosition.zoom
         val metersPerPixel =
-                156_543.03392 * Math.cos(Math.toRadians(location.lat)) / Math.pow(2.0, zoom)
+            156_543.03392 * Math.cos(Math.toRadians(location.lat)) / Math.pow(2.0, zoom)
         val radiusPx = (location.accuracy / metersPerPixel).toFloat().coerceAtLeast(8f)
 
         currentStyle
-                .getLayerAs<CircleLayer>(LAYER_POSITION_ACCURACY)
-                ?.setProperties(circleRadius(radiusPx))
+            .getLayerAs<CircleLayer>(LAYER_POSITION_ACCURACY)
+            ?.setProperties(circleRadius(radiusPx))
     }
 
     /** Hide the animated position dot (call when idle). */
     fun clearPosition() {
-        style?.getSourceAs<GeoJsonSource>(SOURCE_POSITION)
-                ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+        style
+            ?.getSourceAs<GeoJsonSource>(SOURCE_POSITION)
+            ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
     }
 
     /** Render route preview playhead marker at the given waypoint position. */
@@ -343,34 +353,48 @@ class MapController(
      *
      * [zoom] = 15 gives a walkable street-level view (~800 m across).
      */
-    fun moveTo(lat: Double, lng: Double, zoom: Double = 13.8) {
+    fun moveTo(
+        lat: Double,
+        lng: Double,
+        zoom: Double = 13.8
+    ) {
         map.easeCamera(
-                org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(
-                        LatLng(lat, lng),
-                        zoom
-                ),
-                600,
+            org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(
+                LatLng(lat, lng),
+                zoom
+            ),
+            600,
         )
     }
 
     /** Remove the route line and both pins. */
     fun clearRoute() {
         val s = style ?: return
-        s.getSourceAs<GeoJsonSource>(SOURCE_ROUTE)
-                ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
-        s.getSourceAs<GeoJsonSource>(SOURCE_PIN_START)
-                ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
-        s.getSourceAs<GeoJsonSource>(SOURCE_PIN_END)
-                ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
-        s.getSourceAs<GeoJsonSource>(SOURCE_PIN_WAYPOINTS)
-                ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
-        s.getSourceAs<GeoJsonSource>(SOURCE_PLAYHEAD)
-                ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+        s
+            .getSourceAs<GeoJsonSource>(SOURCE_ROUTE)
+            ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+        s
+            .getSourceAs<GeoJsonSource>(SOURCE_PIN_START)
+            ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+        s
+            .getSourceAs<GeoJsonSource>(SOURCE_PIN_END)
+            ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+        s
+            .getSourceAs<GeoJsonSource>(SOURCE_PIN_WAYPOINTS)
+            ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+        s
+            .getSourceAs<GeoJsonSource>(SOURCE_PLAYHEAD)
+            ?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
-    private fun updatePin(style: Style, sourceId: String, lat: Double, lng: Double) {
+    private fun updatePin(
+        style: Style,
+        sourceId: String,
+        lat: Double,
+        lng: Double
+    ) {
         val point = Point.fromLngLat(lng, lat)
         style.getSourceAs<GeoJsonSource>(sourceId)?.setGeoJson(Feature.fromGeometry(point))
     }
@@ -380,18 +404,22 @@ class MapController(
         try {
             val bounds = LatLngBounds.Builder().apply { points.forEach { include(it) } }.build()
             map.easeCamera(
-                    org.maplibre.android.camera.CameraUpdateFactory.newLatLngBounds(bounds, 150),
-                    800,
+                org.maplibre.android.camera.CameraUpdateFactory
+                    .newLatLngBounds(bounds, 150),
+                800,
             )
         } catch (_: Exception) {
-            /* degenerate bounds on same point */
+            // degenerate bounds on same point
         }
     }
 
     /**
      * Teardrop-style pin bitmap. [fillArgb] = main body colour; [borderArgb] = outer ring colour.
      */
-    private fun createPinBitmap(fillArgb: Int, borderArgb: Int): Bitmap {
+    private fun createPinBitmap(
+        fillArgb: Int,
+        borderArgb: Int
+    ): Bitmap {
         val w = 36
         val h = 50
         val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -422,10 +450,10 @@ class MapController(
         val cx = size / 2f
 
         val outerPaint =
-                Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = android.graphics.Color.parseColor("#80CBC4")
-                    alpha = 180
-                }
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.parseColor("#80CBC4")
+                alpha = 180
+            }
         canvas.drawCircle(cx, cx, cx, outerPaint)
 
         val innerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE }
@@ -439,12 +467,14 @@ class MapController(
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val cx = size / 2f
-        val outer = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor("#FFC107")
-        }
-        val inner = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.WHITE
-        }
+        val outer =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.parseColor("#FFC107")
+            }
+        val inner =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.WHITE
+            }
         canvas.drawCircle(cx, cx, cx * 0.92f, outer)
         canvas.drawCircle(cx, cx, cx * 0.45f, inner)
         return bitmap

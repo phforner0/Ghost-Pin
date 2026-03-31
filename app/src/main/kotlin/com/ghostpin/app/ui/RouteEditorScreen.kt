@@ -1,11 +1,14 @@
+@file:Suppress("ktlint:standard:function-naming")
+
 package com.ghostpin.app.ui
 
 import android.app.ActivityManager
 import android.content.Context
-import androidx.compose.foundation.Canvas
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,13 +20,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -50,7 +53,7 @@ import kotlin.math.roundToInt
  *  - Route name editing.
  *  - Save to Room.
  *  - Export as GPX / KML / TCX.
- *  - Import from file content (the caller reads the file and passes the string).
+ *  - Import from file URI via the shared route parser pipeline.
  *  - Saved routes list with load / delete.
  *
  * Note: Map integration (long-press to add waypoints directly on the map) is wired
@@ -65,23 +68,26 @@ fun RouteEditorScreen(
     onRouteReady: (com.ghostpin.core.model.Route) -> Unit = {},
     onImportRouteFile: () -> Unit = {},
     onExportRouteFile: (String, String) -> Unit = { _, _ -> },
-    pendingImportedRoute: Pair<String, String>? = null,
+    pendingImportedRouteUri: Uri? = null,
     onImportedRouteConsumed: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     val savedRoutes by viewModel.savedRoutes.collectAsState(initial = emptyList())
     val context = LocalContext.current
-    val activityManager = remember(context) {
-        @Suppress("DEPRECATION")
-        context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
-    }
+    val activityManager =
+        remember(context) {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+        }
     val lowPerformanceDevice = remember(activityManager) { activityManager?.isLowRamDevice == true }
-    val currentRoute = remember(state.waypoints, state.segmentOverrides, state.routeName, state.routeId) {
-        viewModel.buildCurrentRoute()
-    }
-    val previewRoute = remember(currentRoute, lowPerformanceDevice) {
-        currentRoute?.let { downsampleRouteForPreview(it, lowPerformanceDevice) }
-    }
+    val currentRoute =
+        remember(state.waypoints, state.segmentOverrides, state.routeName, state.routeId) {
+            viewModel.buildCurrentRoute()
+        }
+    val previewRoute =
+        remember(currentRoute, lowPerformanceDevice) {
+            currentRoute?.let { downsampleRouteForPreview(it, lowPerformanceDevice) }
+        }
     var isPreviewPlaying by remember(previewRoute?.id) { mutableStateOf(false) }
     var previewProgress by remember(previewRoute?.id) { mutableFloatStateOf(0f) }
     var previewSpeed by remember(previewRoute?.id) { mutableFloatStateOf(1f) }
@@ -102,9 +108,9 @@ fun RouteEditorScreen(
         }
     }
 
-    LaunchedEffect(pendingImportedRoute) {
-        pendingImportedRoute?.let { (filename, content) ->
-            viewModel.importFromContent(content, filename)
+    LaunchedEffect(pendingImportedRouteUri) {
+        pendingImportedRouteUri?.let { uri ->
+            viewModel.importFromUri(context, uri)
             onImportedRouteConsumed()
         }
     }
@@ -168,9 +174,12 @@ fun RouteEditorScreen(
                             viewModel.buildCurrentRoute()?.let { onRouteReady(it) }
                         },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = GhostPinColors.Primary),
-                        border = ButtonDefaults.outlinedButtonBorder.copy(
-                            brush = androidx.compose.ui.graphics.SolidColor(GhostPinColors.Primary)
-                        ),
+                        border =
+                            ButtonDefaults.outlinedButtonBorder.copy(
+                                brush =
+                                    androidx.compose.ui.graphics
+                                        .SolidColor(GhostPinColors.Primary)
+                            ),
                         modifier = Modifier.padding(end = 8.dp),
                     ) {
                         Text("Iniciar com esta rota")
@@ -197,10 +206,11 @@ fun RouteEditorScreen(
         }
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 16.dp),
         ) {
             // Error banner
             AnimatedVisibility(state.error != null, enter = fadeIn(), exit = fadeOut()) {
@@ -211,8 +221,10 @@ fun RouteEditorScreen(
                         shape = RoundedCornerShape(10.dp),
                     ) {
                         Text(
-                            err, color = GhostPinColors.Error,
-                            modifier = Modifier.padding(12.dp), fontSize = 13.sp,
+                            err,
+                            color = GhostPinColors.Error,
+                            modifier = Modifier.padding(12.dp),
+                            fontSize = 13.sp,
                         )
                     }
                 }
@@ -241,12 +253,15 @@ fun RouteEditorScreen(
             ) {
                 Text(
                     "Waypoints",
-                    color = GhostPinColors.TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                    color = GhostPinColors.TextSecondary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
                     "${state.waypoints.size} points",
-                    color = GhostPinColors.TextTertiary, fontSize = 12.sp,
+                    color = GhostPinColors.TextTertiary,
+                    fontSize = 12.sp,
                 )
             }
 
@@ -258,13 +273,16 @@ fun RouteEditorScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
-                            Icons.Default.TouchApp, null,
-                            tint = GhostPinColors.TextMuted, modifier = Modifier.size(48.dp),
+                            Icons.Default.TouchApp,
+                            null,
+                            tint = GhostPinColors.TextMuted,
+                            modifier = Modifier.size(48.dp),
                         )
                         Spacer(Modifier.height(12.dp))
                         Text(
                             "Long-press on the map\nto add waypoints",
-                            color = GhostPinColors.TextTertiary, fontSize = 14.sp,
+                            color = GhostPinColors.TextTertiary,
+                            fontSize = 14.sp,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         )
                     }
@@ -294,7 +312,8 @@ fun RouteEditorScreen(
                     Spacer(Modifier.height(16.dp))
                     Text(
                         "Saved Routes",
-                        color = GhostPinColors.TextSecondary, fontSize = 13.sp,
+                        color = GhostPinColors.TextSecondary,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                     )
                     Spacer(Modifier.height(8.dp))
@@ -388,12 +407,13 @@ fun RouteEditorScreen(
                         value = nameInput,
                         onValueChange = { nameInput = it },
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GhostPinColors.Primary,
-                            unfocusedBorderColor = GhostPinColors.TextMuted,
-                            focusedTextColor = GhostPinColors.TextPrimary,
-                            unfocusedTextColor = GhostPinColors.TextPrimary,
-                        ),
+                        colors =
+                            OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = GhostPinColors.Primary,
+                                unfocusedBorderColor = GhostPinColors.TextMuted,
+                                focusedTextColor = GhostPinColors.TextPrimary,
+                                unfocusedTextColor = GhostPinColors.TextPrimary,
+                            ),
                     )
                 },
                 confirmButton = {
@@ -512,12 +532,17 @@ private fun RoutePreviewCard(
 }
 
 @Composable
-private fun RoutePathPreview(route: Route?, progress: Float, height: Dp) {
+private fun RoutePathPreview(
+    route: Route?,
+    progress: Float,
+    height: Dp
+) {
     Canvas(
-        modifier = Modifier.fillMaxWidth().height(height).background(
-            color = GhostPinColors.SurfaceVariant,
-            shape = RoundedCornerShape(8.dp),
-        )
+        modifier =
+            Modifier.fillMaxWidth().height(height).background(
+                color = GhostPinColors.SurfaceVariant,
+                shape = RoundedCornerShape(8.dp),
+            )
     ) {
         val points = route?.waypoints.orEmpty()
         if (points.size < 2) return@Canvas
@@ -528,16 +553,24 @@ private fun RoutePathPreview(route: Route?, progress: Float, height: Dp) {
         val latRange = (maxLat - minLat).takeIf { it > 1e-7 } ?: 1e-7
         val lngRange = (maxLng - minLng).takeIf { it > 1e-7 } ?: 1e-7
         val padding = 20f
-        val mapped = points.map {
-            val x = ((it.lng - minLng) / lngRange).toFloat() * (size.width - 2 * padding) + padding
-            val y = ((maxLat - it.lat) / latRange).toFloat() * (size.height - 2 * padding) + padding
-            Offset(x, y)
-        }
-        val path = Path().apply {
-            moveTo(mapped.first().x, mapped.first().y)
-            mapped.drop(1).forEach { lineTo(it.x, it.y) }
-        }
-        drawPath(path, color = GhostPinColors.TextMuted, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4f, cap = StrokeCap.Round))
+        val mapped =
+            points.map {
+                val x = ((it.lng - minLng) / lngRange).toFloat() * (size.width - 2 * padding) + padding
+                val y = ((maxLat - it.lat) / latRange).toFloat() * (size.height - 2 * padding) + padding
+                Offset(x, y)
+            }
+        val path =
+            Path().apply {
+                moveTo(mapped.first().x, mapped.first().y)
+                mapped.drop(1).forEach { lineTo(it.x, it.y) }
+            }
+        drawPath(
+            path,
+            color = GhostPinColors.TextMuted,
+            style =
+                androidx.compose.ui.graphics.drawscope
+                    .Stroke(width = 4f, cap = StrokeCap.Round)
+        )
         val playheadIndex = ((mapped.lastIndex) * progress).roundToInt().coerceIn(0, mapped.lastIndex)
         drawCircle(
             color = GhostPinColors.Primary,
@@ -549,7 +582,11 @@ private fun RoutePathPreview(route: Route?, progress: Float, height: Dp) {
 }
 
 @Composable
-private fun ElevationMiniGraph(profile: ElevationProfile, progress: Float, height: Dp) {
+private fun ElevationMiniGraph(
+    profile: ElevationProfile,
+    progress: Float,
+    height: Dp
+) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Perfil de altitude", color = GhostPinColors.TextSecondary, fontSize = 11.sp)
@@ -558,26 +595,37 @@ private fun ElevationMiniGraph(profile: ElevationProfile, progress: Float, heigh
             }
         }
         Canvas(
-            modifier = Modifier.fillMaxWidth().height(height).background(
-                color = GhostPinColors.SurfaceVariant,
-                shape = RoundedCornerShape(8.dp),
-            )
+            modifier =
+                Modifier.fillMaxWidth().height(height).background(
+                    color = GhostPinColors.SurfaceVariant,
+                    shape = RoundedCornerShape(8.dp),
+                )
         ) {
             if (profile.values.size < 2) return@Canvas
             val min = profile.values.minOrNull() ?: 0f
             val max = profile.values.maxOrNull() ?: 1f
             val range = (max - min).takeIf { it > 1e-4f } ?: 1f
             val padding = 12f
-            val points = profile.values.mapIndexed { index, v ->
-                val x = (index.toFloat() / (profile.values.size - 1).coerceAtLeast(1)) * (size.width - 2 * padding) + padding
-                val y = size.height - (((v - min) / range) * (size.height - 2 * padding) + padding)
-                Offset(x, y)
-            }
-            val path = Path().apply {
-                moveTo(points.first().x, points.first().y)
-                points.drop(1).forEach { lineTo(it.x, it.y) }
-            }
-            drawPath(path, color = GhostPinColors.TextMuted, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f))
+            val points =
+                profile.values.mapIndexed { index, v ->
+                    val x =
+                        (index.toFloat() / (profile.values.size - 1).coerceAtLeast(1)) * (size.width - 2 * padding) +
+                            padding
+                    val y = size.height - (((v - min) / range) * (size.height - 2 * padding) + padding)
+                    Offset(x, y)
+                }
+            val path =
+                Path().apply {
+                    moveTo(points.first().x, points.first().y)
+                    points.drop(1).forEach { lineTo(it.x, it.y) }
+                }
+            drawPath(
+                path,
+                color = GhostPinColors.TextMuted,
+                style =
+                    androidx.compose.ui.graphics.drawscope
+                        .Stroke(width = 2.5f)
+            )
             val px = progress.coerceIn(0f, 1f) * size.width
             drawRect(
                 color = GhostPinColors.Primary.copy(alpha = 0.14f),
@@ -588,14 +636,20 @@ private fun ElevationMiniGraph(profile: ElevationProfile, progress: Float, heigh
     }
 }
 
-private fun downsampleRouteForPreview(route: Route, lowPerformance: Boolean): Route {
+private fun downsampleRouteForPreview(
+    route: Route,
+    lowPerformance: Boolean
+): Route {
     val maxPoints = if (lowPerformance) 120 else 320
     if (route.waypoints.size <= maxPoints) return route
     val sampled = downsampleWaypoints(route.waypoints, maxPoints)
     return route.copy(waypoints = sampled)
 }
 
-private fun downsampleWaypoints(waypoints: List<Waypoint>, maxPoints: Int): List<Waypoint> {
+private fun downsampleWaypoints(
+    waypoints: List<Waypoint>,
+    maxPoints: Int
+): List<Waypoint> {
     if (waypoints.size <= maxPoints) return waypoints
     val step = (waypoints.size - 1).toFloat() / (maxPoints - 1).toFloat()
     return buildList(maxPoints) {
@@ -645,12 +699,13 @@ private fun WaypointCard(
         ) {
             // Index badge
             Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .background(
-                        color = if (index == 0) GhostPinColors.Success else GhostPinColors.WaypointDefault,
-                        shape = RoundedCornerShape(6.dp),
-                    ),
+                modifier =
+                    Modifier
+                        .size(28.dp)
+                        .background(
+                            color = if (index == 0) GhostPinColors.Success else GhostPinColors.WaypointDefault,
+                            shape = RoundedCornerShape(6.dp),
+                        ),
                 contentAlignment = Alignment.Center,
             ) {
                 Text("${index + 1}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -661,11 +716,14 @@ private fun WaypointCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     waypoint.label ?: "Waypoint ${index + 1}",
-                    color = GhostPinColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                    color = GhostPinColors.TextPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
                 )
                 Text(
                     "${"%.5f".format(waypoint.lat)}, ${"%.5f".format(waypoint.lng)}",
-                    color = GhostPinColors.TextSecondary, fontSize = 11.sp,
+                    color = GhostPinColors.TextSecondary,
+                    fontSize = 11.sp,
                 )
             }
 
@@ -742,7 +800,9 @@ private fun SegmentOverrideSheet(
         Column(modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
             Text(
                 "Segment ${segmentIndex + 1} → ${segmentIndex + 2} Overrides",
-                color = GhostPinColors.TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
+                color = GhostPinColors.TextPrimary,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
             )
             Spacer(Modifier.height(20.dp))
 
@@ -755,12 +815,13 @@ private fun SegmentOverrideSheet(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GhostPinColors.Primary,
-                    unfocusedBorderColor = GhostPinColors.TextMuted,
-                    focusedTextColor = GhostPinColors.TextPrimary,
-                    unfocusedTextColor = GhostPinColors.TextPrimary,
-                ),
+                colors =
+                    OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GhostPinColors.Primary,
+                        unfocusedBorderColor = GhostPinColors.TextMuted,
+                        focusedTextColor = GhostPinColors.TextPrimary,
+                        unfocusedTextColor = GhostPinColors.TextPrimary,
+                    ),
             )
 
             Spacer(Modifier.height(12.dp))
@@ -774,12 +835,13 @@ private fun SegmentOverrideSheet(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GhostPinColors.Primary,
-                    unfocusedBorderColor = GhostPinColors.TextMuted,
-                    focusedTextColor = GhostPinColors.TextPrimary,
-                    unfocusedTextColor = GhostPinColors.TextPrimary,
-                ),
+                colors =
+                    OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = GhostPinColors.Primary,
+                        unfocusedBorderColor = GhostPinColors.TextMuted,
+                        focusedTextColor = GhostPinColors.TextPrimary,
+                        unfocusedTextColor = GhostPinColors.TextPrimary,
+                    ),
             )
 
             Spacer(Modifier.height(12.dp))
@@ -789,12 +851,20 @@ private fun SegmentOverrideSheet(
                 Switch(
                     checked = loop,
                     onCheckedChange = { loop = it },
-                    colors = SwitchDefaults.colors(checkedThumbColor = GhostPinColors.Background, checkedTrackColor = GhostPinColors.Primary),
+                    colors =
+                        SwitchDefaults.colors(
+                            checkedThumbColor = GhostPinColors.Background,
+                            checkedTrackColor = GhostPinColors.Primary
+                        ),
                 )
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text("Loop at this segment", color = GhostPinColors.TextPrimary, fontSize = 14.sp)
-                    Text("Simulation restarts from start when reaching this point", color = GhostPinColors.TextSecondary, fontSize = 11.sp)
+                    Text(
+                        "Simulation restarts from start when reaching this point",
+                        color = GhostPinColors.TextSecondary,
+                        fontSize = 11.sp
+                    )
                 }
             }
 

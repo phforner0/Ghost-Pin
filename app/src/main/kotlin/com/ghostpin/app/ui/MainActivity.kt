@@ -17,17 +17,16 @@ import com.ghostpin.app.data.OnboardingDataStore
 import com.ghostpin.app.routing.RouteImportValidator
 import com.ghostpin.app.service.SimulationService
 import com.ghostpin.core.model.MovementProfile
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 import org.maplibre.android.MapLibre
+import javax.inject.Inject
 
 /** Single-activity entry point for GhostPin. */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-
     @Inject lateinit var onboardingDataStore: OnboardingDataStore
     private val viewModel: SimulationViewModel by viewModels()
 
@@ -35,74 +34,67 @@ class MainActivity : ComponentActivity() {
     // Now it triggers a Snackbar message when the user denies permissions,
     // preventing silent failure where the app would appear broken with no feedback.
     // The Snackbar is coordinated via a channel-style StateFlow read by GhostPinScreen.
-    private val _permissionMessage = mutableStateOf<String?>(null)
-    private val _lowMemorySignal = mutableIntStateOf(0)
-    private val _pendingImportedRoute = mutableStateOf<Pair<String, String>?>(null)
+    private val permissionMessageState = mutableStateOf<String?>(null)
+    private val lowMemorySignalState = mutableIntStateOf(0)
+    private val pendingImportedRouteUriState = mutableStateOf<Uri?>(null)
     private var pendingRouteExport: Pair<String, String>? = null
 
     private val locationPermissionLauncher =
-            registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-                    results ->
-                val denied =
-                        results.entries.filter { !it.value }.map { it.key.substringAfterLast('.') }
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+            val denied =
+                results.entries.filter { !it.value }.map { it.key.substringAfterLast('.') }
 
-                if (denied.isNotEmpty()) {
-                    _permissionMessage.value =
-                            "Location permission required for GPS simulation. " +
-                                    "Please grant it in app settings."
-                }
+            if (denied.isNotEmpty()) {
+                permissionMessageState.value =
+                    "Location permission required for GPS simulation. " +
+                    "Please grant it in app settings."
             }
+        }
 
     private val gpxFilePickerLauncher =
-            registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-                uri?.let { viewModel.loadGpxFromUri(this, it) }
-            }
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            uri?.let { viewModel.loadGpxFromUri(this, it) }
+        }
 
     private val routeFileImportLauncher =
-            registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-                uri ?: return@registerForActivityResult
-                lifecycleScope.launch {
-                    runCatching {
-                        withContext(Dispatchers.IO) {
-                            val validUri = RouteImportValidator.validateUri(uri).getOrThrow()
-                            val content = contentResolver.openInputStream(validUri)?.bufferedReader()?.use { it.readText() }
-                                ?: error("Cannot open route file")
-                            val name = RouteImportValidator.resolveDisplayName(contentResolver, validUri) ?: "imported-route"
-                            name to content
-                        }
-                    }.onSuccess { imported ->
-                        _pendingImportedRoute.value = imported
-                    }.onFailure { error ->
-                        _permissionMessage.value = error.message ?: "Failed to import route file."
-                    }
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            uri ?: return@registerForActivityResult
+            lifecycleScope.launch {
+                runCatching {
+                    RouteImportValidator.validateUri(uri).getOrThrow()
+                }.onSuccess { validUri ->
+                    pendingImportedRouteUriState.value = validUri
+                }.onFailure { error ->
+                    permissionMessageState.value = error.message ?: "Failed to import route file."
                 }
             }
+        }
 
     private val routeFileExportLauncher =
-            registerForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri: Uri? ->
-                val export = pendingRouteExport
-                pendingRouteExport = null
-                if (uri == null || export == null) return@registerForActivityResult
+        registerForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri: Uri? ->
+            val export = pendingRouteExport
+            pendingRouteExport = null
+            if (uri == null || export == null) return@registerForActivityResult
 
-                lifecycleScope.launch {
-                    runCatching {
-                        withContext(Dispatchers.IO) {
-                            contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
-                                writer.write(export.second)
-                            } ?: error("Cannot open destination for route export")
-                        }
-                    }.onFailure { error ->
-                        _permissionMessage.value = error.message ?: "Failed to export route file."
+            lifecycleScope.launch {
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+                            writer.write(export.second)
+                        } ?: error("Cannot open destination for route export")
                     }
+                }.onFailure { error ->
+                    permissionMessageState.value = error.message ?: "Failed to export route file."
                 }
             }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         MapLibre.getInstance(this)
         setContent {
             val isOnboardingComplete by
-                    onboardingDataStore.isComplete.collectAsState(initial = null)
+                onboardingDataStore.isComplete.collectAsState(initial = null)
 
             GhostPinTheme {
                 // Wait for DataStore to load before rendering to avoid UI flash
@@ -114,9 +106,9 @@ class MainActivity : ComponentActivity() {
                     AppNavHost(
                         viewModel = viewModel,
                         isOnboardingComplete = complete,
-                        permissionMessage = _permissionMessage.value,
-                        lowMemorySignal = _lowMemorySignal.intValue,
-                        onPermissionMessageDismissed = { _permissionMessage.value = null },
+                        permissionMessage = permissionMessageState.value,
+                        lowMemorySignal = lowMemorySignalState.intValue,
+                        onPermissionMessageDismissed = { permissionMessageState.value = null },
                         onStartSimulation = ::startSimulation,
                         onStopSimulation = ::stopSimulation,
                         onPickGpxFile = { gpxFilePickerLauncher.launch(arrayOf("*/*")) },
@@ -125,8 +117,8 @@ class MainActivity : ComponentActivity() {
                             pendingRouteExport = filename to content
                             routeFileExportLauncher.launch(filename)
                         },
-                        pendingImportedRoute = _pendingImportedRoute.value,
-                        onImportedRouteConsumed = { _pendingImportedRoute.value = null },
+                        pendingImportedRouteUri = pendingImportedRouteUriState.value,
+                        onImportedRouteConsumed = { pendingImportedRouteUriState.value = null },
                     )
                 }
             }
@@ -135,22 +127,25 @@ class MainActivity : ComponentActivity() {
 
     private fun requestPermissions() {
         val perms =
-                mutableListOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION,
-                        )
-                        .also { list ->
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-                                    list.add(Manifest.permission.POST_NOTIFICATIONS)
-                        }
-        val needed =
-                perms.filter {
-                    ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+            mutableListOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+            ).also { list ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    list.add(Manifest.permission.POST_NOTIFICATIONS)
                 }
+            }
+        val needed =
+            perms.filter {
+                ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+            }
         if (needed.isNotEmpty()) locationPermissionLauncher.launch(needed.toTypedArray())
     }
 
-    private fun startSimulation(profile: MovementProfile, waypointPauseSec: Double = 0.0) {
+    private fun startSimulation(
+        profile: MovementProfile,
+        waypointPauseSec: Double = 0.0
+    ) {
         val config = viewModel.buildCurrentConfig(profile = profile, waypointPauseSec = waypointPauseSec)
         val intent = SimulationService.createStartIntent(this, config)
         ContextCompat.startForegroundService(this, intent)
@@ -158,15 +153,14 @@ class MainActivity : ComponentActivity() {
 
     private fun stopSimulation() {
         startService(
-                Intent(this, SimulationService::class.java).apply {
-                    action = SimulationService.ACTION_STOP
-                }
+            Intent(this, SimulationService::class.java).apply {
+                action = SimulationService.ACTION_STOP
+            }
         )
     }
 
     override fun onLowMemory() {
         super.onLowMemory()
-        _lowMemorySignal.intValue += 1
+        lowMemorySignalState.intValue += 1
     }
-
 }
