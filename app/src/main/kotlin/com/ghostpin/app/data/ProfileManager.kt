@@ -4,6 +4,7 @@ import android.util.Log
 import com.ghostpin.app.data.db.ProfileDao
 import com.ghostpin.app.data.db.ProfileEntity
 import com.ghostpin.core.model.MovementProfile
+import com.ghostpin.core.security.LogSanitizer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.UUID
@@ -120,7 +121,7 @@ class ProfileManager @Inject constructor(
             version = "1.0.0",
         )
         dao.insert(entity)
-        Log.d(TAG, "Profile created: id=$id name=$name")
+        Log.d(TAG, LogSanitizer.sanitizeString("Profile created: id=$id name=$name"))
         return id
     }
 
@@ -152,7 +153,7 @@ class ProfileManager @Inject constructor(
             updatedAtMs = System.currentTimeMillis(),
         )
         dao.update(entity)
-        Log.d(TAG, "Profile updated: id=$id version ${existing.version} → $newVersion")
+        Log.d(TAG, LogSanitizer.sanitizeString("Profile updated: id=$id version ${existing.version} -> $newVersion"))
     }
 
     /**
@@ -166,7 +167,7 @@ class ProfileManager @Inject constructor(
      */
     suspend fun clone(sourceId: String, newName: String): String? {
         val source = dao.getById(sourceId) ?: run {
-            Log.w(TAG, "Clone failed: source not found (id=$sourceId)")
+            Log.w(TAG, LogSanitizer.sanitizeString("Clone failed: source not found (id=$sourceId)"))
             return null
         }
         val cloneId = UUID.randomUUID().toString()
@@ -180,7 +181,7 @@ class ProfileManager @Inject constructor(
             updatedAtMs = System.currentTimeMillis(),
         )
         dao.insert(clone)
-        Log.d(TAG, "Profile cloned: source=$sourceId → clone=$cloneId name=$newName")
+        Log.d(TAG, LogSanitizer.sanitizeString("Profile cloned: source=$sourceId -> clone=$cloneId name=$newName"))
         return cloneId
     }
 
@@ -192,14 +193,14 @@ class ProfileManager @Inject constructor(
      */
     suspend fun delete(id: String) {
         val existing = dao.getById(id) ?: run {
-            Log.w(TAG, "Delete no-op: profile not found (id=$id)")
+            Log.w(TAG, LogSanitizer.sanitizeString("Delete no-op: profile not found (id=$id)"))
             return
         }
         check(!existing.isBuiltIn) {
             "Cannot delete built-in profile '${existing.name}' (id=$id)"
         }
         dao.deleteById(id)
-        Log.d(TAG, "Profile deleted: id=$id name=${existing.name}")
+        Log.d(TAG, LogSanitizer.sanitizeString("Profile deleted: id=$id name=${existing.name}"))
     }
 
     // ── Semver helpers ────────────────────────────────────────────────────────
@@ -215,7 +216,7 @@ class ProfileManager @Inject constructor(
         return if (parts.size == 3) {
             "${parts[0]}.${parts[1]}.${parts[2] + 1}"
         } else {
-            Log.w(TAG, "Invalid semver '$version' — resetting to 1.0.1")
+            Log.w(TAG, LogSanitizer.sanitizeString("Invalid semver '$version' — resetting to 1.0.1"))
             "1.0.1"
         }
     }

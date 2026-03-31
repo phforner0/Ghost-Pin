@@ -7,6 +7,7 @@ import android.util.Log
 import com.ghostpin.app.data.SimulationRepository
 import com.ghostpin.app.service.SimulationService
 import com.ghostpin.app.service.SimulationState
+import com.ghostpin.core.security.LogSanitizer
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -45,7 +46,7 @@ class ScheduleReceiver : BroadcastReceiver() {
                 val busy = simulationRepository.state.value is SimulationState.Running ||
                     simulationRepository.state.value is SimulationState.FetchingRoute
                 if (busy) {
-                    Log.i(TAG, "START ignorado; simulação já está em execução.")
+                    Log.i(TAG, LogSanitizer.sanitizeString("START ignored; simulation already running."))
                     return
                 }
 
@@ -58,7 +59,7 @@ class ScheduleReceiver : BroadcastReceiver() {
                     simulationRepository.state.value is SimulationState.Paused ||
                     simulationRepository.state.value is SimulationState.FetchingRoute
                 if (!hasActiveSession) {
-                    Log.i(TAG, "STOP ignorado; não há sessão ativa.")
+                    Log.i(TAG, LogSanitizer.sanitizeString("STOP ignored; no active session."))
                     return
                 }
 
