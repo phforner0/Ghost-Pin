@@ -360,7 +360,7 @@ class SimulationViewModel
             frequencyHz: Int = SimulationService.DEFAULT_FREQUENCY,
         ): SimulationConfig {
             val activeRoute = route.value
-            val routeId = activeRoute?.id ?: lastUsedConfig.value?.routeId
+            val routeId = lastUsedConfig.value?.routeId
             val routeWaypoints =
                 when {
                     selectedMode.value == AppMode.WAYPOINTS -> waypoints.value
@@ -411,7 +411,7 @@ class SimulationViewModel
             repository.emitRoute(route)
             repository.emitConfig(
                 buildCurrentConfig().copy(
-                    routeId = route.id,
+                    routeId = null,
                     appMode = AppMode.GPX,
                     waypoints = route.waypoints,
                 )

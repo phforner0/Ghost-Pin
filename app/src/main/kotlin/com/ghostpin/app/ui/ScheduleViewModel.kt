@@ -9,9 +9,11 @@ import com.ghostpin.app.scheduling.ScheduleManager
 import com.ghostpin.core.model.MovementProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -32,6 +34,12 @@ class ScheduleViewModel
 
         private val _events = MutableSharedFlow<String>(extraBufferCapacity = 8)
         val events = _events.asSharedFlow()
+        private val _exactAlarmUiState = MutableStateFlow(scheduleManager.exactAlarmUiState())
+        val exactAlarmUiState = _exactAlarmUiState.asStateFlow()
+
+        fun refreshExactAlarmUiState() {
+            _exactAlarmUiState.value = scheduleManager.exactAlarmUiState()
+        }
 
         fun createSchedule(
             startDelayMinutes: Int,

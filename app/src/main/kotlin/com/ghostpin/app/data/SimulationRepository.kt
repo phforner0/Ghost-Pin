@@ -10,10 +10,16 @@ import com.ghostpin.app.service.SimulationState
 import com.ghostpin.core.model.AppMode
 import com.ghostpin.core.model.JoystickState
 import com.ghostpin.core.model.Route
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -39,7 +45,14 @@ class SimulationRepository
         private val favoriteSimulationDao: FavoriteSimulationDao,
         private val routeDao: RouteDao,
         private val profileDao: ProfileDao,
+        private val simulationConfigStore: SimulationConfigStore = NoOpSimulationConfigStore,
+        private val pausedSimulationStore: PausedSimulationStore = NoOpPausedSimulationStore,
     ) {
+        private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        private val hydrationMutex = Mutex()
+
+        @Volatile private var hydrated = false
+
         private val _state = MutableStateFlow<SimulationState>(SimulationState.Idle)
 
         /** The current simulation state. Observed by [com.ghostpin.app.ui.SimulationViewModel]. */
@@ -69,6 +82,14 @@ class SimulationRepository
 
         private val _joystickState = MutableStateFlow(JoystickState(0f, 0f))
         val joystickState: StateFlow<JoystickState> = _joystickState.asStateFlow()
+        private val _pausedSnapshot = MutableStateFlow<PausedSimulationSnapshot?>(null)
+        val pausedSnapshot: StateFlow<PausedSimulationSnapshot?> = _pausedSnapshot.asStateFlow()
+
+        init {
+            repositoryScope.launch {
+                hydratePersistedStateIfNeeded()
+            }
+        }
 
         /** Publish a new simulation state to all observers. */
         fun emitState(state: SimulationState) {
@@ -83,10 +104,16 @@ class SimulationRepository
         /** Save the last-used simulation config for quick-start. */
         fun emitConfig(config: SimulationConfig) {
             _lastUsedConfig.value = config
+            repositoryScope.launch {
+                simulationConfigStore.writeLastUsedConfig(sanitizeConfigForPersistence(config))
+            }
         }
 
         fun emitOptionalConfig(config: SimulationConfig?) {
             _lastUsedConfig.value = config
+            repositoryScope.launch {
+                simulationConfigStore.writeLastUsedConfig(config?.let { sanitizeConfigForPersistence(it) })
+            }
         }
 
         /** Update joystick overlay state (magnitude, angle) */
@@ -105,27 +132,139 @@ class SimulationRepository
             _route.value = null
             _isManualMode.value = false
             _joystickState.value = JoystickState(0f, 0f)
+            repositoryScope.launch { pausedSimulationStore.writeSnapshot(null) }
+        }
+
+        suspend fun hydratePersistedStateIfNeeded() {
+            if (hydrated) return
+
+            hydrationMutex.withLock {
+                if (hydrated) return
+
+                val persistedConfig = simulationConfigStore.readLastUsedConfig()?.let { sanitizeConfigForPersistence(it) }
+                if (persistedConfig != null) {
+                    _lastUsedConfig.value = persistedConfig
+                    if (_route.value == null && persistedConfig.waypoints.size >= 2) {
+                        _route.value =
+                            Route(
+                                id = persistedConfig.routeId ?: "persisted-config-route",
+                                name = "Persisted Route",
+                                waypoints = persistedConfig.waypoints,
+                            )
+                    }
+                }
+
+                val pausedSnapshot = pausedSimulationStore.readSnapshot()
+                _pausedSnapshot.value = pausedSnapshot
+                if (pausedSnapshot != null && _state.value is SimulationState.Idle) {
+                    _state.value = pausedSnapshot.pausedState
+                    _isManualMode.value = pausedSnapshot.config.appMode == AppMode.JOYSTICK
+                    if (_lastUsedConfig.value == null) {
+                        _lastUsedConfig.value = pausedSnapshot.config
+                    }
+                    if (_route.value == null && pausedSnapshot.config.waypoints.size >= 2) {
+                        _route.value =
+                            Route(
+                                id = pausedSnapshot.config.routeId ?: "paused-snapshot-route",
+                                name = "Paused Session Route",
+                                waypoints = pausedSnapshot.config.waypoints,
+                            )
+                    }
+                }
+
+                closeOrphanRunningHistory(excludeId = pausedSnapshot?.activeHistoryId)
+                hydrated = true
+            }
+        }
+
+        suspend fun getLastUsedConfigOrPersisted(): SimulationConfig? {
+            val inMemory = _lastUsedConfig.value
+            if (inMemory != null) return inMemory
+
+            val persisted = simulationConfigStore.readLastUsedConfig()?.let { sanitizeConfigForPersistence(it) }
+            if (persisted != null) {
+                _lastUsedConfig.value = persisted
+                if (_route.value == null && persisted.waypoints.size >= 2) {
+                    _route.value =
+                        Route(
+                            id = persisted.routeId ?: "persisted-config-route",
+                            name = "Persisted Route",
+                            waypoints = persisted.waypoints,
+                        )
+                }
+            }
+            return persisted
+        }
+
+        suspend fun persistPausedSnapshot(
+            pausedState: SimulationState.Paused,
+            activeHistoryId: String?,
+            activeHistoryStartedAtMs: Long?,
+        ) {
+            val config = _lastUsedConfig.value ?: return
+            val snapshot =
+                PausedSimulationSnapshot(
+                    config = sanitizeConfigForPersistence(config),
+                    pausedState = pausedState,
+                    activeHistoryId = activeHistoryId,
+                    activeHistoryStartedAtMs = activeHistoryStartedAtMs,
+                )
+            _pausedSnapshot.value = snapshot
+            pausedSimulationStore.writeSnapshot(snapshot)
+        }
+
+        suspend fun clearPausedSnapshot() {
+            _pausedSnapshot.value = null
+            pausedSimulationStore.writeSnapshot(null)
+        }
+
+        suspend fun getPausedSnapshotOrPersisted(): PausedSimulationSnapshot? {
+            val inMemory = _pausedSnapshot.value
+            if (inMemory != null) return inMemory
+
+            val persisted = pausedSimulationStore.readSnapshot()
+            if (persisted != null) {
+                _pausedSnapshot.value = persisted
+            }
+            return persisted
+        }
+
+        private suspend fun closeOrphanRunningHistory(excludeId: String?) {
+            simulationHistoryDao.interruptRunningSessions(
+                endedAtMs = System.currentTimeMillis(),
+                excludeId = excludeId,
+            )
+        }
+
+        private suspend fun sanitizeConfigForPersistence(config: SimulationConfig): SimulationConfig {
+            val persistedRouteId = config.routeId?.takeIf { routeDao.getById(it) != null }
+            return if (persistedRouteId == config.routeId) {
+                config
+            } else {
+                config.copy(routeId = null)
+            }
         }
 
         suspend fun startHistory(config: SimulationConfig): String {
+            val persistedConfig = sanitizeConfigForPersistence(config)
             val id = UUID.randomUUID().toString()
             simulationHistoryDao.insert(
                 SimulationHistoryEntity(
                     id = id,
-                    profileName = config.profileName,
-                    profileIdOrName = config.profileLookupKey,
-                    routeId = config.routeId,
-                    startLat = config.startLat,
-                    startLng = config.startLng,
-                    endLat = config.endLat,
-                    endLng = config.endLng,
-                    appMode = config.appMode.name,
-                    waypointsJson = config.serializedWaypoints(),
-                    waypointPauseSec = config.waypointPauseSec,
-                    speedRatio = config.speedRatio,
-                    frequencyHz = config.frequencyHz,
-                    repeatPolicy = config.repeatPolicy.name,
-                    repeatCount = config.repeatCount,
+                    profileName = persistedConfig.profileName,
+                    profileIdOrName = persistedConfig.profileLookupKey,
+                    routeId = persistedConfig.routeId,
+                    startLat = persistedConfig.startLat,
+                    startLng = persistedConfig.startLng,
+                    endLat = persistedConfig.endLat,
+                    endLng = persistedConfig.endLng,
+                    appMode = persistedConfig.appMode.name,
+                    waypointsJson = persistedConfig.serializedWaypoints(),
+                    waypointPauseSec = persistedConfig.waypointPauseSec,
+                    speedRatio = persistedConfig.speedRatio,
+                    frequencyHz = persistedConfig.frequencyHz,
+                    repeatPolicy = persistedConfig.repeatPolicy.name,
+                    repeatCount = persistedConfig.repeatCount,
                     startedAtMs = System.currentTimeMillis(),
                     endedAtMs = null,
                     durationMs = null,
@@ -170,26 +309,27 @@ class SimulationRepository
             name: String,
             config: SimulationConfig,
         ): String {
+            val persistedConfig = sanitizeConfigForPersistence(config)
             val now = System.currentTimeMillis()
             val id = UUID.randomUUID().toString()
             favoriteSimulationDao.upsert(
                 FavoriteSimulationEntity(
                     id = id,
                     name = name,
-                    profileName = config.profileName,
-                    profileIdOrName = config.profileLookupKey,
-                    routeId = config.routeId,
-                    startLat = config.startLat,
-                    startLng = config.startLng,
-                    endLat = config.endLat,
-                    endLng = config.endLng,
-                    appMode = config.appMode.name,
-                    waypointsJson = config.serializedWaypoints(),
-                    waypointPauseSec = config.waypointPauseSec,
-                    speedRatio = config.speedRatio,
-                    frequencyHz = config.frequencyHz,
-                    repeatPolicy = config.repeatPolicy.name,
-                    repeatCount = config.repeatCount,
+                    profileName = persistedConfig.profileName,
+                    profileIdOrName = persistedConfig.profileLookupKey,
+                    routeId = persistedConfig.routeId,
+                    startLat = persistedConfig.startLat,
+                    startLng = persistedConfig.startLng,
+                    endLat = persistedConfig.endLat,
+                    endLng = persistedConfig.endLng,
+                    appMode = persistedConfig.appMode.name,
+                    waypointsJson = persistedConfig.serializedWaypoints(),
+                    waypointPauseSec = persistedConfig.waypointPauseSec,
+                    speedRatio = persistedConfig.speedRatio,
+                    frequencyHz = persistedConfig.frequencyHz,
+                    repeatPolicy = persistedConfig.repeatPolicy.name,
+                    repeatCount = persistedConfig.repeatCount,
                     createdAtMs = now,
                     updatedAtMs = now,
                 )

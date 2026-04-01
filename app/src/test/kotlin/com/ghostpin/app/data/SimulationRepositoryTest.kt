@@ -8,7 +8,9 @@ import com.ghostpin.app.data.db.RouteDao
 import com.ghostpin.app.data.db.RouteEntity
 import com.ghostpin.app.data.db.SimulationHistoryDao
 import com.ghostpin.app.data.db.SimulationHistoryEntity
+import com.ghostpin.app.service.SimulationState
 import com.ghostpin.core.model.AppMode
+import com.ghostpin.core.model.MockLocation
 import com.ghostpin.core.model.Waypoint
 import com.ghostpin.engine.interpolation.RepeatPolicy
 import kotlinx.coroutines.flow.Flow
@@ -54,6 +56,8 @@ class SimulationRepositoryTest {
                     favoriteSimulationDao = favoriteDao,
                     routeDao = routeDao,
                     profileDao = FakeProfileDao(),
+                    simulationConfigStore = FakeSimulationConfigStore(),
+                    pausedSimulationStore = FakePausedSimulationStore(),
                 )
 
             val favorite =
@@ -98,6 +102,8 @@ class SimulationRepositoryTest {
                     favoriteSimulationDao = FakeFavoriteSimulationDao(),
                     routeDao = FakeRouteDao(),
                     profileDao = FakeProfileDao(),
+                    simulationConfigStore = FakeSimulationConfigStore(),
+                    pausedSimulationStore = FakePausedSimulationStore(),
                 )
 
             val resolution = repository.applyMostRecentFavorite()
@@ -114,8 +120,28 @@ class SimulationRepositoryTest {
                 SimulationRepository(
                     simulationHistoryDao = historyDao,
                     favoriteSimulationDao = FakeFavoriteSimulationDao(),
-                    routeDao = FakeRouteDao(),
+                    routeDao =
+                        FakeRouteDao(
+                            mutableMapOf(
+                                "route-1" to
+                                    RouteEntity(
+                                        id = "route-1",
+                                        name = "Stored route",
+                                        waypointsJson =
+                                            SimulationConfig.serializeWaypoints(
+                                                listOf(Waypoint(-23.0, -46.0), Waypoint(-22.0, -43.0))
+                                            ),
+                                        segmentsJson = "[]",
+                                        sourceFormat = "manual",
+                                        totalDistanceMeters = 1000.0,
+                                        createdAtMs = 1L,
+                                        updatedAtMs = 1L,
+                                    )
+                            )
+                        ),
                     profileDao = FakeProfileDao(),
+                    simulationConfigStore = FakeSimulationConfigStore(),
+                    pausedSimulationStore = FakePausedSimulationStore(),
                 )
 
             val config =
@@ -150,6 +176,145 @@ class SimulationRepositoryTest {
             assertEquals(config.repeatCount, stored.repeatCount)
         }
 
+    @Test
+    fun `repository hydrates persisted last used config from store`() =
+        runTest {
+            val configStore = FakeSimulationConfigStore()
+            val expected =
+                SimulationConfig(
+                    profileName = "Car",
+                    profileLookupKey = "builtin_car",
+                    startLat = -23.0,
+                    startLng = -46.0,
+                    endLat = -22.0,
+                    endLng = -43.0,
+                    routeId = null,
+                    appMode = AppMode.CLASSIC,
+                )
+            configStore.writeLastUsedConfig(expected)
+
+            val repository =
+                SimulationRepository(
+                    simulationHistoryDao = FakeSimulationHistoryDao(),
+                    favoriteSimulationDao = FakeFavoriteSimulationDao(),
+                    routeDao = FakeRouteDao(),
+                    profileDao = FakeProfileDao(),
+                    simulationConfigStore = configStore,
+                    pausedSimulationStore = FakePausedSimulationStore(),
+                )
+
+            repository.hydratePersistedStateIfNeeded()
+
+            assertEquals(expected, repository.lastUsedConfig.value)
+        }
+
+    @Test
+    fun `repository sanitizes transient route id before persisting config`() =
+        runTest {
+            val configStore = FakeSimulationConfigStore()
+            val repository =
+                SimulationRepository(
+                    simulationHistoryDao = FakeSimulationHistoryDao(),
+                    favoriteSimulationDao = FakeFavoriteSimulationDao(),
+                    routeDao = FakeRouteDao(),
+                    profileDao = FakeProfileDao(),
+                    simulationConfigStore = configStore,
+                    pausedSimulationStore = FakePausedSimulationStore(),
+                )
+
+            repository.emitConfig(
+                SimulationConfig(
+                    profileName = "Car",
+                    profileLookupKey = "builtin_car",
+                    startLat = -23.0,
+                    startLng = -46.0,
+                    routeId = "transient-route",
+                    waypoints = listOf(Waypoint(-23.0, -46.0), Waypoint(-22.0, -43.0)),
+                )
+            )
+
+            kotlinx.coroutines.delay(50)
+
+            val rehydrated = configStore.readLastUsedConfig()
+            assertEquals(null, rehydrated?.routeId)
+            assertEquals(2, rehydrated?.waypoints?.size)
+        }
+
+    @Test
+    fun `repository restores paused snapshot and preserves active history id`() =
+        runTest {
+            val pausedStore = FakePausedSimulationStore()
+            val snapshot =
+                PausedSimulationSnapshot(
+                    config =
+                        SimulationConfig(
+                            profileName = "Car",
+                            profileLookupKey = "builtin_car",
+                            startLat = -23.0,
+                            startLng = -46.0,
+                            appMode = AppMode.GPX,
+                            waypoints = listOf(Waypoint(-23.0, -46.0), Waypoint(-22.0, -43.0)),
+                        ),
+                    pausedState =
+                        SimulationState.Paused(
+                            lastLocation = MockLocation(-23.0, -46.0),
+                            profileName = "Car",
+                            progressPercent = 0.5f,
+                            elapsedTimeSec = 12,
+                        ),
+                    activeHistoryId = "history-1",
+                    activeHistoryStartedAtMs = 1234L,
+                )
+            pausedStore.writeSnapshot(snapshot)
+
+            val historyDao =
+                FakeSimulationHistoryDao().also {
+                    it.insert(
+                        SimulationHistoryEntity(
+                            id = "history-1",
+                            profileName = "Car",
+                            profileIdOrName = "builtin_car",
+                            routeId = null,
+                            startLat = -23.0,
+                            startLng = -46.0,
+                            endLat = -22.0,
+                            endLng = -43.0,
+                            appMode = AppMode.CLASSIC.name,
+                            waypointsJson = "[]",
+                            waypointPauseSec = 0.0,
+                            speedRatio = 1.0,
+                            frequencyHz = 5,
+                            repeatPolicy = RepeatPolicy.NONE.name,
+                            repeatCount = 1,
+                            startedAtMs = 1L,
+                            endedAtMs = null,
+                            durationMs = null,
+                            avgSpeedMs = null,
+                            distanceMeters = 0.0,
+                            resultStatus = "RUNNING",
+                        )
+                    )
+                }
+
+            val repository =
+                SimulationRepository(
+                    simulationHistoryDao = historyDao,
+                    favoriteSimulationDao = FakeFavoriteSimulationDao(),
+                    routeDao = FakeRouteDao(),
+                    profileDao = FakeProfileDao(),
+                    simulationConfigStore = FakeSimulationConfigStore(),
+                    pausedSimulationStore = pausedStore,
+                )
+
+            repository.hydratePersistedStateIfNeeded()
+
+            assertTrue(repository.state.value is SimulationState.Paused)
+            assertEquals("Car", (repository.state.value as SimulationState.Paused).profileName)
+            assertEquals("history-1", repository.pausedSnapshot.value?.activeHistoryId)
+            assertEquals(1234L, repository.pausedSnapshot.value?.activeHistoryStartedAtMs)
+            assertEquals("history-1", historyDao.getById("history-1")?.id)
+        }
+
     private class FakeFavoriteSimulationDao : FavoriteSimulationDao {
         private val favorites = mutableListOf<FavoriteSimulationEntity>()
 
@@ -172,6 +337,26 @@ class SimulationRepositoryTest {
 
         override suspend fun deleteById(id: String) {
             favorites.removeAll { it.id == id }
+        }
+    }
+
+    private class FakeSimulationConfigStore : SimulationConfigStore {
+        private var value: SimulationConfig? = null
+
+        override suspend fun readLastUsedConfig(): SimulationConfig? = value
+
+        override suspend fun writeLastUsedConfig(config: SimulationConfig?) {
+            value = config
+        }
+    }
+
+    private class FakePausedSimulationStore : PausedSimulationStore {
+        private var value: PausedSimulationSnapshot? = null
+
+        override suspend fun readSnapshot(): PausedSimulationSnapshot? = value
+
+        override suspend fun writeSnapshot(snapshot: PausedSimulationSnapshot?) {
+            value = snapshot
         }
     }
 
@@ -256,6 +441,24 @@ class SimulationRepositoryTest {
 
         override suspend fun clearHistory() {
             history.clear()
+        }
+
+        override suspend fun interruptRunningSessions(
+            endedAtMs: Long,
+            excludeId: String?,
+        ) {
+            history.replaceAll { id, current ->
+                if (current.resultStatus == "RUNNING" && id != excludeId) {
+                    current.copy(
+                        endedAtMs = endedAtMs,
+                        durationMs = (endedAtMs - current.startedAtMs).coerceAtLeast(0L),
+                        avgSpeedMs = 0.0,
+                        resultStatus = "INTERRUPTED",
+                    )
+                } else {
+                    current
+                }
+            }
         }
     }
 }

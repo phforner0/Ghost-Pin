@@ -50,4 +50,20 @@ interface SimulationHistoryDao {
 
     @Query("DELETE FROM simulation_history")
     suspend fun clearHistory()
+
+    @Query(
+        """
+        UPDATE simulation_history
+        SET endedAtMs = :endedAtMs,
+            durationMs = CASE WHEN startedAtMs > 0 THEN :endedAtMs - startedAtMs ELSE 0 END,
+            avgSpeedMs = 0.0,
+            resultStatus = 'INTERRUPTED'
+        WHERE resultStatus = 'RUNNING'
+          AND (:excludeId IS NULL OR id != :excludeId)
+        """
+    )
+    suspend fun interruptRunningSessions(
+        endedAtMs: Long,
+        excludeId: String?,
+    )
 }
