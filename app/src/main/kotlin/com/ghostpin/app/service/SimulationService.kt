@@ -16,7 +16,7 @@ import com.ghostpin.app.data.RouteRepository
 import com.ghostpin.app.data.SimulationConfig
 import com.ghostpin.app.data.SimulationRepository
 import com.ghostpin.app.data.db.ProfileDao
-import com.ghostpin.app.location.MockLocationInjector
+import com.ghostpin.app.location.LocationInjector
 import com.ghostpin.app.routing.OsrmRouteProvider
 import com.ghostpin.app.routing.RouteFileParser
 import com.ghostpin.app.routing.RouteImportValidator
@@ -63,7 +63,7 @@ import kotlin.math.roundToLong
  */
 @AndroidEntryPoint
 class SimulationService : LifecycleService() {
-    @Inject lateinit var mockLocationInjector: MockLocationInjector
+    @Inject lateinit var mockLocationInjector: LocationInjector
 
     @Inject lateinit var osrmRouteProvider: OsrmRouteProvider
 

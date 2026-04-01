@@ -24,7 +24,7 @@ class MockLocationInjector
     @Inject
     constructor(
         @ApplicationContext private val context: Context,
-    ) {
+    ) : LocationInjector {
         private val locationManager: LocationManager =
             context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
@@ -38,8 +38,8 @@ class MockLocationInjector
          * Idempotent: safe to call multiple times and safe to call after a service
          * crash where the provider may still be lingering in the system.
          */
-        @SuppressLint("MissingPermission")
-        fun registerProvider() {
+    @SuppressLint("MissingPermission")
+    override fun registerProvider() {
             // Bug #8: always attempt removal first to avoid "provider already registered"
             // crash on service restart after unexpected termination.
             silentlyRemoveProvider()
@@ -78,8 +78,8 @@ class MockLocationInjector
          * Inject a [MockLocation] into the system as a real GPS fix.
          * Auto-registers the provider if not yet registered.
          */
-        @SuppressLint("MissingPermission")
-        fun inject(mockLocation: MockLocation) {
+    @SuppressLint("MissingPermission")
+    override fun inject(mockLocation: MockLocation) {
             if (!isProviderRegistered) registerProvider()
             locationManager.setTestProviderLocation(providerName, toAndroidLocation(mockLocation))
         }
@@ -88,9 +88,9 @@ class MockLocationInjector
          * Unregister the mock provider and restore normal GPS operation.
          * Safe to call even if the provider was never registered.
          */
-        fun unregisterProvider() {
-            silentlyRemoveProvider()
-        }
+    override fun unregisterProvider() {
+        silentlyRemoveProvider()
+    }
 
         // ── Private helpers ──────────────────────────────────────────────────────
 
