@@ -196,6 +196,9 @@ class SimulationService : LifecycleService() {
                         return START_NOT_STICKY
                     }
                 RouteImportValidator.persistReadGrantIfNeeded(contentResolver, uri, intent?.flags ?: 0)
+                    .onFailure { error ->
+                        Log.w(TAG, LogSanitizer.sanitizeString("Could not persist route URI grant: ${error.message}"))
+                    }
 
                 lifecycleScope.launch {
                     runCatching {

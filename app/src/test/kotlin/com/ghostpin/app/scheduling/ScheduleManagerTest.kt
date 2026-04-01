@@ -139,6 +139,26 @@ class ScheduleManagerTest {
             assertEquals(2, scheduled.size)
         }
 
+    @Test
+    fun `rearmPersistedSchedules disables schedules whose start was missed`() =
+        runTest {
+            ShadowAlarmManager.setCanScheduleExactAlarms(true)
+            val context = RuntimeEnvironment.getApplication()
+            val dao = FakeScheduleDao()
+            val manager = ScheduleManager(context, dao)
+            val now = System.currentTimeMillis()
+            val alarmManager = context.getSystemService(AlarmManager::class.java)
+            clearScheduledAlarms(alarmManager)
+
+            val missed = sampleSchedule(id = "missed", startAtMs = now - 60_000L, stopAtMs = now + 60_000L)
+            dao.upsert(missed)
+
+            manager.rearmPersistedSchedules(now)
+
+            assertFalse(dao.getById("missed")!!.enabled)
+            assertTrue(shadowOf(alarmManager).scheduledAlarms.isEmpty())
+        }
+
     private fun sampleConfig() = SimulationConfig(
         profileName = "Car",
         profileLookupKey = "builtin_car",

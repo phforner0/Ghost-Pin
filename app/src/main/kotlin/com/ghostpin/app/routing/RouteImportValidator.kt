@@ -34,8 +34,8 @@ internal object RouteImportValidator {
         contentResolver: ContentResolver,
         uri: Uri,
         intentFlags: Int,
-    ) {
-        if (!shouldPersistReadGrant(uri, intentFlags)) return
+    ): Result<Boolean> {
+        if (!shouldPersistReadGrant(uri, intentFlags)) return Result.success(false)
 
         val persistableFlags =
             intentFlags and (
@@ -43,8 +43,9 @@ internal object RouteImportValidator {
                     android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 )
 
-        runCatching {
+        return runCatching {
             contentResolver.takePersistableUriPermission(uri, persistableFlags)
+            true
         }
     }
 
