@@ -53,7 +53,10 @@ internal fun classifyImmediateServiceAction(intent: Intent?): ImmediateServiceAc
     return when (intent.action) {
         SimulationService.ACTION_STOP -> ImmediateServiceAction.StopSimulation
         SimulationService.ACTION_PAUSE -> ImmediateServiceAction.PauseSimulation
-        SimulationService.ACTION_SET_PROFILE -> ImmediateServiceAction.SetProfile(intent.getStringExtra(SimulationService.EXTRA_PROFILE_NAME))
+        SimulationService.ACTION_SET_PROFILE ->
+            ImmediateServiceAction.SetProfile(
+                intent.getStringExtra(SimulationService.EXTRA_PROFILE_NAME)
+            )
         SimulationService.ACTION_SET_ROUTE -> ImmediateServiceAction.SetRoute(intent.data)
         SimulationService.ACTION_SKIP_NEXT_WAYPOINT -> ImmediateServiceAction.SkipWaypoint(delta = 1)
         SimulationService.ACTION_SKIP_PREV_WAYPOINT -> ImmediateServiceAction.SkipWaypoint(delta = -1)
@@ -68,8 +71,8 @@ internal fun buildUpdatedProfileConfig(
     resolvedProfile: MovementProfile,
     profileLookupKey: String,
     defaultFrequency: Int,
-): SimulationConfig {
-    return SimulationConfig(
+): SimulationConfig =
+    SimulationConfig(
         profileName = resolvedProfile.name,
         profileLookupKey = profileLookupKey,
         startLat = current?.startLat ?: DefaultCoordinates.START_LAT,
@@ -85,16 +88,12 @@ internal fun buildUpdatedProfileConfig(
         repeatPolicy = current?.repeatPolicy ?: RepeatPolicy.NONE,
         repeatCount = current?.repeatCount ?: 1,
     )
-}
 
-internal fun resolveFavoriteShortcutDecision(
-    resolution: SimulationRepository.FavoriteResolution,
-): ShortcutStartDecision {
-    return when (resolution) {
+internal fun resolveFavoriteShortcutDecision(resolution: SimulationRepository.FavoriteResolution,): ShortcutStartDecision =
+    when (resolution) {
         is SimulationRepository.FavoriteResolution.Valid -> ShortcutStartDecision.Start(resolution.config)
         is SimulationRepository.FavoriteResolution.Invalid -> ShortcutStartDecision.ErrorAndStop(resolution.reason)
     }
-}
 
 internal fun resolveLastConfigShortcutDecision(
     currentConfig: SimulationConfig?,

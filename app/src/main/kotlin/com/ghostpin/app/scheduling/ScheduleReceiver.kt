@@ -15,17 +15,15 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-internal fun shouldStartScheduledSimulation(state: SimulationState): Boolean {
-    return state !is SimulationState.Running &&
+internal fun shouldStartScheduledSimulation(state: SimulationState): Boolean =
+    state !is SimulationState.Running &&
         state !is SimulationState.Paused &&
         state !is SimulationState.FetchingRoute
-}
 
-internal fun shouldStopScheduledSimulation(state: SimulationState): Boolean {
-    return state is SimulationState.Running ||
+internal fun shouldStopScheduledSimulation(state: SimulationState): Boolean =
+    state is SimulationState.Running ||
         state is SimulationState.Paused ||
         state is SimulationState.FetchingRoute
-}
 
 @AndroidEntryPoint
 class ScheduleReceiver : BroadcastReceiver() {

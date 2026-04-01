@@ -159,40 +159,37 @@ internal sealed interface GhostPinQsTileClickDecision {
 internal fun renderTileModel(
     state: SimulationState,
     sdkInt: Int,
-): GhostPinQsTileModel {
-    return when (state) {
-        is SimulationState.Running -> GhostPinQsTileModel(
-            state = Tile.STATE_ACTIVE,
-            subtitle = if (sdkInt >= Build.VERSION_CODES.Q) state.profileName else null,
-        )
+): GhostPinQsTileModel =
+    when (state) {
+        is SimulationState.Running ->
+            GhostPinQsTileModel(
+                state = Tile.STATE_ACTIVE,
+                subtitle = if (sdkInt >= Build.VERSION_CODES.Q) state.profileName else null,
+            )
 
-        is SimulationState.Paused -> GhostPinQsTileModel(
-            state = Tile.STATE_ACTIVE,
-            subtitle = if (sdkInt >= Build.VERSION_CODES.Q) "Paused" else null,
-        )
+        is SimulationState.Paused ->
+            GhostPinQsTileModel(
+                state = Tile.STATE_ACTIVE,
+                subtitle = if (sdkInt >= Build.VERSION_CODES.Q) "Paused" else null,
+            )
 
-        else -> GhostPinQsTileModel(
-            state = Tile.STATE_INACTIVE,
-            subtitle = null,
-        )
+        else ->
+            GhostPinQsTileModel(
+                state = Tile.STATE_INACTIVE,
+                subtitle = null,
+            )
     }
-}
 
-internal fun shouldStopCurrentSimulation(state: SimulationState): Boolean {
-    return state is SimulationState.Running || state is SimulationState.Paused
-}
+internal fun shouldStopCurrentSimulation(state: SimulationState): Boolean =
+    state is SimulationState.Running || state is SimulationState.Paused
 
-internal fun resolveClickDecision(
-    resolution: SimulationRepository.FavoriteResolution,
-): GhostPinQsTileClickDecision {
-    return when (resolution) {
+internal fun resolveClickDecision(resolution: SimulationRepository.FavoriteResolution,): GhostPinQsTileClickDecision =
+    when (resolution) {
         is SimulationRepository.FavoriteResolution.Valid -> StartFavorite(resolution.config)
         is SimulationRepository.FavoriteResolution.Invalid -> OpenApp(resolution.reason)
     }
-}
 
-internal fun buildStopIntent(context: android.content.Context): Intent {
-    return Intent(context, SimulationService::class.java).apply {
+internal fun buildStopIntent(context: android.content.Context): Intent =
+    Intent(context, SimulationService::class.java).apply {
         action = SimulationService.ACTION_STOP
     }
-}

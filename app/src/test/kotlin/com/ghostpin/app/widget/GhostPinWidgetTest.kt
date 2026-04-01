@@ -7,18 +7,18 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class GhostPinWidgetTest {
-
     @Test
     fun `renderModel uses stop action for active simulation`() {
-        val model = GhostPinWidget.renderModel(
-            SimulationState.Running(
-                currentLocation = MockLocation(1.0, 2.0),
-                profileName = "Car",
-                progressPercent = 0.42f,
-                elapsedTimeSec = 12,
-                frameCount = 34,
+        val model =
+            GhostPinWidget.renderModel(
+                SimulationState.Running(
+                    currentLocation = MockLocation(1.0, 2.0),
+                    profileName = "Car",
+                    progressPercent = 0.42f,
+                    elapsedTimeSec = 12,
+                    frameCount = 34,
+                )
             )
-        )
 
         assertEquals("Simulating", model.statusText)
         assertEquals("Car · 42%", model.secondaryText)

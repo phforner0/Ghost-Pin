@@ -1,8 +1,8 @@
 package com.ghostpin.app.service
 
-import android.os.Build
 import android.content.ContextWrapper
 import android.content.Intent
+import android.os.Build
 import android.service.quicksettings.Tile
 import com.ghostpin.app.data.SimulationConfig
 import com.ghostpin.app.data.SimulationRepository
@@ -16,19 +16,20 @@ import org.robolectric.RuntimeEnvironment
 
 @RunWith(RobolectricTestRunner::class)
 class GhostPinQsTileTest {
-
     @Test
     fun `renderTileModel shows active state with profile while running`() {
-        val model = renderTileModel(
-            state = SimulationState.Running(
-                currentLocation = MockLocation(1.0, 2.0),
-                profileName = "Car",
-                progressPercent = 0.3f,
-                elapsedTimeSec = 12,
-                frameCount = 40,
-            ),
-            sdkInt = Build.VERSION_CODES.UPSIDE_DOWN_CAKE,
-        )
+        val model =
+            renderTileModel(
+                state =
+                    SimulationState.Running(
+                        currentLocation = MockLocation(1.0, 2.0),
+                        profileName = "Car",
+                        progressPercent = 0.3f,
+                        elapsedTimeSec = 12,
+                        frameCount = 40,
+                    ),
+                sdkInt = Build.VERSION_CODES.UPSIDE_DOWN_CAKE,
+            )
 
         assertEquals(Tile.STATE_ACTIVE, model.state)
         assertEquals("Car", model.subtitle)
@@ -37,19 +38,21 @@ class GhostPinQsTileTest {
 
     @Test
     fun `renderTileModel shows paused subtitle while paused`() {
-        val model = renderTileModel(
-            state = SimulationState.Paused(
-                lastLocation = MockLocation(1.0, 2.0),
-                profileName = "Bike",
-                progressPercent = 0.5f,
-                currentLap = 1,
-                totalLapsLabel = "1",
-                lapProgressPercent = 0.5f,
-                direction = 1,
-                elapsedTimeSec = 33,
-            ),
-            sdkInt = Build.VERSION_CODES.TIRAMISU,
-        )
+        val model =
+            renderTileModel(
+                state =
+                    SimulationState.Paused(
+                        lastLocation = MockLocation(1.0, 2.0),
+                        profileName = "Bike",
+                        progressPercent = 0.5f,
+                        currentLap = 1,
+                        totalLapsLabel = "1",
+                        lapProgressPercent = 0.5f,
+                        direction = 1,
+                        elapsedTimeSec = 33,
+                    ),
+                sdkInt = Build.VERSION_CODES.TIRAMISU,
+            )
 
         assertEquals(Tile.STATE_ACTIVE, model.state)
         assertEquals("Paused", model.subtitle)
@@ -57,16 +60,18 @@ class GhostPinQsTileTest {
 
     @Test
     fun `renderTileModel hides subtitle below android q`() {
-        val model = renderTileModel(
-            state = SimulationState.Running(
-                currentLocation = MockLocation(1.0, 2.0),
-                profileName = "Car",
-                progressPercent = 0.1f,
-                elapsedTimeSec = 2,
-                frameCount = 3,
-            ),
-            sdkInt = Build.VERSION_CODES.P,
-        )
+        val model =
+            renderTileModel(
+                state =
+                    SimulationState.Running(
+                        currentLocation = MockLocation(1.0, 2.0),
+                        profileName = "Car",
+                        progressPercent = 0.1f,
+                        elapsedTimeSec = 2,
+                        frameCount = 3,
+                    ),
+                sdkInt = Build.VERSION_CODES.P,
+            )
 
         assertEquals(Tile.STATE_ACTIVE, model.state)
         assertEquals(null, model.subtitle)
@@ -85,28 +90,32 @@ class GhostPinQsTileTest {
 
     @Test
     fun `shouldStopCurrentSimulation is true for active states only`() {
-        assertTrue(shouldStopCurrentSimulation(
-            SimulationState.Running(
-                currentLocation = MockLocation(1.0, 2.0),
-                profileName = "Car",
-                progressPercent = 0.1f,
-                elapsedTimeSec = 1,
-                frameCount = 1,
+        assertTrue(
+            shouldStopCurrentSimulation(
+                SimulationState.Running(
+                    currentLocation = MockLocation(1.0, 2.0),
+                    profileName = "Car",
+                    progressPercent = 0.1f,
+                    elapsedTimeSec = 1,
+                    frameCount = 1,
+                )
             )
-        ))
+        )
 
-        assertTrue(shouldStopCurrentSimulation(
-            SimulationState.Paused(
-                lastLocation = MockLocation(1.0, 2.0),
-                profileName = "Car",
-                progressPercent = 0.1f,
-                currentLap = 1,
-                totalLapsLabel = "1",
-                lapProgressPercent = 0.1f,
-                direction = 1,
-                elapsedTimeSec = 1,
+        assertTrue(
+            shouldStopCurrentSimulation(
+                SimulationState.Paused(
+                    lastLocation = MockLocation(1.0, 2.0),
+                    profileName = "Car",
+                    progressPercent = 0.1f,
+                    currentLap = 1,
+                    totalLapsLabel = "1",
+                    lapProgressPercent = 0.1f,
+                    direction = 1,
+                    elapsedTimeSec = 1,
+                )
             )
-        ))
+        )
 
         assertEquals(false, shouldStopCurrentSimulation(SimulationState.Idle))
     }
@@ -114,10 +123,11 @@ class GhostPinQsTileTest {
     @Test
     fun `resolveClickDecision starts favorite when config is valid`() {
         val config = SimulationConfig(profileName = "Car", startLat = 1.0, startLng = 2.0)
-        val resolution = SimulationRepository.FavoriteResolution.Valid(
-            config = config,
-            favorite = fakeFavorite,
-        )
+        val resolution =
+            SimulationRepository.FavoriteResolution.Valid(
+                config = config,
+                favorite = fakeFavorite,
+            )
 
         val decision = resolveClickDecision(resolution)
 
@@ -127,10 +137,11 @@ class GhostPinQsTileTest {
 
     @Test
     fun `resolveClickDecision opens app when favorite is invalid`() {
-        val resolution = SimulationRepository.FavoriteResolution.Invalid(
-            reason = "No favorites saved yet.",
-            fallbackConfig = null,
-        )
+        val resolution =
+            SimulationRepository.FavoriteResolution.Invalid(
+                reason = "No favorites saved yet.",
+                fallbackConfig = null,
+            )
 
         val decision = resolveClickDecision(resolution)
 
@@ -149,25 +160,26 @@ class GhostPinQsTileTest {
     }
 
     private companion object {
-        val fakeFavorite = com.ghostpin.app.data.db.FavoriteSimulationEntity(
-            id = "fav-1",
-            name = "Favorite",
-            profileName = "Car",
-            profileIdOrName = "Car",
-            routeId = null,
-            startLat = 1.0,
-            startLng = 2.0,
-            endLat = 3.0,
-            endLng = 4.0,
-            appMode = com.ghostpin.core.model.AppMode.CLASSIC.name,
-            waypointsJson = "[]",
-            waypointPauseSec = 0.0,
-            speedRatio = 1.0,
-            frequencyHz = 5,
-            repeatPolicy = com.ghostpin.engine.interpolation.RepeatPolicy.NONE.name,
-            repeatCount = 1,
-            createdAtMs = 0L,
-            updatedAtMs = 0L,
-        )
+        val fakeFavorite =
+            com.ghostpin.app.data.db.FavoriteSimulationEntity(
+                id = "fav-1",
+                name = "Favorite",
+                profileName = "Car",
+                profileIdOrName = "Car",
+                routeId = null,
+                startLat = 1.0,
+                startLng = 2.0,
+                endLat = 3.0,
+                endLng = 4.0,
+                appMode = com.ghostpin.core.model.AppMode.CLASSIC.name,
+                waypointsJson = "[]",
+                waypointPauseSec = 0.0,
+                speedRatio = 1.0,
+                frequencyHz = 5,
+                repeatPolicy = com.ghostpin.engine.interpolation.RepeatPolicy.NONE.name,
+                repeatCount = 1,
+                createdAtMs = 0L,
+                updatedAtMs = 0L,
+            )
     }
 }

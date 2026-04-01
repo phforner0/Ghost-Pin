@@ -103,11 +103,11 @@ class SimulationStartRequestTest {
                 )
 
             assertTrue(result.isFailure)
-        assertEquals(
-            "Add at least 2 waypoints to start multi-stop mode.",
-            result.exceptionOrNull()?.message,
-        )
-    }
+            assertEquals(
+                "Add at least 2 waypoints to start multi-stop mode.",
+                result.exceptionOrNull()?.message,
+            )
+        }
 
     @Test
     fun `parseSimulationStartRequest resumes joystick when paused manual mode has no start lat`() =
@@ -122,16 +122,19 @@ class SimulationStartRequestTest {
             repository.setManualMode(true)
             repository.emitState(
                 SimulationState.Paused(
-                    lastLocation = com.ghostpin.core.model.MockLocation(1.0, 2.0),
+                    lastLocation =
+                        com.ghostpin.core.model
+                            .MockLocation(1.0, 2.0),
                     profileName = MovementProfile.CAR.name,
                     progressPercent = 0.2f,
                     elapsedTimeSec = 10,
                 )
             )
 
-            val intent = Intent().apply {
-                putExtra(SimulationService.EXTRA_MODE, AppMode.CLASSIC.name)
-            }
+            val intent =
+                Intent().apply {
+                    putExtra(SimulationService.EXTRA_MODE, AppMode.CLASSIC.name)
+                }
 
             val result =
                 parseSimulationStartRequest(

@@ -1,11 +1,11 @@
 package com.ghostpin.app.automation
 
-import android.os.Build
 import android.content.ComponentName
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import com.ghostpin.app.service.SimulationService
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -19,7 +19,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [Build.VERSION_CODES.P])
 class AutomationReceiverTest {
-
     @Test
     fun `action start forwards extras to simulation service`() {
         val baseContext = RuntimeEnvironment.getApplication()
@@ -87,7 +86,9 @@ class AutomationReceiverTest {
         assertTrue((startedIntent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0)
     }
 
-    private class CapturingContext(base: Context) : ContextWrapper(base) {
+    private class CapturingContext(
+        base: Context
+    ) : ContextWrapper(base) {
         var lastServiceIntent: Intent? = null
             private set
         var lastForegroundServiceIntent: Intent? = null
