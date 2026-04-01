@@ -20,7 +20,5 @@ object FakeLocationModule {
 
     @Provides
     @Singleton
-    fun provideLocationInjector(
-        fakeLocationInjector: FakeLocationInjector,
-    ): LocationInjector = fakeLocationInjector
+    fun provideLocationInjector(fakeLocationInjector: FakeLocationInjector,): LocationInjector = fakeLocationInjector
 }
