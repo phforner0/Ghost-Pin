@@ -3,6 +3,7 @@ package com.ghostpin.app
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import com.ghostpin.app.BuildConfig
 import com.ghostpin.app.data.ProfileManager
 import com.ghostpin.app.data.SimulationRepository
 import com.ghostpin.app.scheduling.ScheduleManager
@@ -17,10 +18,13 @@ internal suspend fun performAppStartupRecovery(
     profileManager: ProfileManager,
     simulationRepository: SimulationRepository,
     scheduleManager: ScheduleManager,
+    schedulingEnabled: Boolean,
 ) {
     profileManager.seedBuiltInsIfNeeded()
     simulationRepository.hydratePersistedStateIfNeeded()
-    scheduleManager.rearmPersistedSchedules()
+    if (schedulingEnabled) {
+        scheduleManager.rearmPersistedSchedules()
+    }
 }
 
 /**
@@ -57,7 +61,12 @@ class GhostPinApp : Application() {
 
     private fun seedProfiles() {
         appScope.launch {
-            performAppStartupRecovery(profileManager, simulationRepository, scheduleManager)
+            performAppStartupRecovery(
+                profileManager = profileManager,
+                simulationRepository = simulationRepository,
+                scheduleManager = scheduleManager,
+                schedulingEnabled = BuildConfig.SCHEDULING_ENABLED,
+            )
         }
     }
 

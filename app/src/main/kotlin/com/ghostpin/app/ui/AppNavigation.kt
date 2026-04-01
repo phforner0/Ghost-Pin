@@ -8,6 +8,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.ghostpin.app.BuildConfig
 import com.ghostpin.app.ui.onboarding.OnboardingScreen
 import com.ghostpin.core.model.MovementProfile
 
@@ -87,7 +88,9 @@ fun AppNavHost(
                     navController.navigate(AppRoute.HISTORY)
                 },
                 onNavigateToSchedule = {
-                    navController.navigate(AppRoute.SCHEDULE)
+                    if (BuildConfig.SCHEDULING_ENABLED) {
+                        navController.navigate(AppRoute.SCHEDULE)
+                    }
                 },
                 onNavigateToProfiles = {
                     navController.navigate(AppRoute.PROFILES)
@@ -127,11 +130,13 @@ fun AppNavHost(
             )
         }
 
-        composable(AppRoute.SCHEDULE) {
-            ScheduleScreen(
-                onBack = { navController.popBackStack() },
-                defaultConfig = viewModel.buildCurrentConfig(),
-            )
+        if (BuildConfig.SCHEDULING_ENABLED) {
+            composable(AppRoute.SCHEDULE) {
+                ScheduleScreen(
+                    onBack = { navController.popBackStack() },
+                    defaultConfig = viewModel.buildCurrentConfig(),
+                )
+            }
         }
 
         composable(AppRoute.PROFILES) {

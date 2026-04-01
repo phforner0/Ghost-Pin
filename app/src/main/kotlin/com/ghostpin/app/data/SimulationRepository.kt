@@ -132,6 +132,7 @@ class SimulationRepository
             _route.value = null
             _isManualMode.value = false
             _joystickState.value = JoystickState(0f, 0f)
+            _pausedSnapshot.value = null
             repositoryScope.launch { pausedSimulationStore.writeSnapshot(null) }
         }
 

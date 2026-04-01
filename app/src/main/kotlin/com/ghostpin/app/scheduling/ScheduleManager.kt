@@ -49,6 +49,10 @@ class ScheduleManager
             data class Conflict(
                 val message: String
             ) : CreateScheduleResult()
+
+            data class Unsupported(
+                val message: String,
+            ) : CreateScheduleResult()
         }
 
         data class ExactAlarmUiState(
@@ -58,6 +62,12 @@ class ScheduleManager
         )
 
         suspend fun createSchedule(request: CreateScheduleRequest): CreateScheduleResult {
+            if (!BuildConfig.SCHEDULING_ENABLED) {
+                return CreateScheduleResult.Unsupported(
+                    "Scheduling is unavailable in this build."
+                )
+            }
+
             val conflict = scheduleDao.findEnabledByStartAt(request.startAtMs).isNotEmpty()
             if (conflict) {
                 return CreateScheduleResult.Conflict(

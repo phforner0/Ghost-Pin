@@ -369,6 +369,7 @@ class SimulationService : LifecycleService() {
                 Log.e(TAG, LogSanitizer.sanitizeString("Failed to finalize history during service destruction"), error)
             }
             runCatching { mockLocationInjector.unregisterProvider() }
+            runCatching { runBlocking { repository.clearPausedSnapshot() } }
             repository.reset()
             refreshCompanionSurfaces(SimulationState.Idle)
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -789,6 +790,7 @@ class SimulationService : LifecycleService() {
             }
         }
         runCatching { mockLocationInjector.unregisterProvider() }
+        runCatching { runBlocking { repository.clearPausedSnapshot() } }
         repository.reset()
         refreshCompanionSurfaces(SimulationState.Idle)
         stopForeground(STOP_FOREGROUND_REMOVE)

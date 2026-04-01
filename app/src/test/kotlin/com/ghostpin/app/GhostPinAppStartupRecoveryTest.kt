@@ -92,12 +92,81 @@ class GhostPinAppStartupRecoveryTest {
                 )
             val profileManager = ProfileManager(profileDao)
 
-            performAppStartupRecovery(profileManager, repository, scheduleManager)
+            performAppStartupRecovery(
+                profileManager = profileManager,
+                simulationRepository = repository,
+                scheduleManager = scheduleManager,
+                schedulingEnabled = true,
+            )
 
             assertEquals(config, repository.lastUsedConfig.value)
             assertTrue(profileDao.insertedProfiles.isNotEmpty())
             val alarmManager = context.getSystemService(AlarmManager::class.java)
             assertEquals(2, shadowOf(alarmManager).scheduledAlarms.size)
+        }
+
+    @Test
+    fun `startup recovery skips rearm when scheduling is disabled`() =
+        runTest {
+            ShadowAlarmManager.setCanScheduleExactAlarms(true)
+            val context = RuntimeEnvironment.getApplication()
+            val configStore = DataStoreSimulationConfigStore(context)
+            configStore.writeLastUsedConfig(
+                SimulationConfig(
+                    profileName = "Car",
+                    profileLookupKey = "builtin_car",
+                    startLat = -23.0,
+                    startLng = -46.0,
+                )
+            )
+
+            val scheduleDao = FakeScheduleDao()
+            val scheduleManager = ScheduleManager(context, scheduleDao)
+            val now = System.currentTimeMillis()
+            scheduleDao.upsert(
+                ScheduleEntity(
+                    id = "disabled-schedule",
+                    startAtMs = now + 60_000L,
+                    stopAtMs = now + 120_000L,
+                    profileName = "Car",
+                    profileLookupKey = "builtin_car",
+                    startLat = -23.0,
+                    startLng = -46.0,
+                    endLat = -22.0,
+                    endLng = -43.0,
+                    routeId = null,
+                    appMode = AppMode.CLASSIC.name,
+                    waypointsJson = "[]",
+                    waypointPauseSec = 0.0,
+                    speedRatio = 1.0,
+                    frequencyHz = 5,
+                    repeatPolicy = RepeatPolicy.NONE.name,
+                    repeatCount = 1,
+                    enabled = true,
+                    createdAtMs = now,
+                )
+            )
+
+            val profileDao = FakeProfileDao()
+            val repository =
+                SimulationRepository(
+                    simulationHistoryDao = FakeSimulationHistoryDao(),
+                    favoriteSimulationDao = FakeFavoriteSimulationDao(),
+                    routeDao = FakeRouteDao(),
+                    profileDao = profileDao,
+                    simulationConfigStore = configStore,
+                )
+            val profileManager = ProfileManager(profileDao)
+
+            performAppStartupRecovery(
+                profileManager = profileManager,
+                simulationRepository = repository,
+                scheduleManager = scheduleManager,
+                schedulingEnabled = false,
+            )
+
+            val alarmManager = context.getSystemService(AlarmManager::class.java)
+            assertTrue(shadowOf(alarmManager).scheduledAlarms.isEmpty())
         }
 
     private class FakeFavoriteSimulationDao : FavoriteSimulationDao {

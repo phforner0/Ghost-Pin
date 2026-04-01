@@ -45,6 +45,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.ghostpin.app.BuildConfig
 import com.ghostpin.app.data.SimulationConfig
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -58,6 +59,7 @@ fun ScheduleScreen(
     viewModel: ScheduleViewModel = hiltViewModel(),
 ) {
     val schedules by viewModel.schedules.collectAsState()
+    val profileOptions by viewModel.profileOptions.collectAsState()
     val exactAlarmUiState by viewModel.exactAlarmUiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -66,7 +68,10 @@ fun ScheduleScreen(
     var startDelayMinutes by remember { mutableStateOf("5") }
     var durationMinutes by remember { mutableStateOf("15") }
     var profileExpanded by remember { mutableStateOf(false) }
-    var selectedProfile by remember { mutableStateOf(viewModel.profileOptions.firstOrNull() ?: "Car") }
+    var selectedProfileKey by remember(defaultConfig.profileLookupKey) { mutableStateOf(defaultConfig.profileLookupKey) }
+    val selectedProfileOption =
+        profileOptions.firstOrNull { it.lookupKey == selectedProfileKey }
+            ?: profileOptions.firstOrNull()
 
     LaunchedEffect(Unit) {
         viewModel.refreshExactAlarmUiState()
@@ -122,7 +127,7 @@ fun ScheduleScreen(
                 onExpandedChange = { profileExpanded = !profileExpanded },
             ) {
                 OutlinedTextField(
-                    value = selectedProfile,
+                    value = selectedProfileOption?.label ?: "",
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Perfil") },
@@ -133,11 +138,11 @@ fun ScheduleScreen(
                     expanded = profileExpanded,
                     onDismissRequest = { profileExpanded = false },
                 ) {
-                    viewModel.profileOptions.forEach { option ->
+                    profileOptions.forEach { option ->
                         DropdownMenuItem(
-                            text = { Text(option) },
+                            text = { Text(option.label) },
                             onClick = {
-                                selectedProfile = option
+                                selectedProfileKey = option.lookupKey
                                 profileExpanded = false
                             },
                         )
@@ -155,7 +160,10 @@ fun ScheduleScreen(
                 ) {
                     Text("Alarmes exatos", style = MaterialTheme.typography.titleMedium)
                     Text(exactAlarmUiState.message)
-                    if (exactAlarmUiState.canOpenSettings && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    if (BuildConfig.SCHEDULING_ENABLED &&
+                        exactAlarmUiState.canOpenSettings &&
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                    ) {
                         TextButton(
                             onClick = {
                                 context.startActivity(
@@ -174,19 +182,21 @@ fun ScheduleScreen(
 
             Button(
                 onClick = {
+                    val selectedOption = selectedProfileOption ?: return@Button
                     viewModel.createSchedule(
                         startDelayMinutes = startDelayMinutes.toIntOrNull() ?: 5,
                         durationMinutes = durationMinutes.toIntOrNull() ?: 15,
                         config =
                             defaultConfig.copy(
-                                profileName = selectedProfile,
-                                profileLookupKey = selectedProfile,
+                                profileName = selectedOption.label,
+                                profileLookupKey = selectedOption.lookupKey,
                             ),
                     )
                 },
                 modifier = Modifier.fillMaxWidth(),
+                enabled = BuildConfig.SCHEDULING_ENABLED && selectedProfileOption != null,
             ) {
-                Text("Criar agendamento")
+                Text(if (BuildConfig.SCHEDULING_ENABLED) "Criar agendamento" else "Agendamento indisponível neste build")
             }
 
             Spacer(Modifier.height(8.dp))

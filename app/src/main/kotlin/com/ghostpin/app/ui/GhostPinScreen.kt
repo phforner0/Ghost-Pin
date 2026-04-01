@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ghostpin.app.BuildConfig
 import com.ghostpin.app.service.SimulationState
 import com.ghostpin.app.ui.theme.GhostPinColors
 import com.ghostpin.app.ui.theme.GhostPinTypography
@@ -319,8 +320,10 @@ private fun GhostPinTopBarActions(
     IconButton(onClick = onNavigateToHistory) {
         Icon(Icons.Default.History, contentDescription = "History", tint = MaterialTheme.colorScheme.primary)
     }
-    IconButton(onClick = onNavigateToSchedule) {
-        Icon(Icons.Default.Schedule, contentDescription = "Schedule", tint = MaterialTheme.colorScheme.primary)
+    if (BuildConfig.SCHEDULING_ENABLED) {
+        IconButton(onClick = onNavigateToSchedule) {
+            Icon(Icons.Default.Schedule, contentDescription = "Schedule", tint = MaterialTheme.colorScheme.primary)
+        }
     }
     IconButton(onClick = onNavigateToRouteEditor) {
         Icon(Icons.Default.EditNote, contentDescription = "Route Editor", tint = MaterialTheme.colorScheme.primary)
