@@ -38,6 +38,19 @@ class ScheduleManagerTest {
     }
 
     @Test
+    fun `exactAlarmUiState exposes settings CTA when exact alarms are unavailable`() {
+        ShadowAlarmManager.setCanScheduleExactAlarms(false)
+        val context = RuntimeEnvironment.getApplication()
+        val manager = ScheduleManager(context, FakeScheduleDao())
+
+        val uiState = manager.exactAlarmUiState()
+
+        assertFalse(uiState.exactAlarmGranted)
+        assertTrue(uiState.canOpenSettings)
+        assertTrue(uiState.message.contains("pode atrasar"))
+    }
+
+    @Test
     fun `createSchedule stores schedule and arms start plus stop alarms`() =
         runTest {
             ShadowAlarmManager.setCanScheduleExactAlarms(true)

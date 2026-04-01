@@ -3,13 +3,29 @@ package com.ghostpin.app
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import com.ghostpin.app.BuildConfig
 import com.ghostpin.app.data.ProfileManager
+import com.ghostpin.app.data.SimulationRepository
+import com.ghostpin.app.scheduling.ScheduleManager
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+internal suspend fun performAppStartupRecovery(
+    profileManager: ProfileManager,
+    simulationRepository: SimulationRepository,
+    scheduleManager: ScheduleManager,
+    schedulingEnabled: Boolean,
+) {
+    profileManager.seedBuiltInsIfNeeded()
+    simulationRepository.hydratePersistedStateIfNeeded()
+    if (schedulingEnabled) {
+        scheduleManager.rearmPersistedSchedules()
+    }
+}
 
 /**
  * GhostPin Application class.
@@ -31,6 +47,12 @@ class GhostPinApp : Application() {
     @Inject
     lateinit var profileManager: ProfileManager
 
+    @Inject
+    lateinit var simulationRepository: SimulationRepository
+
+    @Inject
+    lateinit var scheduleManager: ScheduleManager
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
@@ -39,7 +61,12 @@ class GhostPinApp : Application() {
 
     private fun seedProfiles() {
         appScope.launch {
-            profileManager.seedBuiltInsIfNeeded()
+            performAppStartupRecovery(
+                profileManager = profileManager,
+                simulationRepository = simulationRepository,
+                scheduleManager = scheduleManager,
+                schedulingEnabled = BuildConfig.SCHEDULING_ENABLED,
+            )
         }
     }
 

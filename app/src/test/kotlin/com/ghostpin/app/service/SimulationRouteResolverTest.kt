@@ -229,5 +229,10 @@ class SimulationRouteResolverTest {
         override suspend fun deleteById(id: String) = Unit
 
         override suspend fun clearHistory() = Unit
+
+        override suspend fun interruptRunningSessions(
+            endedAtMs: Long,
+            excludeId: String?,
+        ) = Unit
     }
 }

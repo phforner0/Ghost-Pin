@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import com.ghostpin.app.BuildConfig
 import com.ghostpin.app.data.SimulationConfig
 import com.ghostpin.core.security.LogSanitizer
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -48,9 +49,25 @@ class ScheduleManager
             data class Conflict(
                 val message: String
             ) : CreateScheduleResult()
+
+            data class Unsupported(
+                val message: String,
+            ) : CreateScheduleResult()
         }
 
+        data class ExactAlarmUiState(
+            val exactAlarmGranted: Boolean,
+            val canOpenSettings: Boolean,
+            val message: String,
+        )
+
         suspend fun createSchedule(request: CreateScheduleRequest): CreateScheduleResult {
+            if (!BuildConfig.SCHEDULING_ENABLED) {
+                return CreateScheduleResult.Unsupported(
+                    "Scheduling is unavailable in this build."
+                )
+            }
+
             val conflict = scheduleDao.findEnabledByStartAt(request.startAtMs).isNotEmpty()
             if (conflict) {
                 return CreateScheduleResult.Conflict(
@@ -83,6 +100,23 @@ class ScheduleManager
             scheduleDao.upsert(schedule)
             val exactAlarmGranted = armSchedule(schedule)
             return CreateScheduleResult.Success(schedule, exactAlarmGranted)
+        }
+
+        fun exactAlarmUiState(): ExactAlarmUiState {
+            val granted = canUseExactAlarms()
+            val canOpenSettings = BuildConfig.EXACT_ALARM_SETTINGS_ENABLED && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !granted
+            val message =
+                if (granted) {
+                    "Agendamentos usarão alarmes exatos quando o sistema permitir."
+                } else {
+                    "O Android pode atrasar a execução deste agendamento porque alarmes exatos não estão disponíveis."
+                }
+
+            return ExactAlarmUiState(
+                exactAlarmGranted = granted,
+                canOpenSettings = canOpenSettings,
+                message = message,
+            )
         }
 
         suspend fun cancelSchedule(scheduleId: String) {

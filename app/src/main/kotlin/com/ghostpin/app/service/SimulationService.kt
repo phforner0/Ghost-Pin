@@ -154,6 +154,10 @@ class SimulationService : LifecycleService() {
     ): Int {
         super.onStartCommand(intent, flags, startId)
 
+        runBlocking {
+            repository.hydratePersistedStateIfNeeded()
+        }
+
         when (val action = classifyImmediateServiceAction(intent)) {
             ImmediateServiceAction.NullIntentStop -> {
                 Log.w(TAG, LogSanitizer.sanitizeString("Received null intent — stopping without starting simulation."))
@@ -222,7 +226,12 @@ class SimulationService : LifecycleService() {
 
             ImmediateServiceAction.StartLastFavorite -> {
                 lifecycleScope.launch {
-                    when (val decision = resolveFavoriteShortcutDecision(repository.applyMostRecentFavorite())) {
+                    when (
+                        val decision =
+                            resolveFavoriteShortcutDecision(
+                                repository.applyMostRecentFavorite(repository.getLastUsedConfigOrPersisted())
+                            )
+                    ) {
                         is ShortcutStartDecision.Start -> {
                             startForegroundService(createStartIntent(this@SimulationService, decision.config))
                         }
@@ -237,7 +246,7 @@ class SimulationService : LifecycleService() {
 
             ImmediateServiceAction.StartLastConfig -> {
                 lifecycleScope.launch {
-                    val currentConfig = repository.lastUsedConfig.value
+                    val currentConfig = repository.getLastUsedConfigOrPersisted()
                     val validation = currentConfig?.let { repository.validateConfig(it, fallback = null) }
                     when (val decision = resolveLastConfigShortcutDecision(currentConfig, validation)) {
                         is ShortcutStartDecision.Start -> {
@@ -297,6 +306,9 @@ class SimulationService : LifecycleService() {
 
         if (startRequest.isResume) {
             val pausedState = repository.state.value as SimulationState.Paused
+            val pausedSnapshot = repository.pausedSnapshot.value
+            activeHistoryId = pausedSnapshot?.activeHistoryId
+            activeHistoryStartedAtMs = pausedSnapshot?.activeHistoryStartedAtMs
             val profile =
                 resolveProfile(repository.lastUsedConfig.value?.profileLookupKey ?: pausedState.profileName)
                     ?: MovementProfile.PEDESTRIAN
@@ -357,6 +369,7 @@ class SimulationService : LifecycleService() {
                 Log.e(TAG, LogSanitizer.sanitizeString("Failed to finalize history during service destruction"), error)
             }
             runCatching { mockLocationInjector.unregisterProvider() }
+            runCatching { runBlocking { repository.clearPausedSnapshot() } }
             repository.reset()
             refreshCompanionSurfaces(SimulationState.Idle)
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -383,6 +396,7 @@ class SimulationService : LifecycleService() {
     ) {
         simulationJob?.cancel()
         isStopping = false
+        runBlocking { repository.clearPausedSnapshot() }
         if (resumeState == null && appMode != AppMode.GPX) {
             repository.emitRoute(null)
         }
@@ -628,6 +642,7 @@ class SimulationService : LifecycleService() {
                     refreshCompanionSurfaces(SimulationState.Idle)
                     noiseModel.reset()
                     mockLocationInjector.unregisterProvider()
+                    repository.clearPausedSnapshot()
                     simulationJob = null
                     stopSelf()
                 } catch (e: Exception) {
@@ -639,6 +654,7 @@ class SimulationService : LifecycleService() {
                     )
                     emitStateAndRefresh(SimulationState.Error(e.message ?: "Unknown simulation error"))
                     repository.emitRoute(null)
+                    repository.clearPausedSnapshot()
                     simulationJob = null
                     stopSelf()
                 }
@@ -749,6 +765,9 @@ class SimulationService : LifecycleService() {
                     elapsedTimeSec = currentState.elapsedTimeSec,
                 )
             emitStateAndRefresh(pausedState)
+            lifecycleScope.launch {
+                repository.persistPausedSnapshot(pausedState, activeHistoryId, activeHistoryStartedAtMs)
+            }
         }
     }
 
@@ -771,6 +790,7 @@ class SimulationService : LifecycleService() {
             }
         }
         runCatching { mockLocationInjector.unregisterProvider() }
+        runCatching { runBlocking { repository.clearPausedSnapshot() } }
         repository.reset()
         refreshCompanionSurfaces(SimulationState.Idle)
         stopForeground(STOP_FOREGROUND_REMOVE)

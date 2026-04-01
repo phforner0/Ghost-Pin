@@ -42,11 +42,15 @@ android {
             applicationIdSuffix = ".nonplay"
             buildConfigField("boolean", "MOCK_PROVIDER_ENABLED", "true")
             buildConfigField("boolean", "SHIZUKU_ENABLED", "true")
+            buildConfigField("boolean", "EXACT_ALARM_SETTINGS_ENABLED", "true")
+            buildConfigField("boolean", "SCHEDULING_ENABLED", "true")
         }
         create("playstore") {
             dimension = "distribution"
             buildConfigField("boolean", "MOCK_PROVIDER_ENABLED", "false")
             buildConfigField("boolean", "SHIZUKU_ENABLED", "false")
+            buildConfigField("boolean", "EXACT_ALARM_SETTINGS_ENABLED", "false")
+            buildConfigField("boolean", "SCHEDULING_ENABLED", "false")
         }
     }
 
