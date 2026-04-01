@@ -110,6 +110,7 @@ fun RealismDiagnosticsScreen(
                                 Text("Route source: ${result.routeSource}")
                                 Text("Synthetic samples: ${result.sampleCount}")
                                 Text("Score: ${result.scorePercent}%")
+                                Text(result.scoreNote, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }

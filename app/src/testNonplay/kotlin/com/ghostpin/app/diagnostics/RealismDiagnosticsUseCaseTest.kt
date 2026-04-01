@@ -6,6 +6,7 @@ import com.ghostpin.core.model.Segment
 import com.ghostpin.core.model.SegmentOverrides
 import com.ghostpin.core.model.Waypoint
 import com.ghostpin.engine.validation.TrajectoryValidator
+import com.ghostpin.realism.metrics.MetricResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -48,6 +49,7 @@ class RealismDiagnosticsUseCaseTest {
         assertEquals(4, diagnostics.metrics.size)
         assertTrue(diagnostics.sampleCount > 0)
         assertTrue(diagnostics.scorePercent in 0..100)
+        assertTrue(diagnostics.scoreNote.contains("timestamp", ignoreCase = true))
     }
 
     @Test
@@ -112,6 +114,21 @@ class RealismDiagnosticsUseCaseTest {
         assertTrue(result.isSuccess)
         val diagnostics = result.getOrThrow()
         assertFalse(diagnostics.trajectoryWarnings.isEmpty())
+    }
+
+    @Test
+    fun `diagnostics score excludes synthetic timestamp monotonicity metric`() {
+        val scorePercent =
+            useCase.diagnosticsScorePercent(
+                listOf(
+                    MetricResult(name = "Autocorrelation (lag-1)", value = 0.5, passed = true),
+                    MetricResult(name = "Excess Kurtosis", value = -1.0, passed = false),
+                    MetricResult(name = "Jump Frequency", value = 0.1, passed = false),
+                    MetricResult(name = "Timestamp Monotonicity", value = 1.0, passed = true),
+                )
+            )
+
+        assertEquals(33, scorePercent)
     }
 
     @Test

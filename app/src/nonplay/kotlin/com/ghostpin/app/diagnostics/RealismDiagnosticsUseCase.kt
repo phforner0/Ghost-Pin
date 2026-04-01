@@ -33,6 +33,7 @@ data class RealismDiagnosticsResult(
     val routeSource: String,
     val sampleCount: Int,
     val scorePercent: Int,
+    val scoreNote: String,
     val trajectoryWarnings: List<String>,
     val metrics: List<MetricResult>,
     val summary: String,
@@ -56,18 +57,26 @@ class RealismDiagnosticsUseCase
                         latNoiseSeries = latNoiseSeries,
                         expectedPMultipath = input.profile.pMultipath,
                     )
+                val scorePercent = diagnosticsScorePercent(report.results)
 
                 RealismDiagnosticsResult(
                     profileName = input.profile.name,
                     routeName = route.name,
                     routeSource = routeSource,
                     sampleCount = locations.size,
-                    scorePercent = ((report.passCount.toDouble() / report.total.coerceAtLeast(1)) * 100.0).toInt(),
+                    scorePercent = scorePercent,
+                    scoreNote = "Score excludes the synthetic timestamp monotonicity sanity check.",
                     trajectoryWarnings = validation.warnings,
                     metrics = report.results,
                     summary = report.summary(),
                 )
             }
+
+        internal fun diagnosticsScorePercent(metrics: List<MetricResult>): Int {
+            val scoreMetrics = metrics.filter { it.name != "Timestamp Monotonicity" }
+            val basis = scoreMetrics.ifEmpty { metrics }
+            return ((basis.count { it.passed }.toDouble() / basis.size.coerceAtLeast(1)) * 100.0).toInt()
+        }
 
         private fun resolveRoute(input: RealismDiagnosticsInput): Pair<Route, String> {
             input.route?.takeIf { it.waypoints.size >= 2 }?.let {
