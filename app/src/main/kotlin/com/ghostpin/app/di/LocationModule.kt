@@ -13,7 +13,5 @@ import javax.inject.Singleton
 abstract class LocationModule {
     @Binds
     @Singleton
-    abstract fun bindLocationInjector(
-        injector: MockLocationInjector,
-    ): LocationInjector
+    abstract fun bindLocationInjector(injector: MockLocationInjector,): LocationInjector
 }

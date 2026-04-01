@@ -13,12 +13,9 @@ import com.ghostpin.app.data.SimulationRepository
 import com.ghostpin.app.location.FakeLocationInjector
 import com.ghostpin.core.model.AppMode
 import com.ghostpin.core.model.MovementProfile
-import com.ghostpin.core.model.Route
 import com.ghostpin.core.model.Waypoint
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
-import java.io.File
-import javax.inject.Inject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -26,11 +23,12 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
+import javax.inject.Inject
 
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class SimulationServiceInstrumentedTest {
-
     @get:Rule
     val hiltRule = HiltAndroidRule(this)
 
@@ -134,10 +132,18 @@ class SimulationServiceInstrumentedTest {
 
         waitUntil(timeoutMs = 3_000) { repository.route.value != null }
         assertEquals("Instrumented Route", repository.route.value?.name)
-        assertEquals(2, repository.route.value?.waypoints?.size)
+        assertEquals(
+            2,
+            repository.route.value
+                ?.waypoints
+                ?.size
+        )
     }
 
-    private fun waitUntil(timeoutMs: Long, condition: () -> Boolean) {
+    private fun waitUntil(
+        timeoutMs: Long,
+        condition: () -> Boolean
+    ) {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             if (condition()) return

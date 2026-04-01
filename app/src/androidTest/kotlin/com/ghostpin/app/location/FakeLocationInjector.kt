@@ -7,26 +7,28 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class FakeLocationInjector @Inject constructor() : LocationInjector {
-    val registerCalls = AtomicInteger(0)
-    val unregisterCalls = AtomicInteger(0)
-    val injectedLocations = CopyOnWriteArrayList<MockLocation>()
+class FakeLocationInjector
+    @Inject
+    constructor() : LocationInjector {
+        val registerCalls = AtomicInteger(0)
+        val unregisterCalls = AtomicInteger(0)
+        val injectedLocations = CopyOnWriteArrayList<MockLocation>()
 
-    override fun registerProvider() {
-        registerCalls.incrementAndGet()
-    }
+        override fun registerProvider() {
+            registerCalls.incrementAndGet()
+        }
 
-    override fun inject(mockLocation: MockLocation) {
-        injectedLocations += mockLocation
-    }
+        override fun inject(mockLocation: MockLocation) {
+            injectedLocations += mockLocation
+        }
 
-    override fun unregisterProvider() {
-        unregisterCalls.incrementAndGet()
-    }
+        override fun unregisterProvider() {
+            unregisterCalls.incrementAndGet()
+        }
 
-    fun reset() {
-        registerCalls.set(0)
-        unregisterCalls.set(0)
-        injectedLocations.clear()
+        fun reset() {
+            registerCalls.set(0)
+            unregisterCalls.set(0)
+            injectedLocations.clear()
+        }
     }
-}

@@ -8,17 +8,16 @@ import com.ghostpin.core.model.AppMode
 import com.ghostpin.engine.interpolation.RepeatPolicy
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
-import javax.inject.Inject
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import javax.inject.Inject
 
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class BootCompletedReceiverInstrumentedTest {
-
     @get:Rule
     val hiltRule = HiltAndroidRule(this)
 
