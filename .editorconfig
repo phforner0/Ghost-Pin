@@ -12,6 +12,6 @@ ktlint_standard_trailing-comma-on-declaration-site = disabled
 # Max line length (slightly relaxed for existing Compose/UI code)
 max_line_length = 140
 
-[app/src/main/kotlin/com/ghostpin/app/ui/**/*.kt]
+[app/src/*/kotlin/com/ghostpin/app/ui/**/*.kt]
 # Compose entry points intentionally use PascalCase to match Android conventions.
 ktlint_standard_function-naming = disabled

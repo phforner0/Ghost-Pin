@@ -44,6 +44,7 @@ android {
             buildConfigField("boolean", "SHIZUKU_ENABLED", "true")
             buildConfigField("boolean", "EXACT_ALARM_SETTINGS_ENABLED", "true")
             buildConfigField("boolean", "SCHEDULING_ENABLED", "true")
+            buildConfigField("boolean", "REALISM_DIAGNOSTICS_ENABLED", "true")
         }
         create("playstore") {
             dimension = "distribution"
@@ -51,6 +52,7 @@ android {
             buildConfigField("boolean", "SHIZUKU_ENABLED", "false")
             buildConfigField("boolean", "EXACT_ALARM_SETTINGS_ENABLED", "false")
             buildConfigField("boolean", "SCHEDULING_ENABLED", "false")
+            buildConfigField("boolean", "REALISM_DIAGNOSTICS_ENABLED", "false")
         }
     }
 
@@ -82,6 +84,7 @@ dependencies {
     // Internal modules
     implementation(project(":core"))
     implementation(project(":engine"))
+    add("nonplayImplementation", project(":realism-lab"))
 
     // Hilt — using KSP
     implementation("com.google.dagger:hilt-android:2.55")
