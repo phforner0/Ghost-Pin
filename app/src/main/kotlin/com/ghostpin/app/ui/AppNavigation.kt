@@ -22,6 +22,7 @@ object AppRoute {
     const val HISTORY = "history"
     const val SCHEDULE = "schedule"
     const val PROFILES = "profiles"
+    const val DIAGNOSTICS = "diagnostics"
 }
 
 /**
@@ -95,6 +96,11 @@ fun AppNavHost(
                 onNavigateToProfiles = {
                     navController.navigate(AppRoute.PROFILES)
                 },
+                onNavigateToDiagnostics = {
+                    if (BuildConfig.REALISM_DIAGNOSTICS_ENABLED) {
+                        navController.navigate(AppRoute.DIAGNOSTICS)
+                    }
+                },
             )
         }
 
@@ -147,6 +153,15 @@ fun AppNavHost(
                     navController.popBackStack()
                 },
             )
+        }
+
+        if (BuildConfig.REALISM_DIAGNOSTICS_ENABLED) {
+            composable(AppRoute.DIAGNOSTICS) {
+                RealismDiagnosticsScreen(
+                    simulationViewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                )
+            }
         }
     }
 }

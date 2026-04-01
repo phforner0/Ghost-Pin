@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
@@ -88,6 +89,7 @@ fun GhostPinScreen(
     onNavigateToHistory: () -> Unit = {},
     onNavigateToSchedule: () -> Unit = {},
     onNavigateToProfiles: () -> Unit = {},
+    onNavigateToDiagnostics: () -> Unit = {},
 ) {
     val selectedProfile by viewModel.selectedProfile.collectAsState()
     val selectedMode by viewModel.selectedMode.collectAsState()
@@ -165,6 +167,7 @@ fun GhostPinScreen(
                         onNavigateToSchedule = onNavigateToSchedule,
                         onNavigateToRouteEditor = onNavigateToRouteEditor,
                         onNavigateToProfiles = onNavigateToProfiles,
+                        onNavigateToDiagnostics = onNavigateToDiagnostics,
                     )
                 },
             )
@@ -284,6 +287,7 @@ private fun GhostPinTopBarActions(
     onNavigateToSchedule: () -> Unit,
     onNavigateToRouteEditor: () -> Unit,
     onNavigateToProfiles: () -> Unit,
+    onNavigateToDiagnostics: () -> Unit,
 ) {
     val favoriteSimulations by viewModel.favoriteSimulations.collectAsState()
     var favoritesExpanded by remember { mutableStateOf(false) }
@@ -330,6 +334,11 @@ private fun GhostPinTopBarActions(
     }
     IconButton(onClick = onNavigateToProfiles) {
         Icon(Icons.Default.Tune, contentDescription = "Profiles", tint = MaterialTheme.colorScheme.primary)
+    }
+    if (BuildConfig.REALISM_DIAGNOSTICS_ENABLED) {
+        IconButton(onClick = onNavigateToDiagnostics) {
+            Icon(Icons.Default.Science, contentDescription = "Diagnostics", tint = MaterialTheme.colorScheme.primary)
+        }
     }
 }
 
