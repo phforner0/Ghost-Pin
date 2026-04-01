@@ -53,7 +53,21 @@ class MainActivity : ComponentActivity() {
 
     private val gpxFilePickerLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-            uri?.let { viewModel.loadGpxFromUri(this, it) }
+            uri?.let {
+                RouteImportValidator.validateUri(it).onSuccess { validUri ->
+                    RouteImportValidator.persistReadGrantIfNeeded(
+                        contentResolver,
+                        validUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    ).onFailure {
+                        permissionMessageState.value =
+                            "Route imported, but Android did not grant persistent file access. Re-import may be needed later."
+                    }
+                    viewModel.loadGpxFromUri(this, validUri)
+                }.onFailure { error ->
+                    permissionMessageState.value = error.message ?: "Failed to open route file."
+                }
+            }
         }
 
     private val routeFileImportLauncher =
@@ -63,6 +77,14 @@ class MainActivity : ComponentActivity() {
                 runCatching {
                     RouteImportValidator.validateUri(uri).getOrThrow()
                 }.onSuccess { validUri ->
+                    RouteImportValidator.persistReadGrantIfNeeded(
+                        contentResolver,
+                        validUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    ).onFailure {
+                        permissionMessageState.value =
+                            "Route imported, but Android did not grant persistent file access. Re-import may be needed later."
+                    }
                     pendingImportedRouteUriState.value = validUri
                 }.onFailure { error ->
                     permissionMessageState.value = error.message ?: "Failed to import route file."

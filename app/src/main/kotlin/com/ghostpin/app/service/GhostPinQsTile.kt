@@ -9,6 +9,9 @@ import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import android.widget.Toast
 import com.ghostpin.app.data.SimulationRepository
+import com.ghostpin.app.service.GhostPinQsTileClickDecision.OpenApp
+import com.ghostpin.app.service.GhostPinQsTileClickDecision.StartFavorite
+import com.ghostpin.app.service.GhostPinQsTileClickDecision.StopActiveSimulation
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
@@ -64,27 +67,22 @@ class GhostPinQsTile : TileService() {
         super.onClick()
         val currentState = simulationRepository.state.value
 
-        if (currentState is SimulationState.Running || currentState is SimulationState.Paused) {
-            // Stop simulation
-            val intent =
-                Intent(this, SimulationService::class.java).apply {
-                    action = SimulationService.ACTION_STOP
-                }
-            startService(intent)
+        if (shouldStopCurrentSimulation(currentState)) {
+            startService(buildStopIntent(this))
         } else {
             tileScope.launch {
-                when (val resolution = simulationRepository.applyMostRecentFavorite()) {
-                    is SimulationRepository.FavoriteResolution.Valid -> {
-                        val config = resolution.config
-                        val intent = SimulationService.createStartIntent(this@GhostPinQsTile, config)
+                when (val decision = resolveClickDecision(simulationRepository.applyMostRecentFavorite())) {
+                    is StopActiveSimulation -> startService(buildStopIntent(this@GhostPinQsTile))
+                    is StartFavorite -> {
+                        val intent = SimulationService.createStartIntent(this@GhostPinQsTile, decision.config)
                         startForegroundService(intent)
                     }
-                    is SimulationRepository.FavoriteResolution.Invalid -> {
+                    is OpenApp -> {
                         Toast
                             .makeText(
                                 this@GhostPinQsTile,
-                                resolution.reason,
-                                Toast.LENGTH_LONG
+                                decision.reason,
+                                Toast.LENGTH_LONG,
                             ).show()
                         openMainActivityFromTile()
                     }
@@ -100,21 +98,12 @@ class GhostPinQsTile : TileService() {
 
     private fun updateTileState(state: SimulationState) {
         val tile = qsTile ?: return
-        when (state) {
-            is SimulationState.Running -> {
-                tile.state = Tile.STATE_ACTIVE
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) tile.subtitle = state.profileName
-            }
-            is SimulationState.Paused -> {
-                tile.state = Tile.STATE_ACTIVE
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) tile.subtitle = "Paused"
-            }
-            else -> {
-                tile.state = Tile.STATE_INACTIVE
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) tile.subtitle = null
-            }
+        val model = renderTileModel(state, Build.VERSION.SDK_INT)
+        tile.state = model.state
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            tile.subtitle = model.subtitle
         }
-        tile.label = "GhostPin"
+        tile.label = model.label
         tile.updateTile()
     }
 
@@ -146,5 +135,64 @@ class GhostPinQsTile : TileService() {
                 ComponentName(context, GhostPinQsTile::class.java),
             )
         }
+    }
+}
+
+internal data class GhostPinQsTileModel(
+    val state: Int,
+    val subtitle: String?,
+    val label: String = "GhostPin",
+)
+
+internal sealed interface GhostPinQsTileClickDecision {
+    data object StopActiveSimulation : GhostPinQsTileClickDecision
+
+    data class StartFavorite(
+        val config: com.ghostpin.app.data.SimulationConfig,
+    ) : GhostPinQsTileClickDecision
+
+    data class OpenApp(
+        val reason: String,
+    ) : GhostPinQsTileClickDecision
+}
+
+internal fun renderTileModel(
+    state: SimulationState,
+    sdkInt: Int,
+): GhostPinQsTileModel {
+    return when (state) {
+        is SimulationState.Running -> GhostPinQsTileModel(
+            state = Tile.STATE_ACTIVE,
+            subtitle = if (sdkInt >= Build.VERSION_CODES.Q) state.profileName else null,
+        )
+
+        is SimulationState.Paused -> GhostPinQsTileModel(
+            state = Tile.STATE_ACTIVE,
+            subtitle = if (sdkInt >= Build.VERSION_CODES.Q) "Paused" else null,
+        )
+
+        else -> GhostPinQsTileModel(
+            state = Tile.STATE_INACTIVE,
+            subtitle = null,
+        )
+    }
+}
+
+internal fun shouldStopCurrentSimulation(state: SimulationState): Boolean {
+    return state is SimulationState.Running || state is SimulationState.Paused
+}
+
+internal fun resolveClickDecision(
+    resolution: SimulationRepository.FavoriteResolution,
+): GhostPinQsTileClickDecision {
+    return when (resolution) {
+        is SimulationRepository.FavoriteResolution.Valid -> StartFavorite(resolution.config)
+        is SimulationRepository.FavoriteResolution.Invalid -> OpenApp(resolution.reason)
+    }
+}
+
+internal fun buildStopIntent(context: android.content.Context): Intent {
+    return Intent(context, SimulationService::class.java).apply {
+        action = SimulationService.ACTION_STOP
     }
 }

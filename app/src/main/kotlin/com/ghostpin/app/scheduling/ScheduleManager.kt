@@ -93,7 +93,11 @@ class ScheduleManager
 
         suspend fun rearmPersistedSchedules(nowMs: Long = System.currentTimeMillis()) {
             scheduleDao.getAllEnabled().forEach { schedule ->
-                if ((schedule.stopAtMs != null && schedule.stopAtMs <= nowMs) || schedule.startAtMs <= 0L) {
+                val startWasMissed = schedule.startAtMs in 1..nowMs
+                if ((schedule.stopAtMs != null && schedule.stopAtMs <= nowMs) || schedule.startAtMs <= 0L || startWasMissed) {
+                    if (startWasMissed) {
+                        Log.w(TAG, LogSanitizer.sanitizeString("Schedule ${schedule.id} missed its start window and will be disabled."))
+                    }
                     scheduleDao.disable(schedule.id)
                     cancelAlarms(schedule.id)
                 } else {
