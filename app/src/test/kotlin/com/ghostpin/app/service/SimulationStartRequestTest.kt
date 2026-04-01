@@ -103,8 +103,79 @@ class SimulationStartRequestTest {
                 )
 
             assertTrue(result.isFailure)
+        assertEquals(
+            "Add at least 2 waypoints to start multi-stop mode.",
+            result.exceptionOrNull()?.message,
+        )
+    }
+
+    @Test
+    fun `parseSimulationStartRequest resumes joystick when paused manual mode has no start lat`() =
+        runTest {
+            val repository =
+                SimulationRepository(
+                    simulationHistoryDao = FakeSimulationHistoryDao(),
+                    favoriteSimulationDao = FakeFavoriteSimulationDao(),
+                    routeDao = FakeRouteDao(),
+                    profileDao = FakeProfileDao(),
+                )
+            repository.setManualMode(true)
+            repository.emitState(
+                SimulationState.Paused(
+                    lastLocation = com.ghostpin.core.model.MockLocation(1.0, 2.0),
+                    profileName = MovementProfile.CAR.name,
+                    progressPercent = 0.2f,
+                    elapsedTimeSec = 10,
+                )
+            )
+
+            val intent = Intent().apply {
+                putExtra(SimulationService.EXTRA_MODE, AppMode.CLASSIC.name)
+            }
+
+            val result =
+                parseSimulationStartRequest(
+                    intent = intent,
+                    repository = repository,
+                    resolveProfile = { MovementProfile.BUILT_IN[it] },
+                    defaultFrequency = SimulationService.DEFAULT_FREQUENCY,
+                    minFrequency = 1,
+                    maxFrequency = 60,
+                ).getOrThrow()
+
+            assertTrue(result.isResume)
+            assertEquals(AppMode.JOYSTICK, result.appMode)
+        }
+
+    @Test
+    fun `parseSimulationStartRequest rejects non-positive speed ratio`() =
+        runTest {
+            val repository =
+                SimulationRepository(
+                    simulationHistoryDao = FakeSimulationHistoryDao(),
+                    favoriteSimulationDao = FakeFavoriteSimulationDao(),
+                    routeDao = FakeRouteDao(),
+                    profileDao = FakeProfileDao(),
+                )
+
+            val intent =
+                Intent().apply {
+                    putExtra(SimulationService.EXTRA_SPEED_RATIO, 0.0)
+                }
+
+            val result =
+                parseSimulationStartRequest(
+                    intent = intent,
+                    repository = repository,
+                    resolveProfile = { MovementProfile.BUILT_IN[it] },
+                    defaultFrequency = SimulationService.DEFAULT_FREQUENCY,
+                    minFrequency = 1,
+                    maxFrequency = 60,
+                )
+
+            assertTrue(result.isFailure)
             assertEquals(
-                "Add at least 2 waypoints to start multi-stop mode.",
+                "Speed ratio must be greater than 0 to start simulation.",
                 result.exceptionOrNull()?.message,
             )
         }

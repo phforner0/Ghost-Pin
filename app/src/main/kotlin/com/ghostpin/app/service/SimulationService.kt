@@ -155,119 +155,103 @@ class SimulationService : LifecycleService() {
     ): Int {
         super.onStartCommand(intent, flags, startId)
 
-        if (intent == null) {
-            Log.w(TAG, LogSanitizer.sanitizeString("Received null intent — stopping without starting simulation."))
-            stopSelf()
-            return START_NOT_STICKY
-        }
+        when (val action = classifyImmediateServiceAction(intent)) {
+            ImmediateServiceAction.NullIntentStop -> {
+                Log.w(TAG, LogSanitizer.sanitizeString("Received null intent — stopping without starting simulation."))
+                stopSelf()
+                return START_NOT_STICKY
+            }
 
-        if (intent.action == ACTION_STOP) {
-            stopSimulation()
-            return START_NOT_STICKY
-        }
+            ImmediateServiceAction.StopSimulation -> {
+                stopSimulation()
+                return START_NOT_STICKY
+            }
 
-        if (intent.action == ACTION_PAUSE) {
-            pauseSimulation()
-            return START_NOT_STICKY
-        }
+            ImmediateServiceAction.PauseSimulation -> {
+                pauseSimulation()
+                return START_NOT_STICKY
+            }
 
-        if (intent.action == ACTION_SET_PROFILE) {
-            val profileName = intent.getStringExtra(EXTRA_PROFILE_NAME)
-            val resolvedProfile = resolveProfile(profileName)
-            if (resolvedProfile != null) {
-                val current = repository.lastUsedConfig.value
-                repository.emitConfig(
-                    SimulationConfig(
-                        profileName = resolvedProfile.name,
-                        profileLookupKey = profileName ?: resolvedProfile.name,
-                        startLat = current?.startLat ?: DefaultCoordinates.START_LAT,
-                        startLng = current?.startLng ?: DefaultCoordinates.START_LNG,
-                        endLat = current?.endLat ?: DefaultCoordinates.END_LAT,
-                        endLng = current?.endLng ?: DefaultCoordinates.END_LNG,
-                        routeId = current?.routeId,
-                        appMode = current?.appMode ?: AppMode.CLASSIC,
-                        waypoints = current?.waypoints ?: emptyList(),
-                        waypointPauseSec = current?.waypointPauseSec ?: 0.0,
-                        speedRatio = current?.speedRatio ?: 1.0,
-                        frequencyHz = current?.frequencyHz ?: DEFAULT_FREQUENCY,
-                        repeatPolicy = current?.repeatPolicy ?: RepeatPolicy.NONE,
-                        repeatCount = current?.repeatCount ?: 1,
+            is ImmediateServiceAction.SetProfile -> {
+                val resolvedProfile = resolveProfile(action.profileName)
+                if (resolvedProfile != null) {
+                    repository.emitConfig(
+                        buildUpdatedProfileConfig(
+                            current = repository.lastUsedConfig.value,
+                            resolvedProfile = resolvedProfile,
+                            profileLookupKey = action.profileName ?: resolvedProfile.name,
+                            defaultFrequency = DEFAULT_FREQUENCY,
+                        )
                     )
-                )
-            } else {
-                emitStateAndRefresh(SimulationState.Error("Invalid profile for ACTION_SET_PROFILE"))
-            }
-            return START_NOT_STICKY
-        }
-
-        if (intent.action == ACTION_SET_ROUTE) {
-            val uri =
-                RouteImportValidator.validateUri(intent.data).getOrElse {
-                    emitStateAndRefresh(SimulationState.Error(it.message ?: "Missing route URI for ACTION_SET_ROUTE"))
-                    return START_NOT_STICKY
+                } else {
+                    emitStateAndRefresh(SimulationState.Error("Invalid profile for ACTION_SET_PROFILE"))
                 }
-
-            lifecycleScope.launch {
-                runCatching {
-                    contentResolver.openInputStream(uri)?.use { input ->
-                        val displayName = RouteImportValidator.resolveDisplayName(contentResolver, uri)
-                        routeFileParser.parse(input, displayName).getOrThrow()
-                    } ?: error("Cannot open route URI.")
-                }.onSuccess { route ->
-                    repository.emitRoute(route)
-                }.onFailure { e ->
-                    emitStateAndRefresh(SimulationState.Error(e.message ?: "Failed to parse route file"))
-                }
+                return START_NOT_STICKY
             }
-            return START_NOT_STICKY
-        }
 
-        if (intent.action == ACTION_SKIP_NEXT_WAYPOINT) {
-            pendingWaypointSkip = 1
-            return START_NOT_STICKY
-        }
-
-        if (intent.action == ACTION_SKIP_PREV_WAYPOINT) {
-            pendingWaypointSkip = -1
-            return START_NOT_STICKY
-        }
-
-        if (intent.action == ACTION_START_LAST_FAVORITE) {
-            lifecycleScope.launch {
-                when (val resolution = repository.applyMostRecentFavorite()) {
-                    is SimulationRepository.FavoriteResolution.Valid -> {
-                        val startIntent = createStartIntent(this@SimulationService, resolution.config)
-                        startForegroundService(startIntent)
+            is ImmediateServiceAction.SetRoute -> {
+                val uri =
+                    RouteImportValidator.validateUri(action.uri).getOrElse {
+                        emitStateAndRefresh(SimulationState.Error(it.message ?: "Missing route URI for ACTION_SET_ROUTE"))
+                        return START_NOT_STICKY
                     }
-                    is SimulationRepository.FavoriteResolution.Invalid -> {
-                        emitStateAndRefresh(SimulationState.Error(resolution.reason))
-                        stopSelf()
+                RouteImportValidator.persistReadGrantIfNeeded(contentResolver, uri, intent?.flags ?: 0)
+
+                lifecycleScope.launch {
+                    runCatching {
+                        contentResolver.openInputStream(uri)?.use { input ->
+                            val displayName = RouteImportValidator.resolveDisplayName(contentResolver, uri)
+                            routeFileParser.parse(input, displayName).getOrThrow()
+                        } ?: error("Cannot open route URI.")
+                    }.onSuccess { route ->
+                        repository.emitRoute(route)
+                    }.onFailure { e ->
+                        emitStateAndRefresh(SimulationState.Error(e.message ?: "Failed to parse route file"))
                     }
                 }
+                return START_NOT_STICKY
             }
-            return START_NOT_STICKY
-        }
 
-        if (intent.action == ACTION_START_LAST_CONFIG) {
-            lifecycleScope.launch {
-                val currentConfig = repository.lastUsedConfig.value
-                if (currentConfig == null) {
-                    emitStateAndRefresh(SimulationState.Error("No recent simulation configuration available."))
-                    stopSelf()
-                    return@launch
-                }
+            is ImmediateServiceAction.SkipWaypoint -> {
+                pendingWaypointSkip = action.delta
+                return START_NOT_STICKY
+            }
 
-                when (val validation = repository.validateConfig(currentConfig, fallback = null)) {
-                    is SimulationRepository.ConfigValidation.Valid -> {
-                        startForegroundService(createStartIntent(this@SimulationService, validation.config))
-                    }
-                    is SimulationRepository.ConfigValidation.Invalid -> {
-                        emitStateAndRefresh(SimulationState.Error(validation.reason))
-                        stopSelf()
+            ImmediateServiceAction.StartLastFavorite -> {
+                lifecycleScope.launch {
+                    when (val decision = resolveFavoriteShortcutDecision(repository.applyMostRecentFavorite())) {
+                        is ShortcutStartDecision.Start -> {
+                            startForegroundService(createStartIntent(this@SimulationService, decision.config))
+                        }
+                        is ShortcutStartDecision.ErrorAndStop -> {
+                            emitStateAndRefresh(SimulationState.Error(decision.message))
+                            stopSelf()
+                        }
                     }
                 }
+                return START_NOT_STICKY
             }
-            return START_NOT_STICKY
+
+            ImmediateServiceAction.StartLastConfig -> {
+                lifecycleScope.launch {
+                    val currentConfig = repository.lastUsedConfig.value
+                    val validation = currentConfig?.let { repository.validateConfig(it, fallback = null) }
+                    when (val decision = resolveLastConfigShortcutDecision(currentConfig, validation)) {
+                        is ShortcutStartDecision.Start -> {
+                            startForegroundService(createStartIntent(this@SimulationService, decision.config))
+                        }
+                        is ShortcutStartDecision.ErrorAndStop -> {
+                            emitStateAndRefresh(SimulationState.Error(decision.message))
+                            stopSelf()
+                        }
+                    }
+                }
+                return START_NOT_STICKY
+            }
+
+            is ImmediateServiceAction.StartSimulation -> {
+                // continue below with full start parsing
+            }
         }
 
         if (!BuildConfig.MOCK_PROVIDER_ENABLED) {
@@ -283,7 +267,7 @@ class SimulationService : LifecycleService() {
 
         val startRequest =
             parseSimulationStartRequest(
-                intent = intent,
+                intent = intent!!,
                 repository = repository,
                 resolveProfile = ::resolveProfile,
                 defaultFrequency = DEFAULT_FREQUENCY,

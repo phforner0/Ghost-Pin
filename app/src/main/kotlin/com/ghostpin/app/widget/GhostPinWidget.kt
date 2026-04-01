@@ -35,6 +35,44 @@ class GhostPinWidget : AppWidgetProvider() {
     }
 
     companion object {
+        internal data class WidgetRenderModel(
+            val statusText: String,
+            val secondaryText: String,
+            val toggleButtonText: String,
+            val toggleAction: String,
+        )
+
+        internal fun renderModel(state: SimulationState): WidgetRenderModel {
+            val statusText =
+                when (state) {
+                    is SimulationState.Running -> "Simulating"
+                    is SimulationState.Paused -> "Paused"
+                    is SimulationState.FetchingRoute -> "Fetching route…"
+                    is SimulationState.Error -> "Error"
+                    is SimulationState.Idle -> "Stopped"
+                }
+
+            val secondaryText =
+                when (state) {
+                    is SimulationState.Running ->
+                        "${state.profileName} · ${(state.progressPercent * 100).toInt()}%"
+                    is SimulationState.Paused ->
+                        "${state.profileName} · ${(state.progressPercent * 100).toInt()}% (paused)"
+                    is SimulationState.FetchingRoute -> state.profileName
+                    else -> "—"
+                }
+
+            val isActive = state is SimulationState.Running || state is SimulationState.Paused
+            val toggleAction = if (isActive) SimulationService.ACTION_STOP else SimulationService.ACTION_START_LAST_CONFIG
+
+            return WidgetRenderModel(
+                statusText = statusText,
+                secondaryText = secondaryText,
+                toggleButtonText = if (isActive) "Stop" else "Start",
+                toggleAction = toggleAction,
+            )
+        }
+
         /**
          * Update all widget instances with the current [SimulationState].
          * Called from SimulationService whenever state changes.
@@ -60,45 +98,14 @@ class GhostPinWidget : AppWidgetProvider() {
             state: SimulationState,
         ) {
             val views = RemoteViews(context.packageName, R.layout.ghost_pin_widget_layout)
-
-            // ── Status label ─────────────────────────────────────────────────
-            val statusText =
-                when (state) {
-                    is SimulationState.Running -> "Simulating"
-                    is SimulationState.Paused -> "Paused"
-                    is SimulationState.FetchingRoute -> "Fetching route…"
-                    is SimulationState.Error -> "Error"
-                    is SimulationState.Idle -> "Stopped"
-                }
-            views.setTextViewText(R.id.widget_status, statusText)
-
-            // ── Profile + progress ────────────────────────────────────────────
-            val secondaryText: String =
-                when (state) {
-                    is SimulationState.Running ->
-                        "${state.profileName} · ${(state.progressPercent * 100).toInt()}%"
-                    is SimulationState.Paused ->
-                        "${state.profileName} · ${(state.progressPercent * 100).toInt()}% (paused)"
-                    is SimulationState.FetchingRoute ->
-                        state.profileName
-                    else -> "—"
-                }
-            views.setTextViewText(R.id.widget_profile, secondaryText)
-
-            // ── Toggle button ─────────────────────────────────────────────────────
-            val isActive = state is SimulationState.Running || state is SimulationState.Paused
-            views.setTextViewText(R.id.widget_button, if (isActive) "Stop" else "Start")
-
-            val toggleAction =
-                if (isActive) {
-                    SimulationService.ACTION_STOP
-                } else {
-                    SimulationService.ACTION_START_LAST_CONFIG
-                }
+            val model = renderModel(state)
+            views.setTextViewText(R.id.widget_status, model.statusText)
+            views.setTextViewText(R.id.widget_profile, model.secondaryText)
+            views.setTextViewText(R.id.widget_button, model.toggleButtonText)
 
             val toggleIntent =
                 Intent(context, SimulationService::class.java).apply {
-                    action = toggleAction
+                    action = model.toggleAction
                 }
             val pendingIntent =
                 PendingIntent.getForegroundService(

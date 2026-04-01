@@ -10,6 +10,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+internal fun shouldRearmSchedulesForAction(action: String?): Boolean {
+    return action == Intent.ACTION_BOOT_COMPLETED || action == Intent.ACTION_MY_PACKAGE_REPLACED
+}
+
 @AndroidEntryPoint
 class BootCompletedReceiver : BroadcastReceiver() {
     @Inject lateinit var scheduleManager: ScheduleManager
@@ -18,7 +22,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
         context: Context,
         intent: Intent
     ) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        if (!shouldRearmSchedulesForAction(intent.action)) return
 
         val pendingResult = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {

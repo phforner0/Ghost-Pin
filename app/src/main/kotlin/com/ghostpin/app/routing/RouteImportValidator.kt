@@ -22,6 +22,32 @@ internal object RouteImportValidator {
         return Result.success(uri)
     }
 
+    fun shouldPersistReadGrant(
+        uri: Uri,
+        intentFlags: Int,
+    ): Boolean {
+        val hasReadGrant = (intentFlags and android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0
+        return uri.scheme == ContentResolver.SCHEME_CONTENT && hasReadGrant
+    }
+
+    fun persistReadGrantIfNeeded(
+        contentResolver: ContentResolver,
+        uri: Uri,
+        intentFlags: Int,
+    ) {
+        if (!shouldPersistReadGrant(uri, intentFlags)) return
+
+        val persistableFlags =
+            intentFlags and (
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+
+        runCatching {
+            contentResolver.takePersistableUriPermission(uri, persistableFlags)
+        }
+    }
+
     fun resolveDisplayName(
         contentResolver: ContentResolver,
         uri: Uri

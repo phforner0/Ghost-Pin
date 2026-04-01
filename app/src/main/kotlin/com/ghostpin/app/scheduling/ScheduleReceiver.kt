@@ -15,6 +15,18 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+internal fun shouldStartScheduledSimulation(state: SimulationState): Boolean {
+    return state !is SimulationState.Running &&
+        state !is SimulationState.Paused &&
+        state !is SimulationState.FetchingRoute
+}
+
+internal fun shouldStopScheduledSimulation(state: SimulationState): Boolean {
+    return state is SimulationState.Running ||
+        state is SimulationState.Paused ||
+        state is SimulationState.FetchingRoute
+}
+
 @AndroidEntryPoint
 class ScheduleReceiver : BroadcastReceiver() {
     @Inject lateinit var scheduleDao: ScheduleDao
@@ -50,10 +62,7 @@ class ScheduleReceiver : BroadcastReceiver() {
 
         when (event) {
             EVENT_START -> {
-                val busy =
-                    simulationRepository.state.value is SimulationState.Running ||
-                        simulationRepository.state.value is SimulationState.FetchingRoute
-                if (busy) {
+                if (!shouldStartScheduledSimulation(simulationRepository.state.value)) {
                     Log.i(TAG, LogSanitizer.sanitizeString("START ignored; simulation already running."))
                     return
                 }
@@ -63,11 +72,7 @@ class ScheduleReceiver : BroadcastReceiver() {
             }
 
             EVENT_STOP -> {
-                val hasActiveSession =
-                    simulationRepository.state.value is SimulationState.Running ||
-                        simulationRepository.state.value is SimulationState.Paused ||
-                        simulationRepository.state.value is SimulationState.FetchingRoute
-                if (!hasActiveSession) {
+                if (!shouldStopScheduledSimulation(simulationRepository.state.value)) {
                     Log.i(TAG, LogSanitizer.sanitizeString("STOP ignored; no active session."))
                     return
                 }

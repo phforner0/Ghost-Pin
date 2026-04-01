@@ -65,8 +65,6 @@ internal suspend fun resolveSimulationRoute(
         request.appMode == AppMode.GPX -> {
             val preloaded =
                 request.cachedRoute
-                    ?: simulationRepository.route.value
-                    ?: withTimeoutOrNull(750) { simulationRepository.route.filterNotNull().first() }
                     ?: request.cachedConfigWaypoints.takeIf { it.size >= 2 }?.let { savedWaypoints ->
                         Route(
                             id = request.persistedRouteId ?: "gpx-saved-route",
@@ -74,6 +72,8 @@ internal suspend fun resolveSimulationRoute(
                             waypoints = savedWaypoints,
                         )
                     }
+                    ?: simulationRepository.route.value
+                    ?: withTimeoutOrNull(750) { simulationRepository.route.filterNotNull().first() }
 
             if (preloaded == null) {
                 SimulationRouteResult.Error("No GPX route loaded. Please select a .gpx file first.")
