@@ -10,9 +10,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-internal fun shouldRearmSchedulesForAction(action: String?): Boolean {
-    return action == Intent.ACTION_BOOT_COMPLETED || action == Intent.ACTION_MY_PACKAGE_REPLACED
-}
+internal fun shouldRearmSchedulesForAction(action: String?): Boolean =
+    action == Intent.ACTION_BOOT_COMPLETED || action == Intent.ACTION_MY_PACKAGE_REPLACED
 
 @AndroidEntryPoint
 class BootCompletedReceiver : BroadcastReceiver() {

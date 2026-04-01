@@ -14,7 +14,6 @@ import com.ghostpin.app.data.db.SimulationHistoryEntity
 import com.ghostpin.app.routing.OsrmRouteProvider
 import com.ghostpin.core.model.AppMode
 import com.ghostpin.core.model.MovementProfile
-import com.ghostpin.core.model.Route
 import com.ghostpin.core.model.Waypoint
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -28,7 +27,6 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class SimulationRouteResolverTest {
-
     @Test
     fun `gpx mode falls back to cached config waypoints when no route is emitted`() =
         runTest {
@@ -153,11 +151,17 @@ class SimulationRouteResolverTest {
 
     private class FakeFavoriteSimulationDao : FavoriteSimulationDao {
         override suspend fun upsert(entity: FavoriteSimulationEntity) = Unit
+
         override suspend fun update(entity: FavoriteSimulationEntity) = Unit
+
         override fun observeAll(): Flow<List<FavoriteSimulationEntity>> = emptyFlow()
+
         override suspend fun listRecent(): List<FavoriteSimulationEntity> = emptyList()
+
         override suspend fun getById(id: String): FavoriteSimulationEntity? = null
+
         override suspend fun getMostRecent(): FavoriteSimulationEntity? = null
+
         override suspend fun deleteById(id: String) = Unit
     }
 
@@ -165,35 +169,54 @@ class SimulationRouteResolverTest {
         private val routes: MutableMap<String, RouteEntity> = mutableMapOf(),
     ) : RouteDao {
         override fun observeAll(): Flow<List<RouteEntity>> = flowOf(routes.values.toList())
+
         override suspend fun getById(id: String): RouteEntity? = routes[id]
+
         override suspend fun insert(route: RouteEntity) {
             routes[route.id] = route
         }
+
         override suspend fun update(route: RouteEntity) {
             routes[route.id] = route
         }
+
         override suspend fun deleteById(id: String) {
             routes.remove(id)
         }
+
         override suspend fun count(): Int = routes.size
     }
 
     private class FakeProfileDao : ProfileDao {
         override fun observeAll(): Flow<List<ProfileEntity>> = emptyFlow()
+
         override suspend fun getAll(): List<ProfileEntity> = emptyList()
+
         override suspend fun getById(id: String): ProfileEntity? = null
+
         override suspend fun getByName(name: String): ProfileEntity? = null
+
         override suspend fun countCustom(): Int = 0
+
         override suspend fun insert(profile: ProfileEntity) = Unit
+
         override suspend fun insertAll(profiles: List<ProfileEntity>) = Unit
+
         override suspend fun update(profile: ProfileEntity) = Unit
+
         override suspend fun deleteById(id: String) = Unit
     }
 
     private class FakeSimulationHistoryDao : SimulationHistoryDao {
         override suspend fun insert(entity: SimulationHistoryEntity) = Unit
-        override suspend fun listPaged(limit: Int, offset: Int): List<SimulationHistoryEntity> = emptyList()
+
+        override suspend fun listPaged(
+            limit: Int,
+            offset: Int
+        ): List<SimulationHistoryEntity> = emptyList()
+
         override suspend fun getById(id: String): SimulationHistoryEntity? = null
+
         override suspend fun closeById(
             id: String,
             endedAtMs: Long,
@@ -202,7 +225,9 @@ class SimulationRouteResolverTest {
             distanceMeters: Double,
             resultStatus: String,
         ) = Unit
+
         override suspend fun deleteById(id: String) = Unit
+
         override suspend fun clearHistory() = Unit
     }
 }

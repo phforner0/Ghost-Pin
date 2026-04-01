@@ -15,7 +15,6 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class SimulationServiceEntryTest {
-
     @Test
     fun `classifyImmediateServiceAction handles null and shortcut actions`() {
         assertTrue(classifyImmediateServiceAction(null) is ImmediateServiceAction.NullIntentStop)
@@ -28,7 +27,12 @@ class SimulationServiceEntryTest {
                 is ImmediateServiceAction.StartLastFavorite
         )
         assertTrue(
-            classifyImmediateServiceAction(Intent().apply { action = SimulationService.ACTION_SET_ROUTE; data = Uri.parse("content://x") })
+            classifyImmediateServiceAction(
+                Intent().apply {
+                    action = SimulationService.ACTION_SET_ROUTE
+                    data = Uri.parse("content://x")
+                }
+            )
                 is ImmediateServiceAction.SetRoute
         )
     }
@@ -65,26 +69,30 @@ class SimulationServiceEntryTest {
     @Test
     fun `resolve shortcut decisions start valid config and stop on errors`() {
         val config = SimulationConfig(profileName = "Car", profileLookupKey = "car", startLat = 1.0, startLng = 2.0)
-        val favoriteDecision = resolveFavoriteShortcutDecision(
-            SimulationRepository.FavoriteResolution.Valid(
-                config = config,
-                favorite = fakeFavorite,
+        val favoriteDecision =
+            resolveFavoriteShortcutDecision(
+                SimulationRepository.FavoriteResolution.Valid(
+                    config = config,
+                    favorite = fakeFavorite,
+                )
             )
-        )
-        val favoriteError = resolveFavoriteShortcutDecision(
-            SimulationRepository.FavoriteResolution.Invalid(
-                reason = "No favorites saved yet.",
-                fallbackConfig = null,
+        val favoriteError =
+            resolveFavoriteShortcutDecision(
+                SimulationRepository.FavoriteResolution.Invalid(
+                    reason = "No favorites saved yet.",
+                    fallbackConfig = null,
+                )
             )
-        )
-        val lastConfigDecision = resolveLastConfigShortcutDecision(
-            currentConfig = config,
-            validation = SimulationRepository.ConfigValidation.Valid(config),
-        )
-        val lastConfigError = resolveLastConfigShortcutDecision(
-            currentConfig = null,
-            validation = null,
-        )
+        val lastConfigDecision =
+            resolveLastConfigShortcutDecision(
+                currentConfig = config,
+                validation = SimulationRepository.ConfigValidation.Valid(config),
+            )
+        val lastConfigError =
+            resolveLastConfigShortcutDecision(
+                currentConfig = null,
+                validation = null,
+            )
 
         assertTrue(favoriteDecision is ShortcutStartDecision.Start)
         assertTrue(favoriteError is ShortcutStartDecision.ErrorAndStop)

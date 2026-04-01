@@ -24,7 +24,6 @@ import com.ghostpin.app.ui.MainActivity
 import com.ghostpin.app.widget.GhostPinWidget
 import com.ghostpin.core.math.GeoMath
 import com.ghostpin.core.model.AppMode
-import com.ghostpin.core.model.DefaultCoordinates
 import com.ghostpin.core.model.MockLocation
 import com.ghostpin.core.model.MovementProfile
 import com.ghostpin.core.model.Route
@@ -195,7 +194,8 @@ class SimulationService : LifecycleService() {
                         emitStateAndRefresh(SimulationState.Error(it.message ?: "Missing route URI for ACTION_SET_ROUTE"))
                         return START_NOT_STICKY
                     }
-                RouteImportValidator.persistReadGrantIfNeeded(contentResolver, uri, intent?.flags ?: 0)
+                RouteImportValidator
+                    .persistReadGrantIfNeeded(contentResolver, uri, intent?.flags ?: 0)
                     .onFailure { error ->
                         Log.w(TAG, LogSanitizer.sanitizeString("Could not persist route URI grant: ${error.message}"))
                     }

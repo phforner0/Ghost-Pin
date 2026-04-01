@@ -22,7 +22,6 @@ import org.robolectric.shadows.ShadowAlarmManager
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [Build.VERSION_CODES.S])
 class ScheduleManagerTest {
-
     @Test
     fun `uses exact alarms below android s`() {
         assertTrue(shouldUseExactAlarms(Build.VERSION_CODES.R, canScheduleExactAlarms = false))
@@ -49,13 +48,14 @@ class ScheduleManagerTest {
             val alarmManager = context.getSystemService(AlarmManager::class.java)
             clearScheduledAlarms(alarmManager)
 
-            val result = manager.createSchedule(
-                ScheduleManager.CreateScheduleRequest(
-                    startAtMs = now + 60_000L,
-                    stopAtMs = now + 120_000L,
-                    config = sampleConfig(),
+            val result =
+                manager.createSchedule(
+                    ScheduleManager.CreateScheduleRequest(
+                        startAtMs = now + 60_000L,
+                        stopAtMs = now + 120_000L,
+                        config = sampleConfig(),
+                    )
                 )
-            )
 
             assertTrue(result is ScheduleManager.CreateScheduleResult.Success)
             val success = result as ScheduleManager.CreateScheduleResult.Success
@@ -100,13 +100,14 @@ class ScheduleManagerTest {
             val alarmManager = context.getSystemService(AlarmManager::class.java)
             clearScheduledAlarms(alarmManager)
 
-            val created = manager.createSchedule(
-                ScheduleManager.CreateScheduleRequest(
-                    startAtMs = now + 60_000L,
-                    stopAtMs = now + 120_000L,
-                    config = sampleConfig(),
-                )
-            ) as ScheduleManager.CreateScheduleResult.Success
+            val created =
+                manager.createSchedule(
+                    ScheduleManager.CreateScheduleRequest(
+                        startAtMs = now + 60_000L,
+                        stopAtMs = now + 120_000L,
+                        config = sampleConfig(),
+                    )
+                ) as ScheduleManager.CreateScheduleResult.Success
 
             manager.cancelSchedule(created.schedule.id)
 
@@ -159,23 +160,28 @@ class ScheduleManagerTest {
             assertTrue(shadowOf(alarmManager).scheduledAlarms.isEmpty())
         }
 
-    private fun sampleConfig() = SimulationConfig(
-        profileName = "Car",
-        profileLookupKey = "builtin_car",
-        startLat = -23.0,
-        startLng = -46.0,
-        endLat = -22.0,
-        endLng = -43.0,
-        routeId = null,
-        appMode = AppMode.CLASSIC,
-        waypointPauseSec = 0.0,
-        speedRatio = 1.0,
-        frequencyHz = 5,
-        repeatPolicy = RepeatPolicy.NONE,
-        repeatCount = 1,
-    )
+    private fun sampleConfig() =
+        SimulationConfig(
+            profileName = "Car",
+            profileLookupKey = "builtin_car",
+            startLat = -23.0,
+            startLng = -46.0,
+            endLat = -22.0,
+            endLng = -43.0,
+            routeId = null,
+            appMode = AppMode.CLASSIC,
+            waypointPauseSec = 0.0,
+            speedRatio = 1.0,
+            frequencyHz = 5,
+            repeatPolicy = RepeatPolicy.NONE,
+            repeatCount = 1,
+        )
 
-    private fun sampleSchedule(id: String, startAtMs: Long, stopAtMs: Long?) = ScheduleEntity(
+    private fun sampleSchedule(
+        id: String,
+        startAtMs: Long,
+        stopAtMs: Long?
+    ) = ScheduleEntity(
         id = id,
         startAtMs = startAtMs,
         stopAtMs = stopAtMs,

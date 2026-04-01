@@ -7,7 +7,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ScheduleReceiverTest {
-
     @Test
     fun `scheduled start is blocked for running paused and fetching states`() {
         assertFalse(

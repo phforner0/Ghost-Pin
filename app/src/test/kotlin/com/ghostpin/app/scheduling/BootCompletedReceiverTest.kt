@@ -6,7 +6,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BootCompletedReceiverTest {
-
     @Test
     fun `rearms schedules for boot completed`() {
         assertTrue(shouldRearmSchedulesForAction(Intent.ACTION_BOOT_COMPLETED))
