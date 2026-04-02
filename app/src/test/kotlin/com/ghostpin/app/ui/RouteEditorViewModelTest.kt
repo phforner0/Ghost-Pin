@@ -125,7 +125,7 @@ class RouteEditorViewModelTest {
 
             assertEquals(3, summary?.waypointCount)
             assertEquals(1, summary?.overrideCount)
-        assertEquals("Altitude from route data", summary?.altitudeSourceLabel)
+            assertEquals("Altitude from route data", summary?.altitudeSourceLabel)
         }
 
     @Test

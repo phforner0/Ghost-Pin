@@ -67,5 +67,6 @@ internal fun ScheduleEntity.windowSummary(nowMs: Long = System.currentTimeMillis
         else -> "Iniciado ${formatRelativeScheduleTime(startAtMs, nowMs)}"
     }
 
-private fun ScheduleEntity.resolvedAppMode(): AppMode =
-    runCatching { AppMode.valueOf(appMode) }.getOrDefault(AppMode.CLASSIC)
+private fun ScheduleEntity.resolvedAppMode(): AppMode {
+    return runCatching { AppMode.valueOf(appMode) }.getOrDefault(AppMode.CLASSIC)
+}

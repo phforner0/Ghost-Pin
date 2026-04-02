@@ -28,8 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ghostpin.app.data.SimulationConfig
 import com.ghostpin.app.diagnostics.RealismDiagnosticsInput
-import com.ghostpin.app.service.SimulationState
 import com.ghostpin.app.scheduling.ScheduleEntity
+import com.ghostpin.app.service.SimulationState
 import com.ghostpin.core.model.AppMode
 
 @OptIn(ExperimentalMaterial3Api::class)
