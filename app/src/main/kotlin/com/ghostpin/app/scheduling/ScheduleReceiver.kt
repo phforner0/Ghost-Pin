@@ -25,6 +25,30 @@ internal fun shouldStopScheduledSimulation(state: SimulationState): Boolean =
         state is SimulationState.Paused ||
         state is SimulationState.FetchingRoute
 
+internal enum class ScheduledStartAction {
+    START_NOW,
+    CANCEL_SCHEDULE,
+}
+
+internal enum class ScheduledStopAction {
+    STOP_NOW,
+    CANCEL_SCHEDULE,
+}
+
+internal fun scheduledStartAction(state: SimulationState): ScheduledStartAction =
+    if (shouldStartScheduledSimulation(state)) {
+        ScheduledStartAction.START_NOW
+    } else {
+        ScheduledStartAction.CANCEL_SCHEDULE
+    }
+
+internal fun scheduledStopAction(state: SimulationState): ScheduledStopAction =
+    if (shouldStopScheduledSimulation(state)) {
+        ScheduledStopAction.STOP_NOW
+    } else {
+        ScheduledStopAction.CANCEL_SCHEDULE
+    }
+
 @AndroidEntryPoint
 class ScheduleReceiver : BroadcastReceiver() {
     @Inject lateinit var scheduleDao: ScheduleDao
@@ -60,26 +84,47 @@ class ScheduleReceiver : BroadcastReceiver() {
 
         when (event) {
             EVENT_START -> {
-                if (!shouldStartScheduledSimulation(simulationRepository.state.value)) {
-                    Log.i(TAG, LogSanitizer.sanitizeString("START ignored; simulation already running."))
-                    return
+                when (scheduledStartAction(simulationRepository.state.value)) {
+                    ScheduledStartAction.CANCEL_SCHEDULE -> {
+                        Log.i(
+                            TAG,
+                            LogSanitizer.sanitizeString(
+                                "START ignored; schedule cancelled because a session is already active."
+                            )
+                        )
+                        scheduleManager.cancelSchedule(schedule.id)
+                        return
+                    }
+
+                    ScheduledStartAction.START_NOW -> Unit
                 }
 
                 val serviceIntent = SimulationService.createStartIntent(context, schedule.toSimulationConfig())
                 context.startForegroundService(serviceIntent)
+                if (schedule.stopAtMs == null) {
+                    scheduleManager.cancelSchedule(schedule.id)
+                }
             }
 
             EVENT_STOP -> {
-                if (!shouldStopScheduledSimulation(simulationRepository.state.value)) {
-                    Log.i(TAG, LogSanitizer.sanitizeString("STOP ignored; no active session."))
-                    return
-                }
-
-                context.startService(
-                    Intent(context, SimulationService::class.java).apply {
-                        action = SimulationService.ACTION_STOP
+                when (scheduledStopAction(simulationRepository.state.value)) {
+                    ScheduledStopAction.STOP_NOW -> {
+                        context.startService(
+                            Intent(context, SimulationService::class.java).apply {
+                                action = SimulationService.ACTION_STOP
+                            }
+                        )
                     }
-                )
+
+                    ScheduledStopAction.CANCEL_SCHEDULE -> {
+                        Log.i(
+                            TAG,
+                            LogSanitizer.sanitizeString(
+                                "STOP ignored; no active session, cancelling expired schedule."
+                            )
+                        )
+                    }
+                }
                 scheduleManager.cancelSchedule(schedule.id)
             }
         }
