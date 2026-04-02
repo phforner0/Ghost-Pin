@@ -53,6 +53,9 @@ class RouteRepository
         /** One-shot read of a route by ID. Returns null if not found. */
         suspend fun getById(id: String): Route? = dao.getById(id)?.toDomain()
 
+        /** One-shot read of the persisted source format for a route ID. */
+        suspend fun getSourceFormatById(id: String): String? = dao.getById(id)?.sourceFormat
+
         // ── Writes ────────────────────────────────────────────────────────────────
 
         /**

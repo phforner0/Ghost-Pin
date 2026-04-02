@@ -125,7 +125,40 @@ class RouteEditorViewModelTest {
 
             assertEquals(3, summary?.waypointCount)
             assertEquals(1, summary?.overrideCount)
-            assertEquals("Altitude from route", summary?.altitudeSourceLabel)
+        assertEquals("Altitude from route data", summary?.altitudeSourceLabel)
+        }
+
+    @Test
+    fun `editing saved route detaches draft and saving preserves original route`() =
+        runTest {
+            val dao = FakeRouteDao()
+            val repository = RouteRepository(dao)
+            val viewModel = RouteEditorViewModel(repository, RouteFileParser(), RouteFileExporter())
+
+            repository.save(
+                com.ghostpin.core.model.Route(
+                    id = "route-1",
+                    name = "Saved Route",
+                    waypoints = listOf(Waypoint(-23.0, -46.0), Waypoint(-22.0, -43.0)),
+                )
+            )
+
+            viewModel.loadRoute("route-1")
+            kotlinx.coroutines.delay(50)
+            val originalRouteId = viewModel.state.value.routeId
+
+            viewModel.setRouteName("Edited Draft")
+
+            assertEquals(RouteEditorViewModel.RouteEditorOrigin.DRAFT, viewModel.state.value.origin)
+            assertEquals(null, viewModel.state.value.persistedRouteId)
+            assertTrue(viewModel.state.value.routeId != originalRouteId)
+
+            viewModel.save()
+            kotlinx.coroutines.delay(50)
+
+            assertEquals(2, dao.routes.value.size)
+            assertTrue(dao.routes.value.any { it.id == originalRouteId })
+            assertTrue(dao.routes.value.any { it.name == "Edited Draft" })
         }
 
     private class FakeRouteDao : RouteDao {
