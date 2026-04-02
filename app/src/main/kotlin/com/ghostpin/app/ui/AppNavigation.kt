@@ -126,6 +126,12 @@ fun AppNavHost(
             HistoryScreen(
                 viewModel = historyViewModel,
                 onBack = { navController.popBackStack() },
+                onApply = { history ->
+                    viewModel.applyReplayConfig(history)
+                    navController.navigate(AppRoute.MAIN) {
+                        popUpTo(AppRoute.HISTORY) { inclusive = true }
+                    }
+                },
                 onReplay = { history ->
                     viewModel.applyReplayConfig(history)
                     navController.navigate(AppRoute.MAIN) {
