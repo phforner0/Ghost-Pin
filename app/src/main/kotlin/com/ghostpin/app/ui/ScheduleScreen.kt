@@ -23,6 +23,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -68,10 +69,17 @@ fun ScheduleScreen(
     var startDelayMinutes by remember { mutableStateOf("5") }
     var durationMinutes by remember { mutableStateOf("15") }
     var profileExpanded by remember { mutableStateOf(false) }
-    var selectedProfileKey by remember(defaultConfig.profileLookupKey) { mutableStateOf(defaultConfig.profileLookupKey) }
+    var selectedProfileKey by remember(defaultConfig.profileLookupKey) {
+        mutableStateOf(defaultConfig.profileLookupKey)
+    }
     val selectedProfileOption =
         profileOptions.firstOrNull { it.lookupKey == selectedProfileKey }
             ?: profileOptions.firstOrNull()
+    val previewConfig =
+        defaultConfig.copy(
+            profileName = selectedProfileOption?.label ?: defaultConfig.profileName,
+            profileLookupKey = selectedProfileOption?.lookupKey ?: defaultConfig.profileLookupKey,
+        )
 
     LaunchedEffect(Unit) {
         viewModel.refreshExactAlarmUiState()
@@ -132,7 +140,7 @@ fun ScheduleScreen(
                     readOnly = true,
                     label = { Text("Perfil") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = profileExpanded) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                 )
                 DropdownMenu(
                     expanded = profileExpanded,
@@ -180,6 +188,22 @@ fun ScheduleScreen(
                 }
             }
 
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text("Sessão agendada", style = MaterialTheme.typography.titleMedium)
+                    Text("Perfil: ${previewConfig.profileName}")
+                    Text("Modo: ${previewConfig.appMode.displayName}")
+                    Text("Rota: ${previewConfig.routeSummary()}")
+                    Text("Frequência: ${previewConfig.frequencyHz} Hz")
+                }
+            }
+
             Button(
                 onClick = {
                     val selectedOption = selectedProfileOption ?: return@Button
@@ -196,18 +220,38 @@ fun ScheduleScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = BuildConfig.SCHEDULING_ENABLED && selectedProfileOption != null,
             ) {
-                Text(if (BuildConfig.SCHEDULING_ENABLED) "Criar agendamento" else "Agendamento indisponível neste build")
+                Text(
+                    if (BuildConfig.SCHEDULING_ENABLED) {
+                        "Criar agendamento"
+                    } else {
+                        "Agendamento indisponível neste build"
+                    }
+                )
             }
 
             Spacer(Modifier.height(8.dp))
             Text("Agendamentos ativos")
 
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(schedules, key = { it.id }) { schedule ->
-                    ScheduleItem(
-                        schedule = schedule,
-                        onCancel = { viewModel.cancelSchedule(schedule.id) },
-                    )
+                if (schedules.isEmpty()) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        ) {
+                            Text(
+                                text = "Nenhum agendamento ativo.",
+                                modifier = Modifier.padding(12.dp),
+                            )
+                        }
+                    }
+                } else {
+                    items(schedules, key = { it.id }) { schedule ->
+                        ScheduleItem(
+                            schedule = schedule,
+                            onCancel = { viewModel.cancelSchedule(schedule.id) },
+                        )
+                    }
                 }
             }
         }
@@ -220,12 +264,16 @@ private fun ScheduleItem(
     onCancel: () -> Unit,
 ) {
     val formatter = remember { SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()) }
+    val nowMs = System.currentTimeMillis()
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("ID: ${schedule.id.take(8)}")
+            Text(schedule.windowSummary(nowMs), color = MaterialTheme.colorScheme.primary)
             Text("Perfil: ${schedule.profileName}")
+            Text("Modo: ${schedule.modeDisplayName()}")
+            Text("Rota: ${schedule.routeSummary()}")
             Text("Início: ${formatter.format(Date(schedule.startAtMs))}")
             Text("Parada: ${schedule.stopAtMs?.let { formatter.format(Date(it)) } ?: "-"}")
+            Text("ID: ${schedule.id.take(8)}", style = MaterialTheme.typography.bodySmall)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onCancel) { Text("Cancelar") }
             }

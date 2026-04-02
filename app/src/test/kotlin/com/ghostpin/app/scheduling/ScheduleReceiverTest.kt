@@ -2,6 +2,7 @@ package com.ghostpin.app.scheduling
 
 import com.ghostpin.app.service.SimulationState
 import com.ghostpin.core.model.MockLocation
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -40,6 +41,23 @@ class ScheduleReceiverTest {
     }
 
     @Test
+    fun `scheduled start action cancels missed schedule when session is already active`() {
+        assertEquals(
+            ScheduledStartAction.CANCEL_SCHEDULE,
+            scheduledStartAction(
+                SimulationState.Running(
+                    currentLocation = MockLocation(1.0, 2.0),
+                    profileName = "Car",
+                    progressPercent = 0.2f,
+                    elapsedTimeSec = 1,
+                    frameCount = 1,
+                )
+            )
+        )
+        assertEquals(ScheduledStartAction.START_NOW, scheduledStartAction(SimulationState.Idle))
+    }
+
+    @Test
     fun `scheduled stop is only allowed for active states`() {
         assertTrue(
             shouldStopScheduledSimulation(
@@ -65,5 +83,17 @@ class ScheduleReceiverTest {
         assertTrue(shouldStopScheduledSimulation(SimulationState.FetchingRoute("Car")))
         assertFalse(shouldStopScheduledSimulation(SimulationState.Idle))
         assertFalse(shouldStopScheduledSimulation(SimulationState.Error("Oops")))
+    }
+
+    @Test
+    fun `scheduled stop action cancels stale schedule when no session is active`() {
+        assertEquals(ScheduledStopAction.CANCEL_SCHEDULE, scheduledStopAction(SimulationState.Idle))
+        assertEquals(ScheduledStopAction.CANCEL_SCHEDULE, scheduledStopAction(SimulationState.Error("Oops")))
+        assertEquals(
+            ScheduledStopAction.STOP_NOW,
+            scheduledStopAction(
+                SimulationState.FetchingRoute("Car")
+            )
+        )
     }
 }
