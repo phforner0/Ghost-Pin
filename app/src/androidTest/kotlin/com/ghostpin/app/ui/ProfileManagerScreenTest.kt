@@ -62,6 +62,43 @@ class ProfileManagerScreenTest {
     }
 
     @Test
+    fun existingProfile_canUseAndAnalyzeFromManagementScreen() {
+        val dao =
+            FakeProfileDao(
+                listOf(
+                    ProfileEntity.fromDomain(
+                        profile = MovementProfile.CAR.copy(name = "Scout"),
+                        id = "custom-scout",
+                        isBuiltIn = false,
+                        isCustom = true,
+                    )
+                )
+            )
+        val viewModel = ProfileManagerViewModel(ProfileManager(dao))
+        var usedProfileName: String? = null
+
+        composeRule.setContent {
+            GhostPinTheme {
+                ProfileManagerScreen(
+                    onBack = {},
+                    onUseProfile = {},
+                    onUseAndAnalyze = { usedProfileName = it.name },
+                    viewModel = viewModel,
+                )
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Scout").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("use_analyze_custom-scout").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals("Scout", usedProfileName)
+        }
+    }
+
+    @Test
     fun createProfile_dialogValidatesAndSaves() {
         val dao = FakeProfileDao(emptyList())
         val viewModel = ProfileManagerViewModel(ProfileManager(dao))
@@ -93,8 +130,82 @@ class ProfileManagerScreenTest {
         assertTrue(composeRule.onAllNodesWithText("Runner X").fetchSemanticsNodes().isNotEmpty())
     }
 
+    @Test
+    fun createProfile_rejectsDuplicateNameInline() {
+        val dao =
+            FakeProfileDao(
+                listOf(
+                    ProfileEntity.fromDomain(
+                        profile = MovementProfile.CAR.copy(name = "Scout"),
+                        id = "custom-scout",
+                        isBuiltIn = false,
+                        isCustom = true,
+                    )
+                )
+            )
+        val viewModel = ProfileManagerViewModel(ProfileManager(dao))
+
+        composeRule.setContent {
+            GhostPinTheme {
+                ProfileManagerScreen(
+                    onBack = {},
+                    onUseProfile = {},
+                    viewModel = viewModel,
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("add_profile_button").performClick()
+        composeRule.onNodeWithTag("profile_name_field").performTextClearance()
+        composeRule.onNodeWithTag("profile_name_field").performTextInput("Scout")
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Nome já em uso").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("profile_save_button").assertIsNotEnabled()
+    }
+
+    @Test
+    fun updateProfile_keepsEditorOpenWhenUpdateFails() {
+        val dao =
+            FakeProfileDao(
+                initialProfiles =
+                    listOf(
+                        ProfileEntity.fromDomain(
+                            profile = MovementProfile.CAR.copy(name = "Scout"),
+                            id = "custom-scout",
+                            isBuiltIn = false,
+                            isCustom = true,
+                        )
+                    ),
+                failUpdate = true,
+            )
+        val viewModel = ProfileManagerViewModel(ProfileManager(dao))
+
+        composeRule.setContent {
+            GhostPinTheme {
+                ProfileManagerScreen(
+                    onBack = {},
+                    onUseProfile = {},
+                    viewModel = viewModel,
+                )
+            }
+        }
+
+        composeRule.onAllNodesWithText("Editar")[0].performClick()
+        composeRule.onNodeWithTag("profile_name_field").performTextClearance()
+        composeRule.onNodeWithTag("profile_name_field").performTextInput("Scout Updated")
+        composeRule.onNodeWithTag("profile_save_button").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Update failed").fetchSemanticsNodes().isNotEmpty()
+        }
+        assertTrue(composeRule.onAllNodesWithTag("profile_name_field").fetchSemanticsNodes().isNotEmpty())
+    }
+
     private class FakeProfileDao(
-        initialProfiles: List<ProfileEntity>
+        initialProfiles: List<ProfileEntity>,
+        private val failUpdate: Boolean = false,
     ) : ProfileDao {
         val currentProfiles = MutableStateFlow(initialProfiles)
 
@@ -124,6 +235,7 @@ class ProfileManagerScreenTest {
         }
 
         override suspend fun update(profile: ProfileEntity) {
+            if (failUpdate) error("Update failed")
             currentProfiles.value = currentProfiles.value.map { if (it.id == profile.id) profile else it }
         }
 

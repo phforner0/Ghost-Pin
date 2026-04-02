@@ -152,6 +152,12 @@ fun AppNavHost(
                     viewModel.selectProfile(profile)
                     navController.popBackStack()
                 },
+                onUseAndAnalyze = { profile ->
+                    viewModel.selectProfile(profile)
+                    if (BuildConfig.REALISM_DIAGNOSTICS_ENABLED) {
+                        navController.navigate(AppRoute.DIAGNOSTICS)
+                    }
+                },
             )
         }
 

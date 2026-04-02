@@ -77,10 +77,12 @@ class ProfileManagerViewModel
         fun update(
             id: String,
             updated: MovementProfile,
+            onSuccess: () -> Unit = {},
             onError: (String) -> Unit = {}
         ) {
             viewModelScope.launch {
                 runCatching { profileManager.update(id, updated) }
+                    .onSuccess { onSuccess() }
                     .onFailure { e -> onError(e.message ?: "Update failed") }
             }
         }
