@@ -13,6 +13,7 @@ import com.ghostpin.core.model.Route
 import com.ghostpin.core.model.Segment
 import com.ghostpin.core.model.SegmentOverrides
 import com.ghostpin.core.model.Waypoint
+import com.ghostpin.core.model.distanceMeters
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,15 +44,36 @@ class RouteEditorViewModel
         private val parser: RouteFileParser,
         private val exporter: RouteFileExporter,
     ) : ViewModel() {
+        enum class RouteEditorOrigin {
+            DRAFT,
+            IMPORTED,
+            SAVED,
+        }
+
+        data class RouteEditorSummary(
+            val statusLabel: String,
+            val sourceLabel: String,
+            val waypointCount: Int,
+            val distanceMeters: Double,
+            val overrideCount: Int,
+            val altitudeSourceLabel: String,
+            val startActionLabel: String,
+            val startActionHint: String,
+        )
+
         // ── Editor state ─────────────────────────────────────────────────────────
 
         data class EditorState(
             val routeId: String = UUID.randomUUID().toString(),
+            val persistedRouteId: String? = null,
             val routeName: String = "New Route",
             val waypoints: List<Waypoint> = emptyList(),
             val segmentOverrides: Map<Int, SegmentOverrides> = emptyMap(), // index = fromIndex
+            val origin: RouteEditorOrigin = RouteEditorOrigin.DRAFT,
+            val importedFilename: String? = null,
             val isSaving: Boolean = false,
             val error: String? = null,
+            val infoMessage: String? = null,
             val exportContent: Pair<String, String>? = null, // Pair(filename, content)
         ) {
             val canSave: Boolean get() = waypoints.size >= 2
@@ -77,6 +99,9 @@ class RouteEditorViewModel
                 _state.value.copy(
                     waypoints = _state.value.waypoints + wp,
                     error = null,
+                    infoMessage = null,
+                    origin = if (_state.value.persistedRouteId != null) RouteEditorOrigin.DRAFT else _state.value.origin,
+                    persistedRouteId = if (_state.value.persistedRouteId != null) null else _state.value.persistedRouteId,
                 )
         }
 
@@ -89,7 +114,13 @@ class RouteEditorViewModel
             val waypoints = _state.value.waypoints.toMutableList()
             val clamped = index.coerceIn(0, waypoints.size)
             waypoints.add(clamped, Waypoint(lat, lng))
-            _state.value = _state.value.copy(waypoints = waypoints)
+            _state.value =
+                _state.value.copy(
+                    waypoints = waypoints,
+                    origin = if (_state.value.persistedRouteId != null) RouteEditorOrigin.DRAFT else _state.value.origin,
+                    persistedRouteId = if (_state.value.persistedRouteId != null) null else _state.value.persistedRouteId,
+                    infoMessage = null,
+                )
         }
 
         /** Move an existing waypoint to new coordinates (e.g. after drag on map). */
@@ -101,7 +132,13 @@ class RouteEditorViewModel
             val waypoints = _state.value.waypoints.toMutableList()
             if (index !in waypoints.indices) return
             waypoints[index] = waypoints[index].copy(lat = lat, lng = lng)
-            _state.value = _state.value.copy(waypoints = waypoints)
+            _state.value =
+                _state.value.copy(
+                    waypoints = waypoints,
+                    origin = if (_state.value.persistedRouteId != null) RouteEditorOrigin.DRAFT else _state.value.origin,
+                    persistedRouteId = if (_state.value.persistedRouteId != null) null else _state.value.persistedRouteId,
+                    infoMessage = null,
+                )
         }
 
         /** Remove a waypoint by index. Also clears overrides referencing that segment. */
@@ -114,7 +151,14 @@ class RouteEditorViewModel
                 _state.value.segmentOverrides
                     .filterKeys { it != index }
                     .mapKeys { (k, _) -> if (k > index) k - 1 else k }
-            _state.value = _state.value.copy(waypoints = waypoints, segmentOverrides = shifted)
+            _state.value =
+                _state.value.copy(
+                    waypoints = waypoints,
+                    segmentOverrides = shifted,
+                    origin = if (_state.value.persistedRouteId != null) RouteEditorOrigin.DRAFT else _state.value.origin,
+                    persistedRouteId = if (_state.value.persistedRouteId != null) null else _state.value.persistedRouteId,
+                    infoMessage = null,
+                )
         }
 
         /** Clear all waypoints and overrides (reset the editor). */
@@ -145,20 +189,39 @@ class RouteEditorViewModel
             } else {
                 overrides[fromIndex] = override
             }
-            _state.value = _state.value.copy(segmentOverrides = overrides)
+            _state.value =
+                _state.value.copy(
+                    segmentOverrides = overrides,
+                    origin = if (_state.value.persistedRouteId != null) RouteEditorOrigin.DRAFT else _state.value.origin,
+                    persistedRouteId = if (_state.value.persistedRouteId != null) null else _state.value.persistedRouteId,
+                    infoMessage = null,
+                )
         }
 
         /** Clear all overrides for a segment. */
         fun clearSegmentOverride(fromIndex: Int) {
             val overrides = _state.value.segmentOverrides.toMutableMap()
             overrides.remove(fromIndex)
-            _state.value = _state.value.copy(segmentOverrides = overrides)
+            _state.value =
+                _state.value.copy(
+                    segmentOverrides = overrides,
+                    origin = if (_state.value.persistedRouteId != null) RouteEditorOrigin.DRAFT else _state.value.origin,
+                    persistedRouteId = if (_state.value.persistedRouteId != null) null else _state.value.persistedRouteId,
+                    infoMessage = null,
+                )
         }
 
         // ── Route name ────────────────────────────────────────────────────────────
 
         fun setRouteName(name: String) {
-            _state.value = _state.value.copy(routeName = name.trim().ifBlank { "New Route" })
+            val nextName = name.trim().ifBlank { "New Route" }
+            _state.value =
+                _state.value.copy(
+                    routeName = nextName,
+                    origin = if (_state.value.persistedRouteId != null) RouteEditorOrigin.DRAFT else _state.value.origin,
+                    persistedRouteId = if (_state.value.persistedRouteId != null) null else _state.value.persistedRouteId,
+                    infoMessage = null,
+                )
         }
 
         // ── Save / Load ───────────────────────────────────────────────────────────
@@ -182,10 +245,21 @@ class RouteEditorViewModel
             viewModelScope.launch {
                 runCatching {
                     val route = buildRoute(current)
-                    routeRepository.save(route, "manual")
+                    if (current.persistedRouteId != null) {
+                        routeRepository.update(route, "manual")
+                    } else {
+                        routeRepository.save(route, "manual")
+                    }
                     route
                 }.onSuccess {
-                    _state.value = _state.value.copy(isSaving = false)
+                    _state.value =
+                        _state.value.copy(
+                            isSaving = false,
+                            persistedRouteId = it.id,
+                            origin = RouteEditorOrigin.SAVED,
+                            importedFilename = null,
+                            infoMessage = "Route saved.",
+                        )
                 }.onFailure { e ->
                     _state.value = _state.value.copy(isSaving = false, error = e.message)
                 }
@@ -212,9 +286,12 @@ class RouteEditorViewModel
                 _state.value =
                     EditorState(
                         routeId = route.id,
+                        persistedRouteId = route.id,
                         routeName = route.name,
                         waypoints = route.waypoints,
                         segmentOverrides = overrides,
+                        origin = RouteEditorOrigin.SAVED,
+                        infoMessage = "Loaded saved route.",
                     )
             }
         }
@@ -223,6 +300,14 @@ class RouteEditorViewModel
         fun deleteRoute(routeId: String) {
             viewModelScope.launch {
                 routeRepository.deleteById(routeId)
+                if (_state.value.persistedRouteId == routeId) {
+                    _state.value =
+                        _state.value.copy(
+                            persistedRouteId = null,
+                            origin = RouteEditorOrigin.DRAFT,
+                            infoMessage = "Saved route deleted. Current draft preserved.",
+                        )
+                }
             }
         }
 
@@ -242,15 +327,20 @@ class RouteEditorViewModel
                 runCatching {
                     val validUri = RouteImportValidator.validateUri(uri).getOrThrow()
                     val displayName = RouteImportValidator.resolveDisplayName(context.contentResolver, validUri)
-                    context.contentResolver.openInputStream(validUri)?.use { input ->
-                        parser.parse(input, displayName).getOrThrow()
-                    } ?: error("Cannot open route file")
-                }.onSuccess { route ->
+                    val route =
+                        context.contentResolver.openInputStream(validUri)?.use { input ->
+                            parser.parse(input, displayName).getOrThrow()
+                        } ?: error("Cannot open route file")
+                    route to displayName
+                }.onSuccess { (route, displayName) ->
                     _state.value =
                         EditorState(
                             routeId = route.id,
                             routeName = route.name,
                             waypoints = route.waypoints,
+                            origin = RouteEditorOrigin.IMPORTED,
+                            importedFilename = displayName,
+                            infoMessage = "Imported route from ${displayName ?: "file"}.",
                             error = null,
                         )
                 }.onFailure { e ->
@@ -284,12 +374,56 @@ class RouteEditorViewModel
                     RouteFileParser.RouteFormat.TCX -> "tcx" to exporter.toTcx(route)
                 }
             val filename = "${route.name.replace(" ", "_")}.$ext"
-            _state.value = current.copy(exportContent = filename to content)
+            _state.value = current.copy(exportContent = filename to content, infoMessage = "Choose where to save $filename.")
         }
 
         /** Clear the pending export after the UI has handled it. */
         fun clearExport() {
             _state.value = _state.value.copy(exportContent = null)
+        }
+
+        fun clearInfoMessage() {
+            _state.value = _state.value.copy(infoMessage = null)
+        }
+
+        fun buildRouteSummary(): RouteEditorSummary? {
+            val route = buildCurrentRoute() ?: return null
+            val altitudeSourceLabel = if (route.waypoints.any { it.altitude != 0.0 }) "Altitude from route" else "Estimated altitude"
+            val (statusLabel, sourceLabel, startActionLabel, startActionHint) =
+                when (_state.value.origin) {
+                    RouteEditorOrigin.SAVED ->
+                        listOf(
+                            "Persisted",
+                            "Saved route",
+                            "Start with saved route",
+                            "Uses persisted route id for replay and quick-start surfaces.",
+                        )
+                    RouteEditorOrigin.IMPORTED ->
+                        listOf(
+                            "Imported",
+                            "Imported file",
+                            "Start with current draft",
+                            "Uses the current imported waypoints until you save the route.",
+                        )
+                    RouteEditorOrigin.DRAFT ->
+                        listOf(
+                            "Unsaved",
+                            "Editor draft",
+                            "Start with current draft",
+                            "Uses the current in-memory waypoints.",
+                        )
+                }
+
+            return RouteEditorSummary(
+                statusLabel = statusLabel,
+                sourceLabel = sourceLabel,
+                waypointCount = route.waypoints.size,
+                distanceMeters = route.distanceMeters,
+                overrideCount = _state.value.segmentOverrides.size,
+                altitudeSourceLabel = altitudeSourceLabel,
+                startActionLabel = startActionLabel,
+                startActionHint = startActionHint,
+            )
         }
 
         // ── Build domain Route ────────────────────────────────────────────────────
