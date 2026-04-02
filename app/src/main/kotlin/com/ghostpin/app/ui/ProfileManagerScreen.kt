@@ -153,10 +153,12 @@ fun ProfileManagerScreen(
                     viewModel.update(
                         id = updatedState.profileId,
                         updated = profile,
+                        onSuccess = {
+                            editorState = null
+                            pendingMessage = "Perfil atualizado: ${profile.name}"
+                        },
                         onError = { pendingMessage = it },
                     )
-                    editorState = null
-                    pendingMessage = "Perfil atualizado: ${profile.name}"
                 }
             },
         )
