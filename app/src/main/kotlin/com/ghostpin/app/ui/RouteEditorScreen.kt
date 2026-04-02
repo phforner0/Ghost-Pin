@@ -84,6 +84,17 @@ fun RouteEditorScreen(
         remember(state.waypoints, state.segmentOverrides, state.routeName, state.routeId) {
             viewModel.buildCurrentRoute()
         }
+    val routeSummary =
+        remember(
+            state.waypoints,
+            state.segmentOverrides,
+            state.routeName,
+            state.routeId,
+            state.persistedRouteId,
+            state.origin,
+        ) {
+            viewModel.buildRouteSummary()
+        }
     val previewRoute =
         remember(currentRoute, lowPerformanceDevice) {
             currentRoute?.let { downsampleRouteForPreview(it, lowPerformanceDevice) }
@@ -230,6 +241,35 @@ fun RouteEditorScreen(
                 }
             }
 
+            AnimatedVisibility(state.infoMessage != null, enter = fadeIn(), exit = fadeOut()) {
+                state.infoMessage?.let { info ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        colors = CardDefaults.cardColors(containerColor = GhostPinColors.PanelBackground),
+                        shape = RoundedCornerShape(10.dp),
+                    ) {
+                        Text(
+                            info,
+                            color = GhostPinColors.Primary,
+                            modifier = Modifier.padding(12.dp),
+                            fontSize = 13.sp,
+                        )
+                    }
+                    LaunchedEffect(info) {
+                        delay(1800)
+                        viewModel.clearInfoMessage()
+                    }
+                }
+            }
+
+            routeSummary?.let { summary ->
+                RouteSummaryCard(
+                    summary = summary,
+                    importedFilename = state.importedFilename,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+
             RoutePreviewCard(
                 route = previewRoute,
                 previewProgress = previewProgress,
@@ -243,6 +283,8 @@ fun RouteEditorScreen(
                     isPreviewPlaying = !isPreviewPlaying
                 },
                 onSpeedChange = { previewSpeed = it },
+                startActionLabel = routeSummary?.startActionLabel ?: "Start with current draft",
+                startActionHint = routeSummary?.startActionHint,
                 onStartWithRoute = { currentRoute?.let(onRouteReady) },
             )
 
@@ -441,6 +483,37 @@ private data class ElevationProfile(
 )
 
 @Composable
+private fun RouteSummaryCard(
+    summary: RouteEditorViewModel.RouteEditorSummary,
+    importedFilename: String?,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = GhostPinColors.Surface),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(onClick = {}, enabled = false, label = { Text(summary.statusLabel) })
+                AssistChip(onClick = {}, enabled = false, label = { Text(summary.sourceLabel) })
+            }
+            Text(
+                text =
+                    "${summary.waypointCount} waypoints · ${summary.distanceMeters.toKilometersLabel()} · ${summary.overrideCount} overrides",
+                color = GhostPinColors.TextPrimary,
+                fontWeight = FontWeight.Medium,
+                fontSize = 13.sp,
+            )
+            Text(summary.altitudeSourceLabel, color = GhostPinColors.TextSecondary, fontSize = 12.sp)
+            importedFilename?.let {
+                Text("Imported from $it", color = GhostPinColors.TextTertiary, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
 private fun RoutePreviewCard(
     route: Route?,
     previewProgress: Float,
@@ -448,6 +521,8 @@ private fun RoutePreviewCard(
     previewSpeed: Float,
     elevationProfile: ElevationProfile?,
     simplifiedPreview: Boolean,
+    startActionLabel: String,
+    startActionHint: String?,
     onSeek: (Float) -> Unit,
     onPlayPause: () -> Unit,
     onSpeedChange: (Float) -> Unit,
@@ -524,12 +599,18 @@ private fun RoutePreviewCard(
                     enabled = route != null && route.waypoints.size >= 2,
                     colors = ButtonDefaults.buttonColors(containerColor = GhostPinColors.Primary),
                 ) {
-                    Text("Iniciar com esta rota", color = GhostPinColors.Background)
+                    Text(startActionLabel, color = GhostPinColors.Background)
                 }
+            }
+            startActionHint?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(it, color = GhostPinColors.TextTertiary, fontSize = 12.sp)
             }
         }
     }
 }
+
+private fun Double.toKilometersLabel(): String = String.format("%.2f km", this / 1000.0)
 
 @Composable
 private fun RoutePathPreview(
