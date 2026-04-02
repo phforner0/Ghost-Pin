@@ -306,7 +306,16 @@ private fun GhostPinTopBarActions(
         ) {
             favoriteSimulations.forEach { favorite ->
                 DropdownMenuItem(
-                    text = { Text(favorite.name) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(favorite.name)
+                            Text(
+                                favorite.summaryLine(),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
                     onClick = {
                         favoritesExpanded = false
                         viewModel.applyFavoriteById(favorite.id)
@@ -315,7 +324,16 @@ private fun GhostPinTopBarActions(
             }
             if (favoriteSimulations.isEmpty()) {
                 DropdownMenuItem(
-                    text = { Text("Nenhum favorito salvo") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Nenhum favorito salvo")
+                            Text(
+                                "Salve a sessão atual para reaplicar depois.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
                     onClick = { favoritesExpanded = false },
                 )
             }

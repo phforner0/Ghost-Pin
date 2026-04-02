@@ -470,10 +470,16 @@ class SimulationViewModel
         fun saveCurrentAsFavorite(name: String? = null) {
             viewModelScope.launch {
                 val trimmedName = name?.trim().orEmpty()
-                val favoriteName = if (trimmedName.isNotBlank()) trimmedName else "Favorite ${System.currentTimeMillis()}"
+                val currentConfig = buildCurrentConfig()
+                val favoriteName =
+                    if (trimmedName.isNotBlank()) {
+                        trimmedName
+                    } else {
+                        currentConfig.favoriteNameSuggestion()
+                    }
                 repository.saveFavorite(
                     name = favoriteName,
-                    config = buildCurrentConfig(),
+                    config = currentConfig,
                 )
                 _uiEvents.emit("Favorito salvo: $favoriteName")
             }

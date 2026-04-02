@@ -21,6 +21,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.ghostpin.app.data.db.SimulationHistoryEntity
@@ -33,6 +34,7 @@ import java.util.Locale
 fun HistoryScreen(
     viewModel: HistoryViewModel,
     onBack: () -> Unit,
+    onApply: (SimulationHistoryEntity) -> Unit,
     onReplay: (SimulationHistoryEntity) -> Unit,
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -72,7 +74,11 @@ fun HistoryScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(state.items, key = { it.id }) { item ->
-                        HistoryItemCard(item = item, onReplay = { onReplay(item) })
+                        HistoryItemCard(
+                            item = item,
+                            onApply = { onApply(item) },
+                            onReplay = { onReplay(item) },
+                        )
                     }
                 }
             }
@@ -97,6 +103,7 @@ fun HistoryScreen(
 @Composable
 private fun HistoryItemCard(
     item: SimulationHistoryEntity,
+    onApply: () -> Unit,
     onReplay: () -> Unit,
 ) {
     Card {
@@ -108,13 +115,27 @@ private fun HistoryItemCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(item.profileName, style = MaterialTheme.typography.titleMedium)
+            Text(
+                item.summaryLine(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text("Início: ${item.startedAtMs.asDateTime()}")
-            Text("Status: ${item.resultStatus}")
+            Text("Status: ${item.statusLabel()}")
             Text("Distância: ${"%.1f".format(Locale.US, item.distanceMeters)} m")
             Text("Duração: ${item.durationMs?.let(::formatDurationMs) ?: "-"}")
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            item.avgSpeedLabel()?.let { avgSpeed ->
+                Text("Velocidade média: $avgSpeed")
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            ) {
+                OutlinedButton(onClick = onApply) {
+                    Text("Carregar")
+                }
                 Button(onClick = onReplay) {
-                    Text("Repetir simulação")
+                    Text("Repetir")
                 }
             }
         }
