@@ -62,6 +62,43 @@ class ProfileManagerScreenTest {
     }
 
     @Test
+    fun existingProfile_canUseAndAnalyzeFromManagementScreen() {
+        val dao =
+            FakeProfileDao(
+                listOf(
+                    ProfileEntity.fromDomain(
+                        profile = MovementProfile.CAR.copy(name = "Scout"),
+                        id = "custom-scout",
+                        isBuiltIn = false,
+                        isCustom = true,
+                    )
+                )
+            )
+        val viewModel = ProfileManagerViewModel(ProfileManager(dao))
+        var usedProfileName: String? = null
+
+        composeRule.setContent {
+            GhostPinTheme {
+                ProfileManagerScreen(
+                    onBack = {},
+                    onUseProfile = {},
+                    onUseAndAnalyze = { usedProfileName = it.name },
+                    viewModel = viewModel,
+                )
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Scout").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("use_analyze_custom-scout").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals("Scout", usedProfileName)
+        }
+    }
+
+    @Test
     fun createProfile_dialogValidatesAndSaves() {
         val dao = FakeProfileDao(emptyList())
         val viewModel = ProfileManagerViewModel(ProfileManager(dao))
@@ -91,6 +128,41 @@ class ProfileManagerScreenTest {
             dao.currentProfiles.value.any { it.name == "Runner X" }
         }
         assertTrue(composeRule.onAllNodesWithText("Runner X").fetchSemanticsNodes().isNotEmpty())
+    }
+
+    @Test
+    fun createProfile_rejectsDuplicateNameInline() {
+        val dao =
+            FakeProfileDao(
+                listOf(
+                    ProfileEntity.fromDomain(
+                        profile = MovementProfile.CAR.copy(name = "Scout"),
+                        id = "custom-scout",
+                        isBuiltIn = false,
+                        isCustom = true,
+                    )
+                )
+            )
+        val viewModel = ProfileManagerViewModel(ProfileManager(dao))
+
+        composeRule.setContent {
+            GhostPinTheme {
+                ProfileManagerScreen(
+                    onBack = {},
+                    onUseProfile = {},
+                    viewModel = viewModel,
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("add_profile_button").performClick()
+        composeRule.onNodeWithTag("profile_name_field").performTextClearance()
+        composeRule.onNodeWithTag("profile_name_field").performTextInput("Scout")
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Nome já em uso").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("profile_save_button").assertIsNotEnabled()
     }
 
     private class FakeProfileDao(

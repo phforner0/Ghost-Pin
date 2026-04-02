@@ -119,17 +119,19 @@ class ProfileManager
             profile: MovementProfile,
             name: String = profile.name
         ): String {
+            val normalizedName = name.trim().ifBlank { profile.name }
+            ensureUniqueName(normalizedName)
             val id = UUID.randomUUID().toString()
             val entity =
                 ProfileEntity.fromDomain(
-                    profile = profile.copy(name = name),
+                    profile = profile.copy(name = normalizedName),
                     id = id,
                     isBuiltIn = false,
                     isCustom = true,
                     version = "1.0.0",
                 )
             dao.insert(entity)
-            Log.d(TAG, LogSanitizer.sanitizeString("Profile created: id=$id name=$name"))
+            Log.d(TAG, LogSanitizer.sanitizeString("Profile created: id=$id name=$normalizedName"))
             return id
         }
 
@@ -152,6 +154,7 @@ class ProfileManager
             check(!existing.isBuiltIn) {
                 "Cannot modify built-in profile '${existing.name}' (id=$id)"
             }
+            ensureUniqueName(updated.name, excludingId = id)
 
             val newVersion = bumpPatch(existing.version)
             val entity =
@@ -191,11 +194,12 @@ class ProfileManager
                     Log.w(TAG, LogSanitizer.sanitizeString("Clone failed: source not found (id=$sourceId)"))
                     return null
                 }
+            ensureUniqueName(newName)
             val cloneId = UUID.randomUUID().toString()
             val clone =
                 source.copy(
                     id = cloneId,
-                    name = newName,
+                    name = newName.trim(),
                     isBuiltIn = false,
                     isCustom = true,
                     version = "1.0.0",
@@ -242,5 +246,19 @@ class ProfileManager
                 Log.w(TAG, LogSanitizer.sanitizeString("Invalid semver '$version' — resetting to 1.0.1"))
                 "1.0.1"
             }
+        }
+
+        private suspend fun ensureUniqueName(
+            name: String,
+            excludingId: String? = null,
+        ) {
+            val normalized = name.trim()
+            require(normalized.isNotBlank()) { "Profile name cannot be blank." }
+
+            val duplicate =
+                dao.getAll().firstOrNull {
+                    it.id != excludingId && it.name.equals(normalized, ignoreCase = true)
+                }
+            require(duplicate == null) { "Já existe um perfil com esse nome." }
         }
     }

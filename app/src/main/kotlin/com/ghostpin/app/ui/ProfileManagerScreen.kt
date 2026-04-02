@@ -2,6 +2,8 @@ package com.ghostpin.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +22,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -51,20 +54,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.ghostpin.app.BuildConfig
 import com.ghostpin.app.data.db.ProfileEntity
 import com.ghostpin.core.model.MovementProfile
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileManagerScreen(
     onBack: () -> Unit,
     onUseProfile: (MovementProfile) -> Unit,
+    onUseAndAnalyze: (MovementProfile) -> Unit = {},
     viewModel: ProfileManagerViewModel = hiltViewModel(),
 ) {
     val profiles by viewModel.profiles.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var editorState by remember { mutableStateOf<ProfileEditorState?>(null) }
     var deleteTarget by remember { mutableStateOf<ProfileEntity?>(null) }
+    var showPresetDialog by remember { mutableStateOf(false) }
 
     var pendingMessage by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(pendingMessage) {
@@ -84,8 +90,7 @@ fun ProfileManagerScreen(
                 actions = {
                     IconButton(
                         onClick = {
-                            editorState =
-                                ProfileEditorState.create(MovementProfile.PEDESTRIAN.copy(name = "Custom Profile"))
+                            showPresetDialog = true
                         },
                         modifier = Modifier.testTag("add_profile_button"),
                     ) {
@@ -108,8 +113,10 @@ fun ProfileManagerScreen(
                 ProfileCard(
                     profile = profile,
                     onUse = { onUseProfile(profile.toDomain()) },
+                    onUseAndAnalyze = { onUseAndAnalyze(profile.toDomain()) },
                     onClone = {
-                        editorState = ProfileEditorState.create(profile.toDomain().copy(name = "${profile.name} Copy"))
+                        val suggestedName = nextAvailableProfileName("${profile.name} Copy", profiles)
+                        editorState = ProfileEditorState.create(profile.toDomain().copy(name = suggestedName))
                     },
                     onEdit = {
                         editorState = ProfileEditorState.edit(profile.id, profile.toDomain())
@@ -125,6 +132,7 @@ fun ProfileManagerScreen(
     editorState?.let { state ->
         ProfileEditorDialog(
             initialState = state,
+            existingProfiles = profiles,
             onDismiss = { editorState = null },
             onSave = { updatedState ->
                 val profile =
@@ -154,6 +162,17 @@ fun ProfileManagerScreen(
         )
     }
 
+    if (showPresetDialog) {
+        PresetPickerDialog(
+            onDismiss = { showPresetDialog = false },
+            onSelectPreset = { preset ->
+                showPresetDialog = false
+                val suggestedName = nextAvailableProfileName("${preset.name} Copy", profiles)
+                editorState = ProfileEditorState.create(preset.copy(name = suggestedName))
+            },
+        )
+    }
+
     deleteTarget?.let { profile ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
@@ -176,14 +195,17 @@ fun ProfileManagerScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ProfileCard(
     profile: ProfileEntity,
     onUse: () -> Unit,
+    onUseAndAnalyze: () -> Unit,
     onClone: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val heuristics = remember(profile) { profileHeuristics(profile.toDomain()) }
     Card(
         modifier = Modifier.fillMaxWidth().testTag("profile_card_${profile.id}"),
         shape = RoundedCornerShape(14.dp),
@@ -208,11 +230,29 @@ private fun ProfileCard(
             Text("Aceleração máx: ${"%.1f".format(profile.maxAccelMs2)} m/s²")
             Text("Turn rate máx: ${"%.1f".format(profile.maxTurnRateDegPerSec)} deg/s")
 
+            if (heuristics.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    heuristics.forEach { label ->
+                        AssistChip(onClick = {}, enabled = false, label = { Text(label) })
+                    }
+                }
+            }
+
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onUse) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null)
                     Spacer(Modifier.padding(2.dp))
                     Text("Usar")
+                }
+                if (BuildConfig.REALISM_DIAGNOSTICS_ENABLED) {
+                    TextButton(onClick = onUseAndAnalyze, modifier = Modifier.testTag("use_analyze_${profile.id}")) {
+                        Icon(Icons.Default.Science, contentDescription = null)
+                        Spacer(Modifier.padding(2.dp))
+                        Text("Usar e analisar")
+                    }
                 }
                 TextButton(onClick = onClone) {
                     Icon(Icons.Default.ContentCopy, contentDescription = null)
@@ -239,13 +279,14 @@ private fun ProfileCard(
 @Composable
 private fun ProfileEditorDialog(
     initialState: ProfileEditorState,
+    existingProfiles: List<ProfileEntity>,
     onDismiss: () -> Unit,
     onSave: (ProfileEditorState) -> Unit,
 ) {
     var state by rememberSaveable(initialState.profileId, stateSaver = ProfileEditorState.Saver) {
         mutableStateOf(initialState)
     }
-    val validation = remember(state) { ProfileValidation.from(state) }
+    val validation = remember(state, existingProfiles) { ProfileValidation.from(state, existingProfiles) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -381,6 +422,40 @@ private fun ProfileEditorDialog(
 }
 
 @Composable
+private fun PresetPickerDialog(
+    onDismiss: () -> Unit,
+    onSelectPreset: (MovementProfile) -> Unit,
+) {
+    val presets =
+        listOf(
+            "A partir de Pedestrian" to MovementProfile.PEDESTRIAN,
+            "A partir de Car" to MovementProfile.CAR,
+            "A partir de Bicycle" to MovementProfile.BICYCLE,
+        )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Novo perfil") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                presets.forEach { (label, preset) ->
+                    Button(
+                        onClick = { onSelectPreset(preset) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(label)
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        },
+    )
+}
+
+@Composable
 private fun ProfileField(
     label: String,
     value: String,
@@ -428,10 +503,21 @@ private data class ProfileValidation(
     val nameError: String? = null,
 ) {
     companion object {
-        fun from(state: ProfileEditorState): ProfileValidation {
+        fun from(
+            state: ProfileEditorState,
+            existingProfiles: List<ProfileEntity>,
+        ): ProfileValidation {
             val trimmedName = state.name.trim()
             if (trimmedName.isBlank()) {
                 return ProfileValidation(false, "Informe um nome para o perfil.", nameError = "Nome obrigatório")
+            }
+
+            val duplicate =
+                existingProfiles.firstOrNull {
+                    it.id != state.profileId && it.name.equals(trimmedName, ignoreCase = true)
+                }
+            if (duplicate != null) {
+                return ProfileValidation(false, "Já existe um perfil com esse nome.", nameError = "Nome já em uso")
             }
 
             val numericValues =
@@ -471,6 +557,21 @@ private data class ProfileValidation(
 
             return ProfileValidation(true, "")
         }
+    }
+}
+
+private fun nextAvailableProfileName(
+    baseName: String,
+    profiles: List<ProfileEntity>,
+): String {
+    val trimmedBase = baseName.trim()
+    if (profiles.none { it.name.equals(trimmedBase, ignoreCase = true) }) return trimmedBase
+
+    var index = 2
+    while (true) {
+        val candidate = "$trimmedBase $index"
+        if (profiles.none { it.name.equals(candidate, ignoreCase = true) }) return candidate
+        index++
     }
 }
 
